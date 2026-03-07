@@ -1,0 +1,60 @@
+{
+  "type": "FeatureCollection",
+  "name": "sample_dong_boundaries",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "dong_name": "샘플동 A"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [126.9721, 37.5690],
+            [126.9760, 37.5690],
+            [126.9760, 37.5669],
+            [126.9721, 37.5669],
+            [126.9721, 37.5690]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "dong_name": "샘플동 B"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [126.9760, 37.5690],
+            [126.9800, 37.5690],
+            [126.9800, 37.5669],
+            [126.9760, 37.5669],
+            [126.9760, 37.5690]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "dong_name": "샘플동 C"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [126.9721, 37.5669],
+            [126.9800, 37.5669],
+            [126.9800, 37.5643],
+            [126.9721, 37.5643],
+            [126.9721, 37.5669]
+          ]
+        ]
+      }
+    }
+  ]
+}

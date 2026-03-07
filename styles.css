@@ -1,0 +1,276 @@
+:root {
+  --bg-1: #f4f7fb;
+  --bg-2: #e8f0fa;
+  --panel: #ffffff;
+  --text: #132238;
+  --muted: #4f6076;
+  --line: #d4deeb;
+  --primary: #0e4d92;
+  --primary-hover: #0b3d73;
+  --danger: #b42318;
+  --radius: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: "Pretendard", "Noto Sans KR", sans-serif;
+  color: var(--text);
+  background: linear-gradient(150deg, var(--bg-1), var(--bg-2));
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.layout {
+  min-height: 100%;
+  padding: 16px;
+}
+
+.panel {
+  max-width: 420px;
+  margin: 48px auto;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: 0 14px 40px rgba(7, 34, 71, 0.08);
+  display: grid;
+  gap: 14px;
+}
+
+.status {
+  min-height: 24px;
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.app-shell {
+  height: calc(100vh - 32px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: 0 12px 36px rgba(13, 32, 63, 0.09);
+  overflow: hidden;
+}
+
+.topbar {
+  height: 72px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.topbar h2 {
+  font-size: 20px;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-email {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef4fc;
+}
+
+.workspace {
+  height: calc(100% - 72px);
+  display: grid;
+  grid-template-columns: 360px 1fr;
+}
+
+.side-panel {
+  border-right: 1px solid var(--line);
+  padding: 16px;
+  overflow: auto;
+}
+
+.side-panel h3 {
+  margin-bottom: 8px;
+}
+
+#spot-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.coord-box {
+  margin-top: 4px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.btn-primary,
+.btn-secondary {
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  padding: 10px 12px;
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.btn-secondary {
+  background: #eff3f8;
+  color: #223450;
+  padding: 9px 11px;
+}
+
+.btn-small {
+  font-size: 12px;
+  padding: 6px 9px;
+}
+
+.list-title {
+  margin-top: 18px;
+}
+
+.spot-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.spot-item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  cursor: pointer;
+  background: #fcfdff;
+}
+
+.spot-item:hover {
+  background: #f4f8fd;
+}
+
+.spot-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.spot-badge {
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: #fff;
+}
+
+.spot-memo {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.empty {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.map {
+  width: 100%;
+  height: 100%;
+}
+
+.map-popup {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 10px));
+  min-width: 200px;
+  max-width: 260px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #1b2d47;
+  box-shadow: 0 10px 30px rgba(5, 23, 48, 0.18);
+  pointer-events: none;
+}
+
+@media (max-width: 980px) {
+  .app-shell {
+    height: auto;
+    min-height: calc(100vh - 32px);
+  }
+
+  .workspace {
+    height: auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 56vh;
+  }
+
+  .side-panel {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+}

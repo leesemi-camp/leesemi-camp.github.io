@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isStaff() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/meta/staff_allowlist)
+        && request.auth.token.email in get(/databases/$(database)/documents/meta/staff_allowlist).data.emails;
+    }
+
+    match /crowd_hotspots/{docId} {
+      allow read, write: if isStaff();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
