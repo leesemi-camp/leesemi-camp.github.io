@@ -189,6 +189,43 @@ textarea {
   margin-top: 18px;
 }
 
+.overlay-title {
+  margin-top: 18px;
+}
+
+.overlay-controls {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.overlay-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: #fcfdff;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.overlay-toggle:hover {
+  background: #f4f8fd;
+}
+
+.overlay-toggle input {
+  width: auto;
+  margin: 0;
+}
+
+.overlay-status {
+  min-height: 18px;
+  margin-top: 8px;
+}
+
 .spot-list {
   margin: 8px 0 0;
   padding: 0;

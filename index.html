@@ -65,6 +65,34 @@
             <button type="submit" class="btn-primary">지점 저장</button>
           </form>
 
+          <h3 class="overlay-title">교통 오버레이</h3>
+          <p class="muted">View-T 연계 데이터 토글</p>
+          <div id="overlay-controls" class="overlay-controls">
+            <label class="overlay-toggle">
+              <input id="toggle-vehicle-flow" type="checkbox">
+              차량 통행 많은 곳
+            </label>
+            <label class="overlay-toggle">
+              <input id="toggle-pedestrian-flow" type="checkbox">
+              보행 유동 많은 곳
+            </label>
+          </div>
+          <p id="overlay-status" class="muted overlay-status"></p>
+
+          <h3 class="overlay-title">수도권 생활이동 인구</h3>
+          <p class="muted">시간대별 유입 인구(행정동/250m 격자)</p>
+          <div class="overlay-controls">
+            <label class="overlay-toggle">
+              <input id="toggle-population-flow" type="checkbox">
+              시간대 인구 많은 지역 보기
+            </label>
+            <label for="population-month">월</label>
+            <select id="population-month"></select>
+            <label for="population-hour">시간대</label>
+            <select id="population-hour"></select>
+          </div>
+          <p id="population-status" class="muted overlay-status"></p>
+
           <h3 class="list-title">등록된 지점</h3>
           <ul id="spot-list" class="spot-list"></ul>
         </aside>
