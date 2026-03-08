@@ -2246,9 +2246,27 @@
         renderHotspotList(hotspots);
       },
       (error) => {
-        window.alert("혼잡 지점 조회 실패: " + toMessage(error));
+        clearHotspotFeatures();
+        renderHotspotList([]);
+        if (isFirestorePermissionError(error)) {
+          console.warn("[hotspot-subscribe] insufficient permissions");
+          return;
+        }
+        console.error("[hotspot-subscribe]", toMessage(error));
       }
     );
+  }
+
+  function isFirestorePermissionError(error) {
+    if (!error || typeof error !== "object") {
+      return false;
+    }
+    const code = String(error.code || "").toLowerCase();
+    if (code === "permission-denied") {
+      return true;
+    }
+    const message = toMessage(error).toLowerCase();
+    return message.includes("missing or insufficient permissions");
   }
 
   function stopHotspotSubscription() {

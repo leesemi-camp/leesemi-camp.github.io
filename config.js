@@ -101,6 +101,6 @@ window.APP_CONFIG = {
     },
     defaultMonth: "202506",
     defaultHour: 8,
-    visibleByDefault: true
+    visibleByDefault: false
   }
 };
