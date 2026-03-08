@@ -44,7 +44,8 @@
       vehicle: new Map(),
       pedestrian: new Map()
     },
-    unsubscribeHotspots: null
+    unsubscribeHotspots: null,
+    editingHotspotId: null
   };
 
   const hotspotColors = {
@@ -84,6 +85,8 @@
     latInput: document.getElementById("spot-lat"),
     lngInput: document.getElementById("spot-lng"),
     clearCoordButton: document.getElementById("clear-coord-btn"),
+    spotSubmitButton: document.getElementById("spot-submit-btn"),
+    cancelSpotEditButton: document.getElementById("spot-cancel-edit-btn"),
     spotList: document.getElementById("spot-list"),
     toggleVehicleFlow: document.getElementById("toggle-vehicle-flow"),
     togglePedestrianFlow: document.getElementById("toggle-pedestrian-flow"),
@@ -153,6 +156,12 @@
       clearSelectedCoord();
     });
 
+    if (elements.cancelSpotEditButton) {
+      elements.cancelSpotEditButton.addEventListener("click", () => {
+        exitHotspotEditMode(true);
+      });
+    }
+
     if (elements.toggleVehicleFlow) {
       elements.toggleVehicleFlow.addEventListener("change", () => {
         void handleOverlayToggle("vehicle", elements.toggleVehicleFlow.checked);
@@ -202,6 +211,27 @@
       if (!(target instanceof HTMLElement)) {
         return;
       }
+
+      const actionButton = target.closest("[data-action][data-spot-id]");
+      if (actionButton) {
+        const action = String(actionButton.getAttribute("data-action") || "");
+        const spotId = String(actionButton.getAttribute("data-spot-id") || "");
+        if (!spotId) {
+          return;
+        }
+        if (action === "edit-spot") {
+          const editSpot = state.hotspotData.get(spotId);
+          if (editSpot) {
+            enterHotspotEditMode(editSpot);
+          }
+          return;
+        }
+        if (action === "delete-spot") {
+          void deleteHotspot(spotId);
+          return;
+        }
+      }
+
       const item = target.closest("[data-spot-id]");
       if (!item || !state.map || !state.hotspotSource) {
         return;
@@ -227,6 +257,7 @@
   async function onAuthStateChanged(user) {
     if (!user) {
       state.currentUser = null;
+      exitHotspotEditMode(true);
       stopHotspotSubscription();
       clearHotspotFeatures();
       resetOverlayState();
@@ -2295,6 +2326,10 @@
       state.hotspotSource.addFeature(feature);
       state.hotspotData.set(spot.id, spot);
     });
+
+    if (state.editingHotspotId && !state.hotspotData.has(state.editingHotspotId)) {
+      exitHotspotEditMode(true);
+    }
   }
 
   function clearHotspotFeatures() {
@@ -2336,13 +2371,18 @@
       const title = escapeHtml(spot.title);
       const memo = escapeHtml(spot.memo || "메모 없음");
       const color = hotspotColors[spot.level] || hotspotColors[3];
+      const safeId = escapeHtml(spot.id);
       return (
-        "<li class='spot-item' data-spot-id='" + escapeHtml(spot.id) + "'>" +
+        "<li class='spot-item' data-spot-id='" + safeId + "'>" +
           "<div class='spot-item-top'>" +
             "<strong>" + title + "</strong>" +
             "<span class='spot-badge' style='background:" + color + ";'>Lv." + String(spot.level) + "</span>" +
           "</div>" +
           "<div class='spot-memo'>" + memo + "</div>" +
+          "<div class='spot-item-actions'>" +
+            "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='edit-spot' data-spot-id='" + safeId + "'>수정</button>" +
+            "<button type='button' class='btn-secondary btn-small spot-action-btn danger' data-action='delete-spot' data-spot-id='" + safeId + "'>삭제</button>" +
+          "</div>" +
         "</li>"
       );
     });
@@ -2387,13 +2427,93 @@
     const collectionName = (config.data && config.data.hotspotCollection)
       ? config.data.hotspotCollection
       : "crowd_hotspots";
+    const editingSpotId = state.editingHotspotId;
 
     try {
-      await state.db.collection(collectionName).add(payload);
-      elements.form.reset();
-      clearSelectedCoord();
+      if (editingSpotId) {
+        await state.db.collection(collectionName).doc(editingSpotId).update(payload);
+      } else {
+        await state.db.collection(collectionName).add(payload);
+      }
+      exitHotspotEditMode(true);
     } catch (error) {
       window.alert("지점 저장 실패: " + toMessage(error));
+    }
+  }
+
+  function enterHotspotEditMode(spot) {
+    if (!spot || !elements.form) {
+      return;
+    }
+
+    state.editingHotspotId = spot.id || null;
+    const titleInput = elements.form.querySelector("#spot-title");
+    const levelInput = elements.form.querySelector("#spot-level");
+    const memoInput = elements.form.querySelector("#spot-memo");
+
+    if (titleInput) {
+      titleInput.value = spot.title || "";
+    }
+    if (levelInput) {
+      levelInput.value = String(Number(spot.level) || 3);
+    }
+    if (memoInput) {
+      memoInput.value = spot.memo || "";
+    }
+
+    if (Number.isFinite(spot.lat) && Number.isFinite(spot.lng)) {
+      setSelectedCoord(Number(spot.lat), Number(spot.lng));
+    }
+
+    if (elements.spotSubmitButton) {
+      elements.spotSubmitButton.textContent = "수정 저장";
+    }
+    if (elements.cancelSpotEditButton) {
+      elements.cancelSpotEditButton.classList.remove("hidden");
+    }
+  }
+
+  function exitHotspotEditMode(resetForm) {
+    state.editingHotspotId = null;
+    if (elements.spotSubmitButton) {
+      elements.spotSubmitButton.textContent = "지점 저장";
+    }
+    if (elements.cancelSpotEditButton) {
+      elements.cancelSpotEditButton.classList.add("hidden");
+    }
+    if (resetForm) {
+      elements.form.reset();
+      clearSelectedCoord();
+    }
+  }
+
+  async function deleteHotspot(spotId) {
+    if (!state.currentUser) {
+      window.alert("로그인 상태가 아닙니다.");
+      return;
+    }
+    const targetId = String(spotId || "");
+    if (!targetId) {
+      return;
+    }
+
+    const spot = state.hotspotData.get(targetId);
+    const title = spot && spot.title ? String(spot.title) : "이 지점";
+    const confirmed = window.confirm("'" + title + "' 지점을 삭제할까요?");
+    if (!confirmed) {
+      return;
+    }
+
+    const collectionName = (config.data && config.data.hotspotCollection)
+      ? config.data.hotspotCollection
+      : "crowd_hotspots";
+    try {
+      await state.db.collection(collectionName).doc(targetId).delete();
+      if (state.editingHotspotId === targetId) {
+        exitHotspotEditMode(true);
+      }
+    } catch (error) {
+      window.alert("지점 삭제 실패: " + toMessage(error));
     }
   }
 
