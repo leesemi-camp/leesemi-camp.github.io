@@ -24,88 +24,75 @@
 
     <section id="app-shell" class="app-shell hidden" aria-live="polite">
       <header class="topbar">
-        <div>
-          <h2>선거구 운영 현황</h2>
-          <p class="muted">동 경계 + 혼잡 지점 공유</p>
-        </div>
+        <h2 class="topbar-title">선거구 운영 현황</h2>
         <div class="topbar-actions">
-          <span id="user-email" class="user-email"></span>
-          <button id="logout-btn" type="button" class="btn-secondary">로그아웃</button>
+          <button id="logout-btn" type="button" class="icon-btn" aria-label="로그아웃" title="로그아웃">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 3h-7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7"/>
+              <path d="M10 12h10"/>
+              <path d="m17 7 5 5-5 5"/>
+            </svg>
+          </button>
         </div>
       </header>
 
       <section class="workspace">
+        <div class="map-wrap">
+          <div id="map" class="map" role="application" aria-label="선거구 지도"></div>
+          <button id="mobile-current-location-btn" type="button" class="mobile-map-action">현위치 입력</button>
+          <div id="map-popup" class="map-popup hidden" aria-hidden="true"></div>
+        </div>
+
         <aside class="side-panel">
-          <h3>혼잡 지점 등록</h3>
-          <p class="muted">지도 클릭으로 좌표 선택 후 저장</p>
+          <section id="spot-form-sheet" class="spot-form-sheet">
+            <div class="spot-form-head">
+              <h3>혼잡 지점 등록</h3>
+              <button id="spot-form-close-btn" type="button" class="icon-btn spot-form-close-btn" aria-label="등록 창 닫기" title="닫기">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6 6 18"/>
+                </svg>
+              </button>
+            </div>
+            <p class="muted spot-form-hint">지도 클릭 또는 현위치 입력 후 저장</p>
 
-          <form id="spot-form">
-            <label for="spot-title">지점명</label>
-            <input id="spot-title" name="title" type="text" maxlength="40" required>
+            <form id="spot-form">
+              <label for="spot-title">지점명</label>
+              <input id="spot-title" name="title" type="text" maxlength="40" required>
 
-            <label for="spot-level">혼잡도</label>
-            <select id="spot-level" name="level" required>
-              <option value="1">1 (여유)</option>
-              <option value="2">2</option>
-              <option value="3" selected>3 (보통)</option>
-              <option value="4">4</option>
-              <option value="5">5 (매우 혼잡)</option>
-            </select>
+              <label for="spot-level">혼잡도</label>
+              <select id="spot-level" name="level" required>
+                <option value="1">1 (여유)</option>
+                <option value="2">2</option>
+                <option value="3" selected>3 (보통)</option>
+                <option value="4">4</option>
+                <option value="5">5 (매우 혼잡)</option>
+              </select>
 
-            <label for="spot-memo">메모</label>
-            <textarea id="spot-memo" name="memo" rows="3" maxlength="200" placeholder="예: 점심시간 12:00~13:00 대기열 길어짐"></textarea>
+              <label for="spot-memo">메모</label>
+              <textarea id="spot-memo" name="memo" rows="3" maxlength="200" placeholder="예: 점심시간 12:00~13:00 대기열 길어짐"></textarea>
 
-            <div class="coord-box">
-              <div id="selected-coord">좌표 미선택</div>
-              <div class="coord-actions">
-                <button id="use-current-location-btn" type="button" class="btn-secondary btn-small">내 위치 불러오기</button>
-                <button id="clear-coord-btn" type="button" class="btn-secondary btn-small">좌표 해제</button>
+              <div class="coord-box">
+                <div id="selected-coord">좌표 미선택</div>
+                <div class="coord-actions">
+                  <button id="use-current-location-btn" type="button" class="btn-secondary btn-small">내 위치 불러오기</button>
+                  <button id="clear-coord-btn" type="button" class="btn-secondary btn-small">좌표 해제</button>
+                </div>
               </div>
-            </div>
-            <input id="spot-lat" name="lat" type="hidden">
-            <input id="spot-lng" name="lng" type="hidden">
+              <input id="spot-lat" name="lat" type="hidden">
+              <input id="spot-lng" name="lng" type="hidden">
 
-            <div class="form-actions">
-              <button id="spot-submit-btn" type="submit" class="btn-primary">지점 저장</button>
-              <button id="spot-cancel-edit-btn" type="button" class="btn-secondary hidden">수정 취소</button>
-            </div>
-          </form>
-
-          <h3 class="overlay-title">교통 오버레이</h3>
-          <p class="muted">View-T 연계 데이터 토글</p>
-          <div id="overlay-controls" class="overlay-controls">
-            <label class="overlay-toggle">
-              <input id="toggle-vehicle-flow" type="checkbox">
-              차량 통행 많은 곳
-            </label>
-            <label class="overlay-toggle">
-              <input id="toggle-pedestrian-flow" type="checkbox">
-              보행 유동 많은 곳
-            </label>
-          </div>
-          <p id="overlay-status" class="muted overlay-status"></p>
-
-          <h3 class="overlay-title">수도권 생활이동 인구</h3>
-          <p class="muted">시간대별 유입 인구(행정동/250m 격자)</p>
-          <div class="overlay-controls">
-            <label class="overlay-toggle">
-              <input id="toggle-population-flow" type="checkbox">
-              시간대 인구 많은 지역 보기
-            </label>
-            <label for="population-month">월</label>
-            <select id="population-month"></select>
-            <label for="population-hour">시간대</label>
-            <select id="population-hour"></select>
-          </div>
-          <p id="population-status" class="muted overlay-status"></p>
+              <div class="form-actions">
+                <button id="spot-submit-btn" type="submit" class="btn-primary">지점 저장</button>
+                <button id="spot-cancel-edit-btn" type="button" class="btn-secondary hidden">수정 취소</button>
+              </div>
+            </form>
+          </section>
 
           <h3 class="list-title">등록된 지점</h3>
           <ul id="spot-list" class="spot-list"></ul>
         </aside>
-
-        <div id="map" class="map" role="application" aria-label="선거구 지도"></div>
-        <div id="map-popup" class="map-popup hidden" aria-hidden="true"></div>
       </section>
+      <div id="mobile-form-backdrop" class="mobile-form-backdrop hidden" aria-hidden="true"></div>
     </section>
   </main>
 </body>

@@ -9,7 +9,9 @@
     popupOverlay: null,
     boundarySource: null,
     hotspotSource: null,
+    selectedCoordSource: null,
     populationSource: null,
+    selectedCoordLayer: null,
     populationLayer: null,
     overlaySources: {
       vehicle: null,
@@ -46,7 +48,8 @@
     },
     unsubscribeHotspots: null,
     editingHotspotId: null,
-    resolvingCurrentLocation: false
+    resolvingCurrentLocation: false,
+    selectedCoordFeature: null
   };
 
   const hotspotColors = {
@@ -56,6 +59,30 @@
     4: "#e8590c",
     5: "#c92a2a"
   };
+  const selectedCoordStyles = [
+    new ol.style.Style({
+      image: new ol.style.Circle({
+        radius: 11,
+        fill: new ol.style.Fill({ color: "rgba(255,255,255,0)" }),
+        stroke: new ol.style.Stroke({
+          color: "#ffffff",
+          width: 4
+        })
+      })
+    }),
+    new ol.style.Style({
+      image: new ol.style.RegularShape({
+        points: 4,
+        radius: 8,
+        angle: Math.PI / 4,
+        fill: new ol.style.Fill({ color: "#00a8ff" }),
+        stroke: new ol.style.Stroke({
+          color: "#003b73",
+          width: 2
+        })
+      })
+    })
+  ];
 
   const boundaryStrokeColor = (config.data && config.data.boundaryStrokeColor)
     ? String(config.data.boundaryStrokeColor)
@@ -71,6 +98,7 @@
   const mobilityPopulationConfig = config.mobilityPopulation && typeof config.mobilityPopulation === "object"
     ? config.mobilityPopulation
     : {};
+  const mobileLayoutQuery = window.matchMedia ? window.matchMedia("(max-width: 980px)") : null;
 
   const elements = {
     loginPanel: document.getElementById("login-panel"),
@@ -78,9 +106,12 @@
     statusText: document.getElementById("status-text"),
     loginButton: document.getElementById("login-btn"),
     logoutButton: document.getElementById("logout-btn"),
-    userEmail: document.getElementById("user-email"),
     map: document.getElementById("map"),
     mapPopup: document.getElementById("map-popup"),
+    spotFormSheet: document.getElementById("spot-form-sheet"),
+    spotFormCloseButton: document.getElementById("spot-form-close-btn"),
+    mobileFormBackdrop: document.getElementById("mobile-form-backdrop"),
+    mobileCurrentLocationButton: document.getElementById("mobile-current-location-btn"),
     form: document.getElementById("spot-form"),
     selectedCoord: document.getElementById("selected-coord"),
     latInput: document.getElementById("spot-lat"),
@@ -160,7 +191,7 @@
 
     if (elements.currentLocationButton) {
       elements.currentLocationButton.addEventListener("click", () => {
-        void useCurrentLocationForSpot();
+        void useCurrentLocationForSpot(elements.currentLocationButton);
       });
     }
 
@@ -261,6 +292,36 @@
       openHotspotPopup(coordinate, spot);
     });
 
+    if (elements.mobileCurrentLocationButton) {
+      elements.mobileCurrentLocationButton.addEventListener("click", () => {
+        openSpotFormSheetForMobile();
+        void useCurrentLocationForSpot(elements.mobileCurrentLocationButton);
+      });
+    }
+
+    if (elements.spotFormCloseButton) {
+      elements.spotFormCloseButton.addEventListener("click", () => {
+        closeSpotFormSheetForMobile();
+      });
+    }
+
+    if (elements.mobileFormBackdrop) {
+      elements.mobileFormBackdrop.addEventListener("click", () => {
+        closeSpotFormSheetForMobile();
+      });
+    }
+
+    if (mobileLayoutQuery && typeof mobileLayoutQuery.addEventListener === "function") {
+      mobileLayoutQuery.addEventListener("change", () => {
+        syncSpotFormLayoutState();
+      });
+    } else {
+      window.addEventListener("resize", () => {
+        syncSpotFormLayoutState();
+      });
+    }
+
+    syncSpotFormLayoutState();
     updateCurrentLocationButtonAvailability();
   }
 
@@ -276,6 +337,7 @@
       updateOverlayControls();
       updatePopulationControls();
       updateCurrentLocationButtonAvailability();
+      syncSpotFormLayoutState();
       return;
     }
 
@@ -287,12 +349,13 @@
     }
 
     state.currentUser = user;
-    showAppShell(email);
+    showAppShell();
     await ensureMapReady();
     await loadBoundaries();
     updateOverlayControls();
     updatePopulationControls();
     updateCurrentLocationButtonAvailability();
+    syncSpotFormLayoutState();
     await applyDefaultOverlayVisibility();
     await applyDefaultPopulationVisibility();
     subscribeHotspots();
@@ -301,15 +364,14 @@
   function showLoginPanel(message, isError) {
     elements.loginPanel.classList.remove("hidden");
     elements.appShell.classList.add("hidden");
-    elements.userEmail.textContent = "";
+    closeSpotFormSheetForMobile();
     closePopup();
     setStatus(message || "", isError === true);
   }
 
-  function showAppShell(email) {
+  function showAppShell() {
     elements.loginPanel.classList.add("hidden");
     elements.appShell.classList.remove("hidden");
-    elements.userEmail.textContent = email;
     if (state.map) {
       window.setTimeout(() => state.map.updateSize(), 0);
     }
@@ -360,9 +422,14 @@
 
     state.boundarySource = new ol.source.Vector();
     state.hotspotSource = new ol.source.Vector();
+    state.selectedCoordSource = new ol.source.Vector();
     state.populationSource = new ol.source.Vector();
     state.overlaySources.vehicle = new ol.source.Vector();
     state.overlaySources.pedestrian = new ol.source.Vector();
+
+    state.selectedCoordLayer = new ol.layer.Vector({
+      source: state.selectedCoordSource
+    });
 
     state.populationLayer = new ol.layer.Vector({
       source: state.populationSource,
@@ -396,7 +463,8 @@
         state.overlayLayers.vehicle,
         state.overlayLayers.pedestrian,
         boundaryLayer,
-        hotspotLayer
+        hotspotLayer,
+        state.selectedCoordLayer
       ],
       view: new ol.View({
         center: ol.proj.fromLonLat(center),
@@ -419,7 +487,15 @@
         setSelectedCoord(Number(lonLat[1]), Number(lonLat[0]));
       }
 
-      const hitFeature = state.map.forEachFeatureAtPixel(event.pixel, (feature) => feature);
+      const hitFeature = state.map.forEachFeatureAtPixel(
+        event.pixel,
+        (feature, layer) => {
+          if (layer === state.selectedCoordLayer) {
+            return undefined;
+          }
+          return feature;
+        }
+      );
       if (!hitFeature) {
         closePopup();
         return;
@@ -2483,6 +2559,7 @@
     if (elements.cancelSpotEditButton) {
       elements.cancelSpotEditButton.classList.remove("hidden");
     }
+    openSpotFormSheetForMobile();
   }
 
   function exitHotspotEditMode(resetForm) {
@@ -2496,6 +2573,7 @@
     if (resetForm) {
       elements.form.reset();
       clearSelectedCoord();
+      closeSpotFormSheetForMobile();
     }
   }
 
@@ -2533,22 +2611,104 @@
     elements.latInput.value = lat.toFixed(6);
     elements.lngInput.value = lng.toFixed(6);
     elements.selectedCoord.textContent = "선택 좌표: " + lat.toFixed(6) + ", " + lng.toFixed(6);
+    renderSelectedCoordOnMap(lat, lng);
+    openSpotFormSheetForMobile();
   }
 
   function clearSelectedCoord() {
     elements.latInput.value = "";
     elements.lngInput.value = "";
     elements.selectedCoord.textContent = "좌표 미선택";
+    clearSelectedCoordOnMap();
+  }
+
+  function renderSelectedCoordOnMap(lat, lng) {
+    if (!state.selectedCoordSource) {
+      return;
+    }
+
+    const projected = ol.proj.fromLonLat([lng, lat]);
+    if (!state.selectedCoordFeature) {
+      state.selectedCoordFeature = new ol.Feature({
+        geometry: new ol.geom.Point(projected)
+      });
+      state.selectedCoordFeature.set("kind", "selected_coord");
+      state.selectedCoordFeature.setStyle(selectedCoordStyles);
+      state.selectedCoordSource.addFeature(state.selectedCoordFeature);
+      return;
+    }
+
+    const geometry = state.selectedCoordFeature.getGeometry();
+    if (geometry instanceof ol.geom.Point) {
+      geometry.setCoordinates(projected);
+    } else {
+      state.selectedCoordFeature.setGeometry(new ol.geom.Point(projected));
+    }
+  }
+
+  function clearSelectedCoordOnMap() {
+    if (state.selectedCoordSource) {
+      state.selectedCoordSource.clear();
+    }
+    state.selectedCoordFeature = null;
+  }
+
+  function isMobileLayout() {
+    if (mobileLayoutQuery) {
+      return mobileLayoutQuery.matches;
+    }
+    return window.innerWidth <= 980;
+  }
+
+  function syncSpotFormLayoutState() {
+    if (!isMobileLayout()) {
+      if (elements.spotFormSheet) {
+        elements.spotFormSheet.classList.remove("open");
+      }
+      if (elements.mobileFormBackdrop) {
+        elements.mobileFormBackdrop.classList.add("hidden");
+      }
+      document.body.classList.remove("modal-open");
+    }
+  }
+
+  function openSpotFormSheetForMobile() {
+    if (!isMobileLayout()) {
+      return;
+    }
+    if (elements.spotFormSheet) {
+      elements.spotFormSheet.classList.add("open");
+    }
+    if (elements.mobileFormBackdrop) {
+      elements.mobileFormBackdrop.classList.remove("hidden");
+    }
+    document.body.classList.add("modal-open");
+  }
+
+  function closeSpotFormSheetForMobile() {
+    if (!isMobileLayout()) {
+      return;
+    }
+    if (elements.spotFormSheet) {
+      elements.spotFormSheet.classList.remove("open");
+    }
+    if (elements.mobileFormBackdrop) {
+      elements.mobileFormBackdrop.classList.add("hidden");
+    }
+    document.body.classList.remove("modal-open");
   }
 
   function updateCurrentLocationButtonAvailability() {
-    if (!elements.currentLocationButton) {
-      return;
+    const disabled = !state.currentUser || state.resolvingCurrentLocation;
+    if (elements.currentLocationButton) {
+      elements.currentLocationButton.disabled = disabled;
     }
-    elements.currentLocationButton.disabled = !state.currentUser || state.resolvingCurrentLocation;
+    if (elements.mobileCurrentLocationButton) {
+      elements.mobileCurrentLocationButton.disabled = disabled;
+    }
   }
 
-  async function useCurrentLocationForSpot() {
+  async function useCurrentLocationForSpot(triggerButton) {
     if (!state.currentUser) {
       window.alert("로그인 후 사용할 수 있습니다.");
       return;
@@ -2561,14 +2721,18 @@
       return;
     }
 
+    const actionButton = triggerButton instanceof HTMLElement
+      ? triggerButton
+      : elements.currentLocationButton;
     const defaultLabel = "내 위치 불러오기";
-    const originalLabel = elements.currentLocationButton
-      ? elements.currentLocationButton.textContent || defaultLabel
+    const originalLabel = actionButton
+      ? actionButton.textContent || defaultLabel
       : defaultLabel;
 
+    openSpotFormSheetForMobile();
     state.resolvingCurrentLocation = true;
-    if (elements.currentLocationButton) {
-      elements.currentLocationButton.textContent = "위치 확인 중...";
+    if (actionButton) {
+      actionButton.textContent = "위치 확인 중...";
     }
     updateCurrentLocationButtonAvailability();
 
@@ -2595,8 +2759,8 @@
       window.alert("현재 위치 불러오기 실패: " + toMessage(error));
     } finally {
       state.resolvingCurrentLocation = false;
-      if (elements.currentLocationButton) {
-        elements.currentLocationButton.textContent = originalLabel || defaultLabel;
+      if (actionButton) {
+        actionButton.textContent = originalLabel || defaultLabel;
       }
       updateCurrentLocationButtonAvailability();
     }
