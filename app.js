@@ -45,7 +45,8 @@
       pedestrian: new Map()
     },
     unsubscribeHotspots: null,
-    editingHotspotId: null
+    editingHotspotId: null,
+    resolvingCurrentLocation: false
   };
 
   const hotspotColors = {
@@ -84,6 +85,7 @@
     selectedCoord: document.getElementById("selected-coord"),
     latInput: document.getElementById("spot-lat"),
     lngInput: document.getElementById("spot-lng"),
+    currentLocationButton: document.getElementById("use-current-location-btn"),
     clearCoordButton: document.getElementById("clear-coord-btn"),
     spotSubmitButton: document.getElementById("spot-submit-btn"),
     cancelSpotEditButton: document.getElementById("spot-cancel-edit-btn"),
@@ -155,6 +157,12 @@
     elements.clearCoordButton.addEventListener("click", () => {
       clearSelectedCoord();
     });
+
+    if (elements.currentLocationButton) {
+      elements.currentLocationButton.addEventListener("click", () => {
+        void useCurrentLocationForSpot();
+      });
+    }
 
     if (elements.cancelSpotEditButton) {
       elements.cancelSpotEditButton.addEventListener("click", () => {
@@ -252,6 +260,8 @@
       state.map.getView().animate({ center: coordinate, duration: 240 });
       openHotspotPopup(coordinate, spot);
     });
+
+    updateCurrentLocationButtonAvailability();
   }
 
   async function onAuthStateChanged(user) {
@@ -265,6 +275,7 @@
       showLoginPanel("로그인이 필요합니다.");
       updateOverlayControls();
       updatePopulationControls();
+      updateCurrentLocationButtonAvailability();
       return;
     }
 
@@ -281,6 +292,7 @@
     await loadBoundaries();
     updateOverlayControls();
     updatePopulationControls();
+    updateCurrentLocationButtonAvailability();
     await applyDefaultOverlayVisibility();
     await applyDefaultPopulationVisibility();
     subscribeHotspots();
@@ -2527,6 +2539,99 @@
     elements.latInput.value = "";
     elements.lngInput.value = "";
     elements.selectedCoord.textContent = "좌표 미선택";
+  }
+
+  function updateCurrentLocationButtonAvailability() {
+    if (!elements.currentLocationButton) {
+      return;
+    }
+    elements.currentLocationButton.disabled = !state.currentUser || state.resolvingCurrentLocation;
+  }
+
+  async function useCurrentLocationForSpot() {
+    if (!state.currentUser) {
+      window.alert("로그인 후 사용할 수 있습니다.");
+      return;
+    }
+    if (!navigator.geolocation || typeof navigator.geolocation.getCurrentPosition !== "function") {
+      window.alert("이 브라우저는 현재 위치 기능을 지원하지 않습니다.");
+      return;
+    }
+    if (state.resolvingCurrentLocation) {
+      return;
+    }
+
+    const defaultLabel = "내 위치 불러오기";
+    const originalLabel = elements.currentLocationButton
+      ? elements.currentLocationButton.textContent || defaultLabel
+      : defaultLabel;
+
+    state.resolvingCurrentLocation = true;
+    if (elements.currentLocationButton) {
+      elements.currentLocationButton.textContent = "위치 확인 중...";
+    }
+    updateCurrentLocationButtonAvailability();
+
+    try {
+      const position = await getCurrentGeolocation();
+      const lat = Number(position.coords && position.coords.latitude);
+      const lng = Number(position.coords && position.coords.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        throw new Error("좌표 형식이 올바르지 않습니다.");
+      }
+
+      setSelectedCoord(lat, lng);
+      if (state.map) {
+        const view = state.map.getView();
+        const currentZoom = view.getZoom();
+        const nextZoom = Number.isFinite(currentZoom) && currentZoom > 16 ? currentZoom : 16;
+        view.animate({
+          center: ol.proj.fromLonLat([lng, lat]),
+          zoom: nextZoom,
+          duration: 260
+        });
+      }
+    } catch (error) {
+      window.alert("현재 위치 불러오기 실패: " + toMessage(error));
+    } finally {
+      state.resolvingCurrentLocation = false;
+      if (elements.currentLocationButton) {
+        elements.currentLocationButton.textContent = originalLabel || defaultLabel;
+      }
+      updateCurrentLocationButtonAvailability();
+    }
+  }
+
+  function getCurrentGeolocation() {
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve(position);
+        },
+        (error) => {
+          reject(new Error(toGeolocationErrorMessage(error)));
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    });
+  }
+
+  function toGeolocationErrorMessage(error) {
+    const code = Number(error && error.code);
+    if (code === 1) {
+      return "브라우저 위치 권한이 거부되었습니다. 주소창의 사이트 권한에서 위치 허용 후 다시 시도하세요.";
+    }
+    if (code === 2) {
+      return "현재 위치를 확인할 수 없습니다. 네트워크/GPS 상태를 확인 후 다시 시도하세요.";
+    }
+    if (code === 3) {
+      return "현재 위치 확인 시간이 초과되었습니다. 다시 시도하세요.";
+    }
+    return "현재 위치 정보를 가져오지 못했습니다.";
   }
 
   function openBoundaryPopup(coordinate, boundaryFeature) {

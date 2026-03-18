@@ -153,7 +153,21 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+#selected-coord {
+  flex: 1 1 150px;
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.coord-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .btn-primary,

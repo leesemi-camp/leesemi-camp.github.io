@@ -57,7 +57,10 @@
 
             <div class="coord-box">
               <div id="selected-coord">좌표 미선택</div>
-              <button id="clear-coord-btn" type="button" class="btn-secondary btn-small">좌표 해제</button>
+              <div class="coord-actions">
+                <button id="use-current-location-btn" type="button" class="btn-secondary btn-small">내 위치 불러오기</button>
+                <button id="clear-coord-btn" type="button" class="btn-secondary btn-small">좌표 해제</button>
+              </div>
             </div>
             <input id="spot-lat" name="lat" type="hidden">
             <input id="spot-lng" name="lng" type="hidden">
