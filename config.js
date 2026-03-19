@@ -27,14 +27,36 @@ window.APP_CONFIG = {
     defaultCenter: { lat: 37.5665, lng: 126.9780 },
     defaultZoom: 13
   },
+  launcher: {
+    services: [
+      {
+        label: "선거구 지도 서비스",
+        description: "동 경계, 혼잡 지점 등록/조회",
+        href: "/map/",
+        tone: "slate"
+      },
+      {
+        label: "당원 명부 전화 시스템",
+        description: "당원 명부 기반 전화 지원",
+        href: "https://script.google.com/macros/s/AKfycbyX-psBvoVHiYpdQKlRT4og6kCQCNsiWdhPoAr5wVz-Iz7LZF5RT5pylnxGe0D4JYU/exec",
+        tone: "sage"
+      },
+      {
+        label: "후원회 명부 전화 시스템",
+        description: "후원회 명부 기반 전화 지원",
+        href: "https://script.google.com/macros/s/AKfycbySVaEO1wTe-TgYTCp7Uqg5F5LdwBVnTV71HKNUJ0WQCx0oN1Onxs585LGRidX5hTI_/exec",
+        tone: "sand"
+      }
+    ]
+  },
   data: {
     boundarySources: [
-      "./data/daejangdong.wfs.xml",
-      "./data/baekhyeondong.wfs.xml",
-      "./data/seogundong.wfs.xml",
-      "./data/unjungdong.wfs.xml",
-      "./data/pangyodong.wfs.xml",
-      "./data/hasanundong.wfs.xml"
+      "/data/daejangdong.wfs.xml",
+      "/data/baekhyeondong.wfs.xml",
+      "/data/seogundong.wfs.xml",
+      "/data/unjungdong.wfs.xml",
+      "/data/pangyodong.wfs.xml",
+      "/data/hasanundong.wfs.xml"
     ],
     boundaryStrokeColor: "#0b57d0",
     boundaryStrokeWidth: 3.2,
@@ -75,7 +97,7 @@ window.APP_CONFIG = {
     enabled: true,
     mode: "emd",
     sourceType: "csv",
-    dataPath: "./data/pangyo-focused-month-hour.csv",
+    dataPath: "/data/pangyo-focused-month-hour.csv",
     coordinateProjection: "EPSG:4326",
     cellSizeMeter: 250,
     delimiter: ",",

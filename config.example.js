@@ -22,14 +22,44 @@ window.APP_CONFIG = {
     defaultCenter: { lat: 37.5665, lng: 126.9780 },
     defaultZoom: 13
   },
+  launcher: {
+    // 루트 랜딩 페이지에서 보여줄 서비스 버튼 목록
+    services: [
+      {
+        label: "선거구 지도 서비스",
+        description: "동 경계, 혼잡 지점 등록/조회",
+        href: "/map/",
+        tone: "slate"
+      },
+      {
+        label: "당원 명부 전화 시스템",
+        description: "당원 명부 기반 전화 지원",
+        href: "https://script.google.com/macros/s/AKfycbyX-psBvoVHiYpdQKlRT4og6kCQCNsiWdhPoAr5wVz-Iz7LZF5RT5pylnxGe0D4JYU/exec",
+        tone: "sage"
+      },
+      {
+        label: "후원회 명부 전화 시스템",
+        description: "후원회 명부 기반 전화 지원",
+        href: "https://script.google.com/macros/s/AKfycbySVaEO1wTe-TgYTCp7Uqg5F5LdwBVnTV71HKNUJ0WQCx0oN1Onxs585LGRidX5hTI_/exec",
+        tone: "sand"
+      },
+      {
+        label: "추가 서비스 예시",
+        description: "다른 내부 서비스 링크를 여기에 추가",
+        href: "https://example.com",
+        newTab: true,
+        tone: "slate"
+      }
+    ]
+  },
   data: {
     boundarySources: [
-      "./data/daejangdong.wfs.xml",
-      "./data/baekhyeondong.wfs.xml",
-      "./data/seogundong.wfs.xml",
-      "./data/unjungdong.wfs.xml",
-      "./data/pangyodong.wfs.xml",
-      "./data/hasanundong.wfs.xml"
+      "/data/daejangdong.wfs.xml",
+      "/data/baekhyeondong.wfs.xml",
+      "/data/seogundong.wfs.xml",
+      "/data/unjungdong.wfs.xml",
+      "/data/pangyodong.wfs.xml",
+      "/data/hasanundong.wfs.xml"
     ],
     boundaryStrokeColor: "#0b57d0",
     boundaryStrokeWidth: 3.2,
@@ -77,8 +107,8 @@ window.APP_CONFIG = {
     // "emd": 행정동 경계 채움 / "grid250": 250m 격자 칸 채움
     mode: "emd",
     sourceType: "json", // "csv" | "json"
-    // 예시1) 로컬 샘플: "./data/capital-mobility.sample.csv"
-    // 예시1-2) 판교 대상 필터 샘플: "./data/pangyo-focused-month-hour.csv"
+    // 예시1) 로컬 샘플: "/data/capital-mobility.sample.csv"
+    // 예시1-2) 판교 대상 필터 샘플: "/data/pangyo-focused-month-hour.csv"
     // 예시2) 경기도 OpenAPI: "https://openapi.gg.go.kr/YOUR_SERVICE_NAME"
     dataPath: "https://openapi.gg.go.kr/YOUR_SERVICE_NAME",
     // OpenAPI 키를 별도 파라미터로 붙일 때 사용
