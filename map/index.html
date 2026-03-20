@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>선거사무원 지도 대시보드</title>
+  <title>동별 현안 지도</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css">
   <link rel="stylesheet" href="../styles.css">
   <script src="https://cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js" defer></script>
@@ -13,18 +15,11 @@
   <script src="../config.js" defer></script>
   <script src="../app.js" defer></script>
 </head>
-<body>
+<body data-map-mode="view">
   <main class="layout">
-    <section id="login-panel" class="panel">
-      <h1>선거사무원 지도</h1>
-      <p class="muted">허용된 선거사무원 계정으로 로그인한 사용자만 지도를 조회할 수 있습니다.</p>
-      <button id="login-btn" type="button" class="btn-primary">Google 계정으로 로그인</button>
-      <p id="status-text" class="status">초기화 중...</p>
-    </section>
-
-    <section id="app-shell" class="app-shell hidden" aria-live="polite">
+    <section id="app-shell" class="app-shell" aria-live="polite">
       <header class="topbar">
-        <h2 class="topbar-title">선거구 운영 현황</h2>
+        <h2 class="topbar-title">동별 현안 지도</h2>
         <div class="topbar-actions">
           <a href="../" class="icon-btn" aria-label="메인 랜딩으로 이동" title="메인으로">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -32,73 +27,31 @@
               <path d="M6 10.5V20h12v-9.5"/>
             </svg>
           </a>
-          <button id="logout-btn" type="button" class="icon-btn" aria-label="로그아웃" title="로그아웃">
+          <a href="/system/" class="icon-btn" aria-label="시스템 로그인으로 이동" title="시스템 로그인">
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M15 3h-7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7"/>
-              <path d="M10 12h10"/>
-              <path d="m17 7 5 5-5 5"/>
+              <path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25z"/>
+              <path d="m14.06 4.19 3.75 3.75"/>
             </svg>
-          </button>
+          </a>
         </div>
       </header>
 
       <section class="workspace">
         <div class="map-wrap">
-          <div id="map" class="map" role="application" aria-label="선거구 지도"></div>
-          <button id="mobile-current-location-btn" type="button" class="mobile-map-action">현위치 입력</button>
+          <div id="map" class="map" role="application" aria-label="동별 현안 지도"></div>
           <div id="map-popup" class="map-popup hidden" aria-hidden="true"></div>
         </div>
 
         <aside class="side-panel">
-          <section id="spot-form-sheet" class="spot-form-sheet">
-            <div class="spot-form-head">
-              <h3>혼잡 지점 등록</h3>
-              <button id="spot-form-close-btn" type="button" class="icon-btn spot-form-close-btn" aria-label="등록 창 닫기" title="닫기">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M6 6l12 12M18 6 6 18"/>
-                </svg>
-              </button>
-            </div>
-            <p class="muted spot-form-hint">지도 클릭 또는 현위치 입력 후 저장</p>
-
-            <form id="spot-form">
-              <label for="spot-title">지점명</label>
-              <input id="spot-title" name="title" type="text" maxlength="40" required>
-
-              <label for="spot-level">혼잡도</label>
-              <select id="spot-level" name="level" required>
-                <option value="1">1 (여유)</option>
-                <option value="2">2</option>
-                <option value="3" selected>3 (보통)</option>
-                <option value="4">4</option>
-                <option value="5">5 (매우 혼잡)</option>
-              </select>
-
-              <label for="spot-memo">메모</label>
-              <textarea id="spot-memo" name="memo" rows="3" maxlength="200" placeholder="예: 점심시간 12:00~13:00 대기열 길어짐"></textarea>
-
-              <div class="coord-box">
-                <div id="selected-coord">좌표 미선택</div>
-                <div class="coord-actions">
-                  <button id="use-current-location-btn" type="button" class="btn-secondary btn-small">내 위치 불러오기</button>
-                  <button id="clear-coord-btn" type="button" class="btn-secondary btn-small">좌표 해제</button>
-                </div>
-              </div>
-              <input id="spot-lat" name="lat" type="hidden">
-              <input id="spot-lng" name="lng" type="hidden">
-
-              <div class="form-actions">
-                <button id="spot-submit-btn" type="submit" class="btn-primary">지점 저장</button>
-                <button id="spot-cancel-edit-btn" type="button" class="btn-secondary hidden">수정 취소</button>
-              </div>
-            </form>
-          </section>
-
-          <h3 class="list-title">등록된 지점</h3>
+          <h3 class="list-title">등록된 지역 현안</h3>
+          <div class="spot-filter-row">
+            <span id="active-dong-filter" class="active-dong-filter hidden"></span>
+            <button id="clear-dong-filter-btn" type="button" class="btn-secondary btn-small hidden">전체 보기</button>
+          </div>
+          <p class="muted">지도에서 동 경계를 클릭하면 해당 동 현안만 볼 수 있습니다.</p>
           <ul id="spot-list" class="spot-list"></ul>
         </aside>
       </section>
-      <div id="mobile-form-backdrop" class="mobile-form-backdrop hidden" aria-hidden="true"></div>
     </section>
   </main>
 </body>

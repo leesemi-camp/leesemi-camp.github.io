@@ -286,6 +286,12 @@ textarea {
   background: #fcfdff;
 }
 
+.spot-dong {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #2a4a72;
+}
+
 .spot-item:hover {
   background: #f4f8fd;
 }
@@ -313,7 +319,9 @@ textarea {
 .spot-item-actions {
   margin-top: 8px;
   display: flex;
-  gap: 6px;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .spot-action-btn {
@@ -321,10 +329,42 @@ textarea {
   background: #eef3fa;
 }
 
+.spot-action-btn-checked {
+  background: #dce8f9;
+  border-color: #afc6e8;
+  color: #0b3d73;
+  font-weight: 600;
+}
+
+.spot-empathy-count {
+  font-size: 12px;
+  color: #23415f;
+}
+
 .spot-action-btn.danger {
   background: #fdecec;
   color: var(--danger);
   border-color: #f6d1cd;
+}
+
+.spot-filter-row {
+  margin-top: 8px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.active-dong-filter {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #eaf1fb;
+  color: #1f3f66;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .empty {

@@ -28,11 +28,12 @@ window.APP_CONFIG = {
     defaultZoom: 13
   },
   launcher: {
+    systemPath: "/system/",
     services: [
       {
         label: "선거구 지도 서비스",
-        description: "동 경계, 혼잡 지점 등록/조회",
-        href: "/map/",
+        description: "동 경계와 지역 현안 조회/수정",
+        href: "/map/edit/",
         tone: "slate"
       },
       {
@@ -62,7 +63,8 @@ window.APP_CONFIG = {
     boundaryStrokeWidth: 3.2,
     boundaryHaloColor: "rgba(255,255,255,0.95)",
     boundaryHaloWidth: 6,
-    hotspotCollection: "crowd_hotspots"
+    issueCollection: "crowd_hotspots",
+    issueEmpathyCollection: "issue_empathy"
   },
   trafficOverlays: {
     enabled: true,

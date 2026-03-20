@@ -23,12 +23,13 @@ window.APP_CONFIG = {
     defaultZoom: 13
   },
   launcher: {
+    systemPath: "/system/",
     // 루트 랜딩 페이지에서 보여줄 서비스 버튼 목록
     services: [
       {
         label: "선거구 지도 서비스",
-        description: "동 경계, 혼잡 지점 등록/조회",
-        href: "/map/",
+        description: "동 경계와 지역 현안 조회/수정",
+        href: "/map/edit/",
         tone: "slate"
       },
       {
@@ -65,7 +66,8 @@ window.APP_CONFIG = {
     boundaryStrokeWidth: 3.2,
     boundaryHaloColor: "rgba(255,255,255,0.95)",
     boundaryHaloWidth: 6,
-    hotspotCollection: "crowd_hotspots"
+    issueCollection: "crowd_hotspots",
+    issueEmpathyCollection: "issue_empathy"
   },
   trafficOverlays: {
     // View-T Open API 토큰키(쿼리 파라미터) 사용 시 입력

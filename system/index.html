@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>이세미 캠프 통합 서비스</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../launcher.css">
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js" defer></script>
+  <script src="../config.js" defer></script>
+  <script src="../launcher.js" defer></script>
+</head>
+<body>
+  <main class="launcher">
+    <section id="launcher-loading" class="launcher-card">
+      <h1>이세미 캠프 통합 서비스</h1>
+      <p class="launcher-muted">로그인 상태를 확인하는 중입니다.</p>
+    </section>
+
+    <section id="launcher-error" class="launcher-card hidden">
+      <h1>로그인이 필요합니다</h1>
+      <p id="launcher-error-message" class="launcher-muted"></p>
+      <button id="launcher-login-btn" type="button" class="launcher-primary">Google 계정으로 로그인</button>
+    </section>
+
+    <section id="launcher-shell" class="launcher-card hidden">
+      <header class="launcher-header">
+        <h1>이세미 캠프 통합 서비스</h1>
+        <button id="launcher-logout-btn" type="button" class="launcher-ghost">로그아웃</button>
+      </header>
+      <p class="launcher-muted">원하는 서비스를 선택하세요.</p>
+      <div id="service-buttons" class="service-buttons"></div>
+    </section>
+  </main>
+</body>
+</html>

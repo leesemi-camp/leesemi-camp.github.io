@@ -3,6 +3,7 @@
 (function bootstrap() {
   const config = window.APP_CONFIG;
   const state = {
+    mode: resolveMapMode(),
     auth: null,
     db: null,
     map: null,
@@ -42,14 +43,26 @@
     populationMaxByPeriod: new Map(),
     hotspotData: new Map(),
     hotspotStyleCache: new Map(),
+    availableDongs: [],
+    availableDongMap: new Map(),
+    issues: [],
+    activeDongName: "",
+    empathyCounts: new Map(),
+    empathyRecords: [],
+    viewerEmpathyIssueIds: new Set(),
+    viewerToken: "",
+    viewerTokenPromise: null,
+    empathyInFlight: new Set(),
     overlayStyleCache: {
       vehicle: new Map(),
       pedestrian: new Map()
     },
     unsubscribeHotspots: null,
+    unsubscribeEmpathy: null,
     editingHotspotId: null,
     resolvingCurrentLocation: false,
-    selectedCoordFeature: null
+    selectedCoordFeature: null,
+    autoCenteredToCurrentLocation: false
   };
 
   const hotspotColors = {
@@ -120,7 +133,10 @@
     clearCoordButton: document.getElementById("clear-coord-btn"),
     spotSubmitButton: document.getElementById("spot-submit-btn"),
     cancelSpotEditButton: document.getElementById("spot-cancel-edit-btn"),
+    spotDongSelect: document.getElementById("spot-dong"),
     spotList: document.getElementById("spot-list"),
+    clearDongFilterButton: document.getElementById("clear-dong-filter-btn"),
+    activeDongFilter: document.getElementById("active-dong-filter"),
     toggleVehicleFlow: document.getElementById("toggle-vehicle-flow"),
     togglePedestrianFlow: document.getElementById("toggle-pedestrian-flow"),
     overlayStatus: document.getElementById("overlay-status"),
@@ -134,6 +150,7 @@
 
   async function init() {
     try {
+      applyModeClassName();
       validateConfig(config);
       if (!window.ol) {
         throw new Error("OpenLayers 스크립트 로드에 실패했습니다.");
@@ -143,12 +160,66 @@
       initPopulationHourOptions();
       setStatus("인증 초기화 중...");
       initFirebase(config.firebase.config);
-      state.auth.onAuthStateChanged((user) => {
-        void onAuthStateChanged(user);
-      });
+      if (isEditMode()) {
+        state.auth.onAuthStateChanged((user) => {
+          void onAuthStateChanged(user);
+        });
+      } else {
+        state.auth.onAuthStateChanged((user) => {
+          state.currentUser = user || null;
+        });
+        showAppShell();
+        await ensureMapReady();
+        await loadBoundaries();
+        updateOverlayControls();
+        updatePopulationControls();
+        updateCurrentLocationButtonAvailability();
+        syncSpotFormLayoutState();
+        await applyDefaultOverlayVisibility();
+        await applyDefaultPopulationVisibility();
+        subscribeHotspots();
+        subscribeEmpathyReactions();
+        void resolveViewerToken();
+        void centerMapToCurrentLocation({ silent: true, minZoom: 15 });
+      }
     } catch (error) {
       showFatal(error);
     }
+  }
+
+  function resolveMapMode() {
+    const body = document.body;
+    const rawMode = body && body.dataset ? String(body.dataset.mapMode || "") : "";
+    if (rawMode.toLowerCase() === "edit") {
+      return "edit";
+    }
+    return "view";
+  }
+
+  function applyModeClassName() {
+    if (!document.body || !document.body.classList) {
+      return;
+    }
+    document.body.classList.remove("mode-view", "mode-edit");
+    document.body.classList.add(isEditMode() ? "mode-edit" : "mode-view");
+  }
+
+  function isEditMode() {
+    return state.mode === "edit";
+  }
+
+  function getSystemLandingPath() {
+    const configuredPath = config && config.launcher && typeof config.launcher.systemPath === "string"
+      ? String(config.launcher.systemPath).trim()
+      : "";
+    if (configuredPath) {
+      return configuredPath;
+    }
+    return "/system/";
+  }
+
+  function redirectToSystemLanding() {
+    window.location.replace(getSystemLandingPath());
   }
 
   function validateConfig(appConfig) {
@@ -173,21 +244,29 @@
   }
 
   function bindUiEvents() {
-    elements.loginButton.addEventListener("click", () => {
-      void signIn();
-    });
+    if (elements.loginButton) {
+      elements.loginButton.addEventListener("click", () => {
+        void signIn();
+      });
+    }
 
-    elements.logoutButton.addEventListener("click", () => {
-      void signOut();
-    });
+    if (elements.logoutButton) {
+      elements.logoutButton.addEventListener("click", () => {
+        void signOut();
+      });
+    }
 
-    elements.form.addEventListener("submit", (event) => {
-      void handleHotspotSubmit(event);
-    });
+    if (elements.form) {
+      elements.form.addEventListener("submit", (event) => {
+        void handleHotspotSubmit(event);
+      });
+    }
 
-    elements.clearCoordButton.addEventListener("click", () => {
-      clearSelectedCoord();
-    });
+    if (elements.clearCoordButton) {
+      elements.clearCoordButton.addEventListener("click", () => {
+        clearSelectedCoord();
+      });
+    }
 
     if (elements.currentLocationButton) {
       elements.currentLocationButton.addEventListener("click", () => {
@@ -245,52 +324,64 @@
       });
     }
 
-    elements.spotList.addEventListener("click", (event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) {
-        return;
-      }
+    if (elements.spotList) {
+      elements.spotList.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
 
-      const actionButton = target.closest("[data-action][data-spot-id]");
-      if (actionButton) {
-        const action = String(actionButton.getAttribute("data-action") || "");
-        const spotId = String(actionButton.getAttribute("data-spot-id") || "");
+        const actionButton = target.closest("[data-action][data-spot-id]");
+        if (actionButton) {
+          const action = String(actionButton.getAttribute("data-action") || "");
+          const spotId = String(actionButton.getAttribute("data-spot-id") || "");
+          if (!spotId) {
+            return;
+          }
+          if (action === "edit-spot") {
+            const editSpot = state.hotspotData.get(spotId);
+            if (editSpot) {
+              enterHotspotEditMode(editSpot);
+            }
+            return;
+          }
+          if (action === "delete-spot") {
+            void deleteHotspot(spotId);
+            return;
+          }
+          if (action === "empathy-spot") {
+            void registerEmpathy(spotId);
+            return;
+          }
+        }
+
+        const item = target.closest("[data-spot-id]");
+        if (!item || !state.map || !state.hotspotSource) {
+          return;
+        }
+
+        const spotId = item.getAttribute("data-spot-id");
         if (!spotId) {
           return;
         }
-        if (action === "edit-spot") {
-          const editSpot = state.hotspotData.get(spotId);
-          if (editSpot) {
-            enterHotspotEditMode(editSpot);
-          }
+
+        const feature = state.hotspotSource.getFeatureById(spotId);
+        const spot = state.hotspotData.get(spotId);
+        if (!feature || !spot) {
           return;
         }
-        if (action === "delete-spot") {
-          void deleteHotspot(spotId);
-          return;
-        }
-      }
 
-      const item = target.closest("[data-spot-id]");
-      if (!item || !state.map || !state.hotspotSource) {
-        return;
-      }
+        const coordinate = feature.getGeometry().getCoordinates();
+        state.map.getView().animate({ center: coordinate, duration: 240 });
+        openHotspotPopup(coordinate, spot);
+      });
+    }
 
-      const spotId = item.getAttribute("data-spot-id");
-      if (!spotId) {
-        return;
-      }
-
-      const feature = state.hotspotSource.getFeatureById(spotId);
-      const spot = state.hotspotData.get(spotId);
-      if (!feature || !spot) {
-        return;
-      }
-
-      const coordinate = feature.getGeometry().getCoordinates();
-      state.map.getView().animate({ center: coordinate, duration: 240 });
-      openHotspotPopup(coordinate, spot);
-    });
+    if (elements.clearDongFilterButton) {
+      elements.clearDongFilterButton.addEventListener("click", () => {
+        setActiveDongFilter("");
+      });
+    }
 
     if (elements.mobileCurrentLocationButton) {
       elements.mobileCurrentLocationButton.addEventListener("click", () => {
@@ -323,6 +414,7 @@
 
     syncSpotFormLayoutState();
     updateCurrentLocationButtonAvailability();
+    updateDongFilterUi();
   }
 
   async function onAuthStateChanged(user) {
@@ -330,9 +422,16 @@
       state.currentUser = null;
       exitHotspotEditMode(true);
       stopHotspotSubscription();
+      stopEmpathySubscription();
       clearHotspotFeatures();
+      clearEmpathyState();
+      state.issues = [];
       resetOverlayState();
       resetPopulationState();
+      if (isEditMode()) {
+        redirectToSystemLanding();
+        return;
+      }
       showLoginPanel("로그인이 필요합니다.");
       updateOverlayControls();
       updatePopulationControls();
@@ -344,7 +443,11 @@
     const email = normalizeEmail(user.email);
     if (!isAllowedStaff(email)) {
       await state.auth.signOut();
-      showLoginPanel("허용되지 않은 계정입니다: " + email, true);
+      if (isEditMode()) {
+        redirectToSystemLanding();
+      } else {
+        showLoginPanel("허용되지 않은 계정입니다: " + email, true);
+      }
       return;
     }
 
@@ -359,19 +462,28 @@
     await applyDefaultOverlayVisibility();
     await applyDefaultPopulationVisibility();
     subscribeHotspots();
+    subscribeEmpathyReactions();
   }
 
   function showLoginPanel(message, isError) {
-    elements.loginPanel.classList.remove("hidden");
-    elements.appShell.classList.add("hidden");
+    if (elements.loginPanel) {
+      elements.loginPanel.classList.remove("hidden");
+    }
+    if (elements.appShell) {
+      elements.appShell.classList.add("hidden");
+    }
     closeSpotFormSheetForMobile();
     closePopup();
     setStatus(message || "", isError === true);
   }
 
   function showAppShell() {
-    elements.loginPanel.classList.add("hidden");
-    elements.appShell.classList.remove("hidden");
+    if (elements.loginPanel) {
+      elements.loginPanel.classList.add("hidden");
+    }
+    if (elements.appShell) {
+      elements.appShell.classList.remove("hidden");
+    }
     if (state.map) {
       window.setTimeout(() => state.map.updateSize(), 0);
     }
@@ -403,6 +515,10 @@
   async function signOut() {
     try {
       await state.auth.signOut();
+      if (isEditMode()) {
+        redirectToSystemLanding();
+        return;
+      }
       showLoginPanel("로그아웃되었습니다.");
     } catch (error) {
       setStatus("로그아웃 실패: " + toMessage(error), true);
@@ -483,7 +599,7 @@
 
     state.map.on("singleclick", (event) => {
       const lonLat = ol.proj.toLonLat(event.coordinate);
-      if (state.currentUser) {
+      if (isEditMode() && state.currentUser) {
         setSelectedCoord(Number(lonLat[1]), Number(lonLat[0]));
       }
 
@@ -498,6 +614,9 @@
       );
       if (!hitFeature) {
         closePopup();
+        if (!isEditMode() && state.activeDongName) {
+          setActiveDongFilter("");
+        }
         return;
       }
 
@@ -509,6 +628,10 @@
       }
 
       if (kind === "boundary") {
+        if (!isEditMode()) {
+          const dongName = String(hitFeature.get("dongName") || "").trim();
+          setActiveDongFilter(dongName);
+        }
         openBoundaryPopup(event.coordinate, hitFeature);
         return;
       }
@@ -754,12 +877,21 @@
     });
 
     const loadedDongNames = [];
+    const dongMap = new Map();
 
     drawableFeatures.forEach((feature, featureIndex) => {
       const properties = feature.getProperties();
       const dongName = resolveDongName(properties, featureIndex + 1);
       const emdCode = normalizeEmdCode(properties.emd_cd || properties.emdCode || properties.dong_code);
       loadedDongNames.push(dongName);
+      const dongKey = buildDongKey(emdCode, dongName);
+      if (!dongMap.has(dongKey)) {
+        dongMap.set(dongKey, {
+          key: dongKey,
+          dongName,
+          emdCode
+        });
+      }
 
       feature.set("kind", "boundary");
       feature.set("dongName", dongName);
@@ -774,6 +906,11 @@
     }
 
     state.boundarySource.addFeatures(drawableFeatures);
+    state.availableDongs = Array.from(dongMap.values()).sort((a, b) => {
+      return String(a.dongName).localeCompare(String(b.dongName), "ko");
+    });
+    state.availableDongMap = new Map(state.availableDongs.map((item) => [item.key, item]));
+    syncDongSelectOptions();
     if (getPopulationConfig().mode === "emd") {
       syncPopulationSourceWithBoundaries(drawableFeatures);
       if (isPopulationVisible()) {
@@ -843,6 +980,52 @@
       properties.name ||
       "동 경계 " + fallbackIndex
     );
+  }
+
+  function buildDongKey(emdCode, dongName) {
+    const normalizedCode = normalizeEmdCode(emdCode);
+    if (normalizedCode) {
+      return "emd:" + normalizedCode;
+    }
+    const normalizedName = String(dongName || "").trim();
+    if (!normalizedName) {
+      return "";
+    }
+    return "name:" + normalizedName;
+  }
+
+  function resolveDongMetaByKey(dongKey) {
+    const key = String(dongKey || "").trim();
+    if (!key || key === "__auto__") {
+      return null;
+    }
+    if (!state.availableDongMap || !state.availableDongMap.has(key)) {
+      return null;
+    }
+    return state.availableDongMap.get(key);
+  }
+
+  function syncDongSelectOptions(preferredKey) {
+    if (!elements.spotDongSelect) {
+      return;
+    }
+
+    const select = elements.spotDongSelect;
+    const selectedKey = String(preferredKey || select.value || "__auto__").trim() || "__auto__";
+    const options = [
+      "<option value='__auto__'>좌표 기준 자동 판별</option>"
+    ];
+
+    state.availableDongs.forEach((dong) => {
+      const label = dong.emdCode
+        ? escapeHtml(dong.dongName + " (" + dong.emdCode + ")")
+        : escapeHtml(dong.dongName);
+      options.push("<option value='" + escapeHtml(dong.key) + "'>" + label + "</option>");
+    });
+
+    select.innerHTML = options.join("");
+    const hasPreferred = state.availableDongMap.has(selectedKey);
+    select.value = hasPreferred ? selectedKey : "__auto__";
   }
 
   function initPopulationMonthOptions() {
@@ -2336,36 +2519,50 @@
     }
 
     stopHotspotSubscription();
-    const collectionName = (config.data && config.data.hotspotCollection)
-      ? config.data.hotspotCollection
-      : "crowd_hotspots";
+    const collectionName = getIssueCollectionName();
 
     state.unsubscribeHotspots = state.db.collection(collectionName).onSnapshot(
       (snapshot) => {
         const hotspots = [];
         snapshot.forEach((doc) => {
           const value = doc.data() || {};
-          if (!Number.isFinite(value.lat) || !Number.isFinite(value.lng)) {
+          const lat = Number(value.lat);
+          const lng = Number(value.lng);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
             return;
           }
+
+          const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
+          const dongName = String(value.dongName || boundaryMeta.dongName || "").trim();
+          const emdCode = normalizeEmdCode(value.emdCode || value.emd_cd || boundaryMeta.emdCode);
+          const storedDongKey = String(value.dongKey || "").trim();
+          const computedDongKey = buildDongKey(emdCode, dongName);
           hotspots.push({
             id: doc.id,
-            title: typeof value.title === "string" ? value.title : "제목 없음",
+            title: typeof value.title === "string" ? value.title : "현안 제목 없음",
             memo: typeof value.memo === "string" ? value.memo : "",
             level: Number(value.level) || 3,
-            lat: value.lat,
-            lng: value.lng,
+            lat,
+            lng,
+            dongName,
+            emdCode,
+            dongSelectionMode: value.dongSelectionMode === "manual" ? "manual" : "auto",
+            dongKey: storedDongKey || computedDongKey,
+            empathyCount: Number(value.empathyCount) || 0,
             updatedBy: value.updatedBy || "",
             updatedAt: value.updatedAt || null
           });
         });
 
         hotspots.sort((a, b) => toMillis(b.updatedAt) - toMillis(a.updatedAt));
+        state.issues = hotspots;
         renderHotspots(hotspots);
-        renderHotspotList(hotspots);
+        renderHotspotList(applyIssueFilter(hotspots));
+        updateDongFilterUi();
       },
       (error) => {
         clearHotspotFeatures();
+        state.issues = [];
         renderHotspotList([]);
         if (isFirestorePermissionError(error)) {
           console.warn("[hotspot-subscribe] insufficient permissions");
@@ -2395,6 +2592,304 @@
     }
   }
 
+  function subscribeEmpathyReactions() {
+    if (!state.db) {
+      return;
+    }
+
+    stopEmpathySubscription();
+    const collectionName = getEmpathyCollectionName();
+    state.unsubscribeEmpathy = state.db.collection(collectionName).onSnapshot(
+      (snapshot) => {
+        const records = [];
+        snapshot.forEach((doc) => {
+          const value = doc.data() || {};
+          const issueId = String(value.issueId || "").trim();
+          const token = String(value.token || "").trim();
+          if (!issueId || !token) {
+            return;
+          }
+          records.push({ issueId, token });
+        });
+        state.empathyRecords = records;
+        recomputeEmpathyAggregates();
+      },
+      (error) => {
+        if (isFirestorePermissionError(error)) {
+          console.warn("[empathy-subscribe] insufficient permissions");
+          return;
+        }
+        console.error("[empathy-subscribe]", toMessage(error));
+      }
+    );
+  }
+
+  function stopEmpathySubscription() {
+    if (state.unsubscribeEmpathy) {
+      state.unsubscribeEmpathy();
+      state.unsubscribeEmpathy = null;
+    }
+  }
+
+  function clearEmpathyState() {
+    state.empathyCounts.clear();
+    state.empathyRecords = [];
+    state.viewerEmpathyIssueIds.clear();
+    state.viewerToken = "";
+    state.viewerTokenPromise = null;
+    state.empathyInFlight.clear();
+  }
+
+  function getIssueCollectionName() {
+    if (config.data && typeof config.data.issueCollection === "string" && config.data.issueCollection.trim()) {
+      return config.data.issueCollection.trim();
+    }
+    if (config.data && typeof config.data.hotspotCollection === "string" && config.data.hotspotCollection.trim()) {
+      return config.data.hotspotCollection.trim();
+    }
+    return "crowd_hotspots";
+  }
+
+  function getEmpathyCollectionName() {
+    if (config.data && typeof config.data.issueEmpathyCollection === "string" && config.data.issueEmpathyCollection.trim()) {
+      return config.data.issueEmpathyCollection.trim();
+    }
+    return "issue_empathy";
+  }
+
+  function recomputeEmpathyAggregates() {
+    const counts = new Map();
+    const viewerIssueIds = new Set();
+    const viewerToken = String(state.viewerToken || "");
+
+    state.empathyRecords.forEach((record) => {
+      const issueId = record.issueId;
+      counts.set(issueId, (counts.get(issueId) || 0) + 1);
+      if (viewerToken && record.token === viewerToken) {
+        viewerIssueIds.add(issueId);
+      }
+    });
+
+    state.empathyCounts = counts;
+    state.viewerEmpathyIssueIds = viewerIssueIds;
+    renderHotspotList(applyIssueFilter(state.issues));
+  }
+
+  function getEmpathyCountForSpot(spot) {
+    if (!spot || !spot.id) {
+      return 0;
+    }
+    const counted = state.empathyCounts.get(spot.id);
+    if (Number.isFinite(counted)) {
+      return counted;
+    }
+    return Number(spot.empathyCount) || 0;
+  }
+
+  function applyIssueFilter(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    const activeDong = String(state.activeDongName || "").trim();
+    if (!activeDong) {
+      return list;
+    }
+    return list.filter((spot) => String(spot.dongName || "").trim() === activeDong);
+  }
+
+  function setActiveDongFilter(dongName) {
+    const normalized = String(dongName || "").trim();
+    if (state.activeDongName === normalized) {
+      return;
+    }
+    state.activeDongName = normalized;
+    updateDongFilterUi();
+    renderHotspotList(applyIssueFilter(state.issues));
+  }
+
+  function updateDongFilterUi() {
+    if (!elements.activeDongFilter) {
+      return;
+    }
+    const activeDong = String(state.activeDongName || "").trim();
+    if (!activeDong) {
+      elements.activeDongFilter.classList.add("hidden");
+      elements.activeDongFilter.textContent = "";
+      if (elements.clearDongFilterButton) {
+        elements.clearDongFilterButton.classList.add("hidden");
+      }
+      return;
+    }
+
+    elements.activeDongFilter.classList.remove("hidden");
+    elements.activeDongFilter.textContent = activeDong + "만 보기";
+    if (elements.clearDongFilterButton) {
+      elements.clearDongFilterButton.classList.remove("hidden");
+    }
+  }
+
+  function resolveBoundaryMetaForLonLat(lng, lat) {
+    if (!state.boundarySource || !Number.isFinite(lng) || !Number.isFinite(lat)) {
+      return { dongName: "", emdCode: "" };
+    }
+    const projected = ol.proj.fromLonLat([lng, lat]);
+    const features = state.boundarySource.getFeatures();
+    for (const feature of features) {
+      const geometry = feature.getGeometry();
+      if (!geometry || typeof geometry.intersectsCoordinate !== "function") {
+        continue;
+      }
+      if (geometry.intersectsCoordinate(projected)) {
+        return {
+          dongName: String(feature.get("dongName") || "").trim(),
+          emdCode: normalizeEmdCode(feature.get("emd_cd"))
+        };
+      }
+    }
+    return { dongName: "", emdCode: "" };
+  }
+
+  async function centerMapToCurrentLocation(options) {
+    const mapView = state.map ? state.map.getView() : null;
+    if (!mapView) {
+      return;
+    }
+    if (!navigator.geolocation || typeof navigator.geolocation.getCurrentPosition !== "function") {
+      return;
+    }
+
+    const silent = options && options.silent === true;
+    const minZoom = readPositiveNumber(options && options.minZoom, 15);
+    try {
+      const position = await getCurrentGeolocation();
+      const lat = Number(position.coords && position.coords.latitude);
+      const lng = Number(position.coords && position.coords.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return;
+      }
+      const currentZoom = mapView.getZoom();
+      const targetZoom = Number.isFinite(currentZoom) && currentZoom > minZoom ? currentZoom : minZoom;
+      mapView.animate({
+        center: ol.proj.fromLonLat([lng, lat]),
+        zoom: targetZoom,
+        duration: 260
+      });
+      state.autoCenteredToCurrentLocation = true;
+    } catch (error) {
+      if (!silent) {
+        window.alert("현재 위치 불러오기 실패: " + toMessage(error));
+      }
+    }
+  }
+
+  async function registerEmpathy(spotId) {
+    if (isEditMode()) {
+      return;
+    }
+    if (!state.db) {
+      return;
+    }
+    const issueId = String(spotId || "").trim();
+    if (!issueId) {
+      return;
+    }
+    if (state.empathyInFlight.has(issueId)) {
+      return;
+    }
+    if (state.viewerEmpathyIssueIds.has(issueId)) {
+      window.alert("이미 이 현안에 공감하셨습니다.");
+      return;
+    }
+
+    state.empathyInFlight.add(issueId);
+    try {
+      const token = await resolveViewerToken();
+      if (!token) {
+        throw new Error("공감 식별 정보를 생성하지 못했습니다.");
+      }
+
+      const collectionName = getEmpathyCollectionName();
+      const reactionDocId = issueId + "__" + token;
+      await state.db.collection(collectionName).doc(reactionDocId).set({
+        issueId,
+        token,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch (error) {
+      if (isFirestorePermissionError(error) || state.viewerEmpathyIssueIds.has(issueId)) {
+        window.alert("이미 이 현안에 공감하셨습니다.");
+      } else {
+        window.alert("공감 등록 실패: " + toMessage(error));
+      }
+    } finally {
+      state.empathyInFlight.delete(issueId);
+    }
+  }
+
+  async function resolveViewerToken() {
+    if (state.viewerToken) {
+      return state.viewerToken;
+    }
+    if (state.viewerTokenPromise) {
+      return state.viewerTokenPromise;
+    }
+
+    state.viewerTokenPromise = (async () => {
+      const storageKey = "issue_viewer_token_v1";
+      try {
+        const cached = window.localStorage.getItem(storageKey);
+        if (cached) {
+          state.viewerToken = cached;
+          recomputeEmpathyAggregates();
+          return cached;
+        }
+      } catch (error) {
+        console.warn("[viewer-token] localStorage read failed:", toMessage(error));
+      }
+
+      let rawIdentifier = "";
+      try {
+        const response = await fetch("https://api.ipify.org?format=json", { cache: "no-store" });
+        if (response.ok) {
+          const payload = await response.json();
+          rawIdentifier = String(payload.ip || "").trim();
+        }
+      } catch (error) {
+        console.warn("[viewer-token] ip lookup failed:", toMessage(error));
+      }
+
+      if (!rawIdentifier) {
+        rawIdentifier = "anon-" + Math.random().toString(36).slice(2) + "-" + Date.now().toString(36);
+      }
+
+      const hashInput = rawIdentifier + "::" + window.location.hostname;
+      const token = await hashText(hashInput);
+      state.viewerToken = token;
+      recomputeEmpathyAggregates();
+      try {
+        window.localStorage.setItem(storageKey, token);
+      } catch (error) {
+        console.warn("[viewer-token] localStorage write failed:", toMessage(error));
+      }
+      return token;
+    })();
+
+    try {
+      return await state.viewerTokenPromise;
+    } finally {
+      state.viewerTokenPromise = null;
+    }
+  }
+
+  async function hashText(value) {
+    const text = String(value || "");
+    if (!window.crypto || !window.crypto.subtle || typeof TextEncoder !== "function") {
+      return "fallback-" + btoa(unescape(encodeURIComponent(text))).replace(/=+$/g, "");
+    }
+    const encoded = new TextEncoder().encode(text);
+    const digest = await window.crypto.subtle.digest("SHA-256", encoded);
+    const bytes = Array.from(new Uint8Array(digest));
+    return bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
   function renderHotspots(hotspots) {
     if (!state.hotspotSource) {
       return;
@@ -2409,6 +2904,8 @@
 
       feature.setId(spot.id);
       feature.set("kind", "hotspot");
+      feature.set("dongName", spot.dongName || "");
+      feature.set("emd_cd", spot.emdCode || "");
       feature.set("spot", spot);
       feature.setStyle(getHotspotStyle(spot.level));
       state.hotspotSource.addFeature(feature);
@@ -2450,27 +2947,57 @@
   }
 
   function renderHotspotList(hotspots) {
-    if (hotspots.length === 0) {
-      elements.spotList.innerHTML = "<li class='empty'>등록된 혼잡 지점이 없습니다.</li>";
+    if (!elements.spotList) {
       return;
     }
 
+    if (hotspots.length === 0) {
+      if (state.activeDongName) {
+        const safeDongName = escapeHtml(state.activeDongName);
+        elements.spotList.innerHTML = "<li class='empty'>" + safeDongName + "에 등록된 현안이 없습니다.</li>";
+      } else {
+        elements.spotList.innerHTML = "<li class='empty'>등록된 지역 현안이 없습니다.</li>";
+      }
+      return;
+    }
+
+    const showEditorActions = isEditMode();
     const items = hotspots.map((spot) => {
       const title = escapeHtml(spot.title);
       const memo = escapeHtml(spot.memo || "메모 없음");
+      const dongName = escapeHtml(spot.dongName || "동 정보 없음");
       const color = hotspotColors[spot.level] || hotspotColors[3];
       const safeId = escapeHtml(spot.id);
+      const empathyCount = getEmpathyCountForSpot(spot);
+      const hasEmpathized = state.viewerEmpathyIssueIds.has(spot.id);
+      let actionsHtml = "";
+      if (showEditorActions) {
+        actionsHtml = (
+          "<div class='spot-item-actions'>" +
+            "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='edit-spot' data-spot-id='" + safeId + "'>수정</button>" +
+            "<button type='button' class='btn-secondary btn-small spot-action-btn danger' data-action='delete-spot' data-spot-id='" + safeId + "'>삭제</button>" +
+          "</div>"
+        );
+      } else {
+        const empathyClass = hasEmpathized ? " spot-action-btn-checked" : "";
+        const empathyLabel = hasEmpathized ? "공감 완료" : "공감";
+        actionsHtml = (
+          "<div class='spot-item-actions'>" +
+            "<button type='button' class='btn-secondary btn-small spot-action-btn" + empathyClass + "' data-action='empathy-spot' data-spot-id='" + safeId + "'>" + empathyLabel + "</button>" +
+            "<span class='spot-empathy-count'>공감 " + String(empathyCount) + "</span>" +
+          "</div>"
+        );
+      }
+
       return (
         "<li class='spot-item' data-spot-id='" + safeId + "'>" +
           "<div class='spot-item-top'>" +
             "<strong>" + title + "</strong>" +
-            "<span class='spot-badge' style='background:" + color + ";'>Lv." + String(spot.level) + "</span>" +
+            "<span class='spot-badge' style='background:" + color + ";'>중요도 " + String(spot.level) + "</span>" +
           "</div>" +
+          "<div class='spot-dong'>" + dongName + "</div>" +
           "<div class='spot-memo'>" + memo + "</div>" +
-          "<div class='spot-item-actions'>" +
-            "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='edit-spot' data-spot-id='" + safeId + "'>수정</button>" +
-            "<button type='button' class='btn-secondary btn-small spot-action-btn danger' data-action='delete-spot' data-spot-id='" + safeId + "'>삭제</button>" +
-          "</div>" +
+          actionsHtml +
         "</li>"
       );
     });
@@ -2480,6 +3007,9 @@
 
   async function handleHotspotSubmit(event) {
     event.preventDefault();
+    if (!isEditMode()) {
+      return;
+    }
     if (!state.currentUser) {
       window.alert("로그인 상태가 아닙니다.");
       return;
@@ -2498,7 +3028,23 @@
     const level = Number(formData.get("level") || 3);
 
     if (!title) {
-      window.alert("지점명을 입력하세요.");
+      window.alert("현안명을 입력하세요.");
+      return;
+    }
+
+    const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
+    const selectedDongKey = String(formData.get("dongKey") || "__auto__").trim();
+    const selectedDongMeta = resolveDongMetaByKey(selectedDongKey);
+    const usingManualDong = Boolean(selectedDongMeta);
+    const finalDongName = usingManualDong
+      ? String(selectedDongMeta.dongName || "").trim()
+      : String(boundaryMeta.dongName || "").trim();
+    const finalEmdCode = usingManualDong
+      ? normalizeEmdCode(selectedDongMeta.emdCode)
+      : normalizeEmdCode(boundaryMeta.emdCode);
+
+    if (!finalDongName) {
+      window.alert("동을 판별하지 못했습니다. '동 선택'에서 직접 지정하세요.");
       return;
     }
 
@@ -2508,13 +3054,15 @@
       level: level >= 1 && level <= 5 ? level : 3,
       lat,
       lng,
+      dongName: finalDongName,
+      emdCode: finalEmdCode || "",
+      dongSelectionMode: usingManualDong ? "manual" : "auto",
+      dongKey: usingManualDong ? String(selectedDongMeta.key || "") : "",
       updatedBy: normalizeEmail(state.currentUser.email),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 
-    const collectionName = (config.data && config.data.hotspotCollection)
-      ? config.data.hotspotCollection
-      : "crowd_hotspots";
+    const collectionName = getIssueCollectionName();
     const editingSpotId = state.editingHotspotId;
 
     try {
@@ -2525,7 +3073,7 @@
       }
       exitHotspotEditMode(true);
     } catch (error) {
-      window.alert("지점 저장 실패: " + toMessage(error));
+      window.alert("현안 저장 실패: " + toMessage(error));
     }
   }
 
@@ -2549,6 +3097,22 @@
       memoInput.value = spot.memo || "";
     }
 
+    if (elements.spotDongSelect) {
+      let preferredDongKey = "__auto__";
+      if (spot.dongSelectionMode === "manual") {
+        const explicitKey = String(spot.dongKey || "").trim();
+        if (explicitKey && state.availableDongMap.has(explicitKey)) {
+          preferredDongKey = explicitKey;
+        } else {
+          const fallbackKey = buildDongKey(spot.emdCode, spot.dongName);
+          if (fallbackKey && state.availableDongMap.has(fallbackKey)) {
+            preferredDongKey = fallbackKey;
+          }
+        }
+      }
+      syncDongSelectOptions(preferredDongKey);
+    }
+
     if (Number.isFinite(spot.lat) && Number.isFinite(spot.lng)) {
       setSelectedCoord(Number(spot.lat), Number(spot.lng));
     }
@@ -2565,19 +3129,25 @@
   function exitHotspotEditMode(resetForm) {
     state.editingHotspotId = null;
     if (elements.spotSubmitButton) {
-      elements.spotSubmitButton.textContent = "지점 저장";
+      elements.spotSubmitButton.textContent = "현안 저장";
     }
     if (elements.cancelSpotEditButton) {
       elements.cancelSpotEditButton.classList.add("hidden");
     }
     if (resetForm) {
-      elements.form.reset();
+      if (elements.form) {
+        elements.form.reset();
+      }
+      syncDongSelectOptions("__auto__");
       clearSelectedCoord();
       closeSpotFormSheetForMobile();
     }
   }
 
   async function deleteHotspot(spotId) {
+    if (!isEditMode()) {
+      return;
+    }
     if (!state.currentUser) {
       window.alert("로그인 상태가 아닙니다.");
       return;
@@ -2588,26 +3158,27 @@
     }
 
     const spot = state.hotspotData.get(targetId);
-    const title = spot && spot.title ? String(spot.title) : "이 지점";
-    const confirmed = window.confirm("'" + title + "' 지점을 삭제할까요?");
+    const title = spot && spot.title ? String(spot.title) : "이 현안";
+    const confirmed = window.confirm("'" + title + "' 현안을 삭제할까요?");
     if (!confirmed) {
       return;
     }
 
-    const collectionName = (config.data && config.data.hotspotCollection)
-      ? config.data.hotspotCollection
-      : "crowd_hotspots";
+    const collectionName = getIssueCollectionName();
     try {
       await state.db.collection(collectionName).doc(targetId).delete();
       if (state.editingHotspotId === targetId) {
         exitHotspotEditMode(true);
       }
     } catch (error) {
-      window.alert("지점 삭제 실패: " + toMessage(error));
+      window.alert("현안 삭제 실패: " + toMessage(error));
     }
   }
 
   function setSelectedCoord(lat, lng) {
+    if (!elements.latInput || !elements.lngInput || !elements.selectedCoord) {
+      return;
+    }
     elements.latInput.value = lat.toFixed(6);
     elements.lngInput.value = lng.toFixed(6);
     elements.selectedCoord.textContent = "선택 좌표: " + lat.toFixed(6) + ", " + lng.toFixed(6);
@@ -2616,9 +3187,15 @@
   }
 
   function clearSelectedCoord() {
-    elements.latInput.value = "";
-    elements.lngInput.value = "";
-    elements.selectedCoord.textContent = "좌표 미선택";
+    if (elements.latInput) {
+      elements.latInput.value = "";
+    }
+    if (elements.lngInput) {
+      elements.lngInput.value = "";
+    }
+    if (elements.selectedCoord) {
+      elements.selectedCoord.textContent = "좌표 미선택";
+    }
     clearSelectedCoordOnMap();
   }
 
@@ -2699,7 +3276,7 @@
   }
 
   function updateCurrentLocationButtonAvailability() {
-    const disabled = !state.currentUser || state.resolvingCurrentLocation;
+    const disabled = !isEditMode() || !state.currentUser || state.resolvingCurrentLocation;
     if (elements.currentLocationButton) {
       elements.currentLocationButton.disabled = disabled;
     }
@@ -2709,6 +3286,9 @@
   }
 
   async function useCurrentLocationForSpot(triggerButton) {
+    if (!isEditMode()) {
+      return;
+    }
     if (!state.currentUser) {
       window.alert("로그인 후 사용할 수 있습니다.");
       return;
@@ -2861,21 +3441,27 @@
     }
     const safeTitle = escapeHtml(spot.title);
     const safeMemo = escapeHtml(spot.memo || "-");
+    const safeDong = escapeHtml(spot.dongName || "-");
+    const empathyCount = getEmpathyCountForSpot(spot);
     const safeUser = escapeHtml(spot.updatedBy || "-");
     const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
 
+    const editorInfo = isEditMode()
+      ? "<div>수정자: " + safeUser + "</div><div>수정시각: " + safeTime + "</div>"
+      : "";
     openPopup(
       coordinate,
       "<strong>" + safeTitle + "</strong>" +
-      "<div>혼잡도: " + String(spot.level) + "</div>" +
-      "<div>메모: " + safeMemo + "</div>" +
-      "<div>수정자: " + safeUser + "</div>" +
-      "<div>수정시각: " + safeTime + "</div>"
+      "<div>소속 동: " + safeDong + "</div>" +
+      "<div>중요도: " + String(spot.level) + "</div>" +
+      "<div>내용: " + safeMemo + "</div>" +
+      "<div>공감: " + String(empathyCount) + "</div>" +
+      editorInfo
     );
   }
 
   function openPopup(coordinate, html) {
-    if (!state.popupOverlay) {
+    if (!state.popupOverlay || !elements.mapPopup) {
       return;
     }
     elements.mapPopup.innerHTML = html;
@@ -2884,7 +3470,7 @@
   }
 
   function closePopup() {
-    if (!state.popupOverlay) {
+    if (!state.popupOverlay || !elements.mapPopup) {
       return;
     }
     elements.mapPopup.classList.add("hidden");
@@ -2903,14 +3489,23 @@
   }
 
   function setStatus(message, isError) {
+    if (!elements.statusText) {
+      return;
+    }
     elements.statusText.textContent = message;
     elements.statusText.style.color = isError ? "var(--danger)" : "";
   }
 
   function showFatal(error) {
     const message = "초기화 실패: " + toMessage(error);
-    showLoginPanel(message, true);
-    elements.loginButton.disabled = true;
+    if (isEditMode()) {
+      showLoginPanel(message, true);
+      if (elements.loginButton) {
+        elements.loginButton.disabled = true;
+      }
+    } else {
+      window.alert(message);
+    }
   }
 
   function toMessage(error) {

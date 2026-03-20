@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>동별 현안 지도 수정</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css">
+  <link rel="stylesheet" href="../../styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js" defer></script>
+  <script src="../../config.js" defer></script>
+  <script src="../../app.js" defer></script>
+</head>
+<body data-map-mode="edit">
+  <main class="layout">
+    <section id="login-panel" class="panel">
+      <h1>동별 현안 지도 수정</h1>
+      <p class="muted">허용된 선거사무원 계정으로 로그인한 사용자만 현안을 등록/수정할 수 있습니다.</p>
+      <button id="login-btn" type="button" class="btn-primary">Google 계정으로 로그인</button>
+      <p id="status-text" class="status">초기화 중...</p>
+    </section>
+
+    <section id="app-shell" class="app-shell hidden" aria-live="polite">
+      <header class="topbar">
+        <h2 class="topbar-title">동별 현안 수정</h2>
+        <div class="topbar-actions">
+          <a href="/system/" class="icon-btn" aria-label="시스템 랜딩으로 이동" title="시스템으로">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 11.5 12 4l9 7.5"/>
+              <path d="M6 10.5V20h12v-9.5"/>
+            </svg>
+          </a>
+          <a href="../" class="icon-btn" aria-label="현안 열람 화면으로 이동" title="열람 모드">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </a>
+          <button id="logout-btn" type="button" class="icon-btn" aria-label="로그아웃" title="로그아웃">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 3h-7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7"/>
+              <path d="M10 12h10"/>
+              <path d="m17 7 5 5-5 5"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <section class="workspace">
+        <div class="map-wrap">
+          <div id="map" class="map" role="application" aria-label="동별 현안 지도"></div>
+          <button id="mobile-current-location-btn" type="button" class="mobile-map-action">현위치 입력</button>
+          <div id="map-popup" class="map-popup hidden" aria-hidden="true"></div>
+        </div>
+
+        <aside class="side-panel">
+          <section id="spot-form-sheet" class="spot-form-sheet">
+            <div class="spot-form-head">
+              <h3>지역 현안 등록</h3>
+              <button id="spot-form-close-btn" type="button" class="icon-btn spot-form-close-btn" aria-label="등록 창 닫기" title="닫기">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6 6 18"/>
+                </svg>
+              </button>
+            </div>
+            <p class="muted spot-form-hint">지도 클릭 또는 현위치 입력 후 저장</p>
+
+            <form id="spot-form">
+              <label for="spot-title">현안명</label>
+              <input id="spot-title" name="title" type="text" maxlength="40" required>
+
+              <label for="spot-level">중요도</label>
+              <select id="spot-level" name="level" required>
+                <option value="1">1 (낮음)</option>
+                <option value="2">2</option>
+                <option value="3" selected>3 (보통)</option>
+                <option value="4">4</option>
+                <option value="5">5 (높음)</option>
+              </select>
+
+              <label for="spot-dong">동 선택</label>
+              <select id="spot-dong" name="dongKey">
+                <option value="__auto__" selected>좌표 기준 자동 판별</option>
+              </select>
+
+              <label for="spot-memo">현안 내용</label>
+              <textarea id="spot-memo" name="memo" rows="3" maxlength="200" placeholder="예: 출근 시간 교차로 정체로 민원 다수"></textarea>
+
+              <div class="coord-box">
+                <div id="selected-coord">좌표 미선택</div>
+                <div class="coord-actions">
+                  <button id="use-current-location-btn" type="button" class="btn-secondary btn-small">내 위치 불러오기</button>
+                  <button id="clear-coord-btn" type="button" class="btn-secondary btn-small">좌표 해제</button>
+                </div>
+              </div>
+              <input id="spot-lat" name="lat" type="hidden">
+              <input id="spot-lng" name="lng" type="hidden">
+
+              <div class="form-actions">
+                <button id="spot-submit-btn" type="submit" class="btn-primary">현안 저장</button>
+                <button id="spot-cancel-edit-btn" type="button" class="btn-secondary hidden">수정 취소</button>
+              </div>
+            </form>
+          </section>
+
+          <h3 class="list-title">등록된 지역 현안</h3>
+          <div class="spot-filter-row">
+            <span id="active-dong-filter" class="active-dong-filter hidden"></span>
+            <button id="clear-dong-filter-btn" type="button" class="btn-secondary btn-small hidden">전체 보기</button>
+          </div>
+          <ul id="spot-list" class="spot-list"></ul>
+        </aside>
+      </section>
+      <div id="mobile-form-backdrop" class="mobile-form-backdrop hidden" aria-hidden="true"></div>
+    </section>
+  </main>
+</body>
+</html>

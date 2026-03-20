@@ -60,6 +60,6 @@
   }
 
   function redirectToLauncher() {
-    window.location.replace("../");
+    window.location.replace("/system/");
   }
 })();

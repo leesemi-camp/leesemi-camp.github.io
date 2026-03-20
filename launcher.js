@@ -18,6 +18,7 @@
     manualLoginOnly: false,
     autoLoginAttempted: false
   };
+  const autoLoginStorageKey = "system_auto_login_attempted_v1";
 
   void init();
 
@@ -69,11 +70,13 @@
 
   async function onAuthStateChanged(user) {
     if (!user) {
-      if (state.manualLoginOnly || state.autoLoginAttempted) {
+      const attemptedInSession = readAutoLoginAttemptFlag();
+      if (state.manualLoginOnly || state.autoLoginAttempted || attemptedInSession) {
         showError("허용된 Google 계정으로 로그인하세요.");
         return;
       }
       state.autoLoginAttempted = true;
+      writeAutoLoginAttemptFlag(true);
       await startLogin();
       return;
     }
@@ -204,6 +207,9 @@
 
   function showShell() {
     state.loginInFlight = false;
+    state.manualLoginOnly = false;
+    state.autoLoginAttempted = false;
+    writeAutoLoginAttemptFlag(false);
     if (elements.loading) {
       elements.loading.classList.add("hidden");
     }
@@ -240,5 +246,25 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function readAutoLoginAttemptFlag() {
+    try {
+      return window.sessionStorage.getItem(autoLoginStorageKey) === "1";
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function writeAutoLoginAttemptFlag(value) {
+    try {
+      if (value) {
+        window.sessionStorage.setItem(autoLoginStorageKey, "1");
+        return;
+      }
+      window.sessionStorage.removeItem(autoLoginStorageKey);
+    } catch (error) {
+      // no-op
+    }
   }
 })();

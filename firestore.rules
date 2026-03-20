@@ -8,8 +8,27 @@ service cloud.firestore {
         && request.auth.token.email in get(/databases/$(database)/documents/meta/staff_allowlist).data.emails;
     }
 
+    function isValidEmpathyCreate(docId) {
+      return request.resource.data.keys().hasOnly(["issueId", "token", "createdAt"])
+        && request.resource.data.issueId is string
+        && request.resource.data.issueId.size() > 0
+        && request.resource.data.token is string
+        && request.resource.data.token.size() > 0
+        && request.resource.data.token.size() <= 128
+        && docId == request.resource.data.issueId + "__" + request.resource.data.token
+        && exists(/databases/$(database)/documents/crowd_hotspots/$(request.resource.data.issueId))
+        && !exists(/databases/$(database)/documents/issue_empathy/$(docId));
+    }
+
     match /crowd_hotspots/{docId} {
-      allow read, write: if isStaff();
+      allow read: if true;
+      allow create, update, delete: if isStaff();
+    }
+
+    match /issue_empathy/{docId} {
+      allow read: if true;
+      allow create: if isValidEmpathyCreate(docId);
+      allow update, delete: if false;
     }
 
     match /{document=**} {
