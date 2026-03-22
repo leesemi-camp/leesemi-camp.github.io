@@ -8,7 +8,8 @@ window.APP_CONFIG = {
       "windwing987@gmail.com",
       "jhjin2527@gmail.com",
       "sudeki72@gmail.com",
-      "mtgoat9705@gmail.com"
+      "mtgoat9705@gmail.com",
+      "leesemi114@gmail.com"
     ]
   },
   firebase: {
