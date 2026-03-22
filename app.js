@@ -250,10 +250,6 @@
         throw new Error("Firebase 설정이 누락되었습니다: " + key);
       }
     }
-
-    if (!Array.isArray(appConfig.auth.allowedEmails) || appConfig.auth.allowedEmails.length === 0) {
-      throw new Error("APP_CONFIG.auth.allowedEmails에 허용 이메일을 1개 이상 지정하세요.");
-    }
   }
 
   function bindUiEvents() {
@@ -803,12 +799,18 @@
       return;
     }
 
-    const email = normalizeEmail(user.email);
-    if (!isAllowedStaff(email)) {
+    const staffAccess = await resolveStaffAccess(user);
+    if (!staffAccess.ok) {
+      await state.auth.signOut();
+      showLoginPanel("권한 확인 실패: " + staffAccess.reason, true);
+      return;
+    }
+    if (!staffAccess.isStaff) {
+      const email = normalizeEmail(user.email);
       await state.auth.signOut();
       showLoginPanel(
-        "허용되지 않은 계정입니다: " + email +
-        " (config.js allowedEmails, Firestore meta/staff_allowlist 확인 필요)",
+        "권한이 없는 계정입니다: " + email +
+        " (관리자에게 Firebase custom claim staff=true 부여 요청)",
         true
       );
       return;
@@ -860,8 +862,36 @@
     if (firebase.apps.length === 0) {
       firebase.initializeApp(firebaseConfig);
     }
+    initOptionalAppCheck();
     state.auth = firebase.auth();
     state.db = firebase.firestore();
+  }
+
+  function initOptionalAppCheck() {
+    const firebaseConfig = config && typeof config.firebase === "object" ? config.firebase : null;
+    const rawAppCheck = firebaseConfig && typeof firebaseConfig.appCheck === "object"
+      ? firebaseConfig.appCheck
+      : null;
+    if (!rawAppCheck || rawAppCheck.enabled !== true) {
+      return;
+    }
+    if (!window.firebase || typeof firebase.appCheck !== "function") {
+      console.warn("[app-check] firebase-app-check-compat.js가 로드되지 않아 App Check를 건너뜁니다.");
+      return;
+    }
+
+    const siteKey = String(rawAppCheck.siteKey || "").trim();
+    if (!siteKey) {
+      console.warn("[app-check] siteKey가 비어 있어 App Check를 건너뜁니다.");
+      return;
+    }
+
+    try {
+      const autoRefresh = rawAppCheck.autoRefresh !== false;
+      firebase.appCheck().activate(siteKey, autoRefresh);
+    } catch (error) {
+      console.warn("[app-check] activate 실패:", toMessage(error));
+    }
   }
 
   async function signIn() {
@@ -1294,14 +1324,11 @@
 
     console.info("[boundary-load] rendered:", Array.from(new Set(loadedDongNames)));
 
-    const extent = state.boundarySource.getExtent();
-    if (extent && Number.isFinite(extent[0]) && Number.isFinite(extent[2])) {
-      state.map.getView().fit(extent, {
-        padding: [22, 22, 22, 22],
-        duration: 250,
-        maxZoom: 16
-      });
-    }
+    fitMapToBoundaryExtent({
+      padding: [22, 22, 22, 22],
+      duration: 250,
+      maxZoom: 16
+    });
   }
 
   function createBoundaryStyle(options) {
@@ -3148,6 +3175,39 @@
     return { dongName: "", emdCode: "" };
   }
 
+  function fitMapToBoundaryExtent(options) {
+    if (!state.map || !state.boundarySource) {
+      return false;
+    }
+
+    const extent = state.boundarySource.getExtent();
+    if (
+      !extent ||
+      !Number.isFinite(extent[0]) ||
+      !Number.isFinite(extent[1]) ||
+      !Number.isFinite(extent[2]) ||
+      !Number.isFinite(extent[3])
+    ) {
+      return false;
+    }
+
+    const padding = Array.isArray(options && options.padding) && options.padding.length === 4
+      ? options.padding
+      : [22, 22, 22, 22];
+    const maxZoom = readPositiveNumber(options && options.maxZoom, 16);
+    const duration = Number(options && options.duration);
+    const fitOptions = {
+      padding,
+      maxZoom
+    };
+    if (Number.isFinite(duration) && duration >= 0) {
+      fitOptions.duration = duration;
+    }
+
+    state.map.getView().fit(extent, fitOptions);
+    return true;
+  }
+
   async function centerMapToCurrentLocation(options) {
     const mapView = state.map ? state.map.getView() : null;
     if (!mapView) {
@@ -3165,6 +3225,26 @@
       const lng = Number(position.coords && position.coords.longitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         return;
+      }
+      const hasBoundaryData = Boolean(
+        state.boundariesLoaded &&
+        state.boundarySource &&
+        state.boundarySource.getFeatures().length > 0
+      );
+      if (hasBoundaryData) {
+        const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
+        const isOutsideBoundary = !boundaryMeta.dongName && !boundaryMeta.emdCode;
+        if (isOutsideBoundary) {
+          const fitted = fitMapToBoundaryExtent({
+            padding: [22, 22, 22, 22],
+            duration: 240,
+            maxZoom: 16
+          });
+          if (fitted) {
+            state.autoCenteredToCurrentLocation = false;
+            return;
+          }
+        }
       }
       const currentZoom = mapView.getZoom();
       const targetZoom = Number.isFinite(currentZoom) && currentZoom > minZoom ? currentZoom : minZoom;
@@ -3651,6 +3731,25 @@
 
       setSelectedCoord(lat, lng);
       if (state.map) {
+        const hasBoundaryData = Boolean(
+          state.boundariesLoaded &&
+          state.boundarySource &&
+          state.boundarySource.getFeatures().length > 0
+        );
+        if (hasBoundaryData) {
+          const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
+          const isOutsideBoundary = !boundaryMeta.dongName && !boundaryMeta.emdCode;
+          if (isOutsideBoundary) {
+            const fitted = fitMapToBoundaryExtent({
+              padding: [22, 22, 22, 22],
+              duration: 240,
+              maxZoom: 16
+            });
+            if (fitted) {
+              return;
+            }
+          }
+        }
         const view = state.map.getView();
         const currentZoom = view.getZoom();
         const nextZoom = Number.isFinite(currentZoom) && currentZoom > 16 ? currentZoom : 16;
@@ -3802,11 +3901,38 @@
     state.popupOverlay.setPosition(undefined);
   }
 
-  function isAllowedStaff(email) {
-    const normalizedTarget = normalizeEmail(email);
-    return config.auth.allowedEmails
-      .map((value) => normalizeEmail(value))
-      .includes(normalizedTarget);
+  async function resolveStaffAccess(user) {
+    if (!user || typeof user.getIdTokenResult !== "function") {
+      return {
+        ok: false,
+        isStaff: false,
+        reason: "인증 토큰을 확인할 수 없습니다."
+      };
+    }
+
+    try {
+      const cached = await user.getIdTokenResult(false);
+      if (hasStaffClaim(cached && cached.claims)) {
+        return { ok: true, isStaff: true, reason: "" };
+      }
+      const refreshed = await user.getIdTokenResult(true);
+      return {
+        ok: true,
+        isStaff: hasStaffClaim(refreshed && refreshed.claims),
+        reason: ""
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        isStaff: false,
+        reason: toMessage(error)
+      };
+    }
+  }
+
+  function hasStaffClaim(claims) {
+    const raw = claims ? claims.staff : undefined;
+    return raw === true || raw === "true" || raw === 1 || raw === "1";
   }
 
   function normalizeEmail(value) {

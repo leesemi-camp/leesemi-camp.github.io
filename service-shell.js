@@ -17,6 +17,7 @@
       if (firebase.apps.length === 0) {
         firebase.initializeApp(config.firebase.config);
       }
+      initOptionalAppCheck();
       const auth = firebase.auth();
 
       if (logoutButton) {
@@ -30,8 +31,8 @@
           redirectToLauncher();
           return;
         }
-        const email = normalizeEmail(user.email);
-        if (!isAllowedStaff(email)) {
+        const staffAccess = await resolveStaffAccess(user);
+        if (!staffAccess.ok || !staffAccess.isStaff) {
           await auth.signOut();
           redirectToLauncher();
         }
@@ -49,14 +50,50 @@
     }
   }
 
-  function isAllowedStaff(email) {
-    const allowed = Array.isArray(config.auth && config.auth.allowedEmails) ? config.auth.allowedEmails : [];
-    const target = normalizeEmail(email);
-    return allowed.map((value) => normalizeEmail(value)).includes(target);
+  async function resolveStaffAccess(user) {
+    if (!user || typeof user.getIdTokenResult !== "function") {
+      return { ok: false, isStaff: false };
+    }
+    try {
+      const cached = await user.getIdTokenResult(false);
+      if (hasStaffClaim(cached && cached.claims)) {
+        return { ok: true, isStaff: true };
+      }
+      const refreshed = await user.getIdTokenResult(true);
+      return { ok: true, isStaff: hasStaffClaim(refreshed && refreshed.claims) };
+    } catch (error) {
+      return { ok: false, isStaff: false };
+    }
   }
 
-  function normalizeEmail(value) {
-    return String(value || "").trim().toLowerCase();
+  function hasStaffClaim(claims) {
+    const raw = claims ? claims.staff : undefined;
+    return raw === true || raw === "true" || raw === 1 || raw === "1";
+  }
+
+  function initOptionalAppCheck() {
+    const firebaseConfig = config && typeof config.firebase === "object" ? config.firebase : null;
+    const rawAppCheck = firebaseConfig && typeof firebaseConfig.appCheck === "object"
+      ? firebaseConfig.appCheck
+      : null;
+    if (!rawAppCheck || rawAppCheck.enabled !== true) {
+      return;
+    }
+    if (!window.firebase || typeof firebase.appCheck !== "function") {
+      console.warn("[app-check] firebase-app-check-compat.js가 로드되지 않아 App Check를 건너뜁니다.");
+      return;
+    }
+    const siteKey = String(rawAppCheck.siteKey || "").trim();
+    if (!siteKey) {
+      console.warn("[app-check] siteKey가 비어 있어 App Check를 건너뜁니다.");
+      return;
+    }
+    try {
+      const autoRefresh = rawAppCheck.autoRefresh !== false;
+      firebase.appCheck().activate(siteKey, autoRefresh);
+    } catch (error) {
+      console.warn("[app-check] activate 실패:", error && error.message ? error.message : String(error));
+    }
   }
 
   function redirectToLauncher() {

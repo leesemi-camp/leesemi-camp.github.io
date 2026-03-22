@@ -1,10 +1,6 @@
 window.APP_CONFIG = {
   auth: {
-    // 로그인 허용할 선거사무원 이메일 목록
-    allowedEmails: [
-      "staff1@example.com",
-      "staff2@example.com"
-    ]
+    // 접근 권한은 Firebase custom claims(staff=true)로 제어합니다.
   },
   firebase: {
     enabled: true,
@@ -15,6 +11,12 @@ window.APP_CONFIG = {
       storageBucket: "YOUR_PROJECT.appspot.com",
       messagingSenderId: "YOUR_SENDER_ID",
       appId: "YOUR_APP_ID"
+    },
+    appCheck: {
+      // Firebase Console > App Check의 Web(reCAPTCHA v3) 사이트 키
+      enabled: false,
+      siteKey: "",
+      autoRefresh: true
     }
   },
   map: {

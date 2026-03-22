@@ -31,6 +31,7 @@
       if (firebase.apps.length === 0) {
         firebase.initializeApp(config.firebase.config);
       }
+      initOptionalAppCheck();
       state.auth = firebase.auth();
 
       elements.loginButton.addEventListener("click", () => {
@@ -63,9 +64,6 @@
     if (!appConfig || !appConfig.firebase || !appConfig.firebase.config) {
       throw new Error("config.js의 Firebase 설정이 필요합니다.");
     }
-    if (!Array.isArray(appConfig.auth && appConfig.auth.allowedEmails) || appConfig.auth.allowedEmails.length === 0) {
-      throw new Error("config.js의 auth.allowedEmails를 1개 이상 설정하세요.");
-    }
   }
 
   async function onAuthStateChanged(user) {
@@ -81,11 +79,21 @@
       return;
     }
 
-    const email = normalizeEmail(user.email);
-    if (!isAllowedStaff(email)) {
+    const staffAccess = await resolveStaffAccess(user);
+    if (!staffAccess.ok) {
       state.manualLoginOnly = true;
       await state.auth.signOut();
-      showError("허용되지 않은 계정입니다: " + email);
+      showError("권한 확인 실패: " + staffAccess.reason);
+      return;
+    }
+    if (!staffAccess.isStaff) {
+      const email = normalizeEmail(user.email);
+      state.manualLoginOnly = true;
+      await state.auth.signOut();
+      showError(
+        "권한이 없는 계정입니다: " + email +
+        " (관리자에게 Firebase custom claim staff=true 부여 요청)"
+      );
       return;
     }
 
@@ -240,11 +248,38 @@
     }
   }
 
-  function isAllowedStaff(email) {
-    const normalizedTarget = normalizeEmail(email);
-    return config.auth.allowedEmails
-      .map((value) => normalizeEmail(value))
-      .includes(normalizedTarget);
+  async function resolveStaffAccess(user) {
+    if (!user || typeof user.getIdTokenResult !== "function") {
+      return {
+        ok: false,
+        isStaff: false,
+        reason: "인증 토큰을 확인할 수 없습니다."
+      };
+    }
+
+    try {
+      const cached = await user.getIdTokenResult(false);
+      if (hasStaffClaim(cached && cached.claims)) {
+        return { ok: true, isStaff: true, reason: "" };
+      }
+      const refreshed = await user.getIdTokenResult(true);
+      return {
+        ok: true,
+        isStaff: hasStaffClaim(refreshed && refreshed.claims),
+        reason: ""
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        isStaff: false,
+        reason: toMessage(error)
+      };
+    }
+  }
+
+  function hasStaffClaim(claims) {
+    const raw = claims ? claims.staff : undefined;
+    return raw === true || raw === "true" || raw === 1 || raw === "1";
   }
 
   function normalizeEmail(value) {
@@ -281,10 +316,37 @@
   function buildMissingSessionMessage() {
     return (
       "로그인 세션을 확인하지 못했습니다. " +
-      "1) config.js allowedEmails에 계정이 포함되어 있는지, " +
-      "2) Firebase Authentication Authorized domains에 현재 도메인이 등록되어 있는지, " +
+      "1) Firebase Authentication Authorized domains에 현재 도메인이 등록되어 있는지, " +
+      "2) 계정에 Firebase custom claim staff=true가 부여되어 있는지, " +
       "3) 시크릿 모드의 쿠키/사이트데이터 차단 또는 보안 확장 기능이 인증을 막고 있지 않은지 확인하세요."
     );
+  }
+
+  function initOptionalAppCheck() {
+    const firebaseConfig = config && typeof config.firebase === "object" ? config.firebase : null;
+    const rawAppCheck = firebaseConfig && typeof firebaseConfig.appCheck === "object"
+      ? firebaseConfig.appCheck
+      : null;
+    if (!rawAppCheck || rawAppCheck.enabled !== true) {
+      return;
+    }
+    if (!window.firebase || typeof firebase.appCheck !== "function") {
+      console.warn("[app-check] firebase-app-check-compat.js가 로드되지 않아 App Check를 건너뜁니다.");
+      return;
+    }
+
+    const siteKey = String(rawAppCheck.siteKey || "").trim();
+    if (!siteKey) {
+      console.warn("[app-check] siteKey가 비어 있어 App Check를 건너뜁니다.");
+      return;
+    }
+
+    try {
+      const autoRefresh = rawAppCheck.autoRefresh !== false;
+      firebase.appCheck().activate(siteKey, autoRefresh);
+    } catch (error) {
+      console.warn("[app-check] activate 실패:", toMessage(error));
+    }
   }
 
   function escapeHtml(value) {

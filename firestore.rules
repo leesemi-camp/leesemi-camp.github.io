@@ -3,9 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function isStaff() {
       return request.auth != null
-        && request.auth.token.email != null
-        && exists(/databases/$(database)/documents/meta/staff_allowlist)
-        && request.auth.token.email in get(/databases/$(database)/documents/meta/staff_allowlist).data.emails;
+        && request.auth.token.staff == true;
     }
 
     match /crowd_hotspots/{docId} {

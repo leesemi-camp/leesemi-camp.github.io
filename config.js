@@ -1,17 +1,5 @@
 window.APP_CONFIG = {
-  auth: {
-    allowedEmails: [
-      "flyingjae@gmail.com",
-      "kyjune1014@gmail.com",
-      "beautiful.semi@gmail.com",
-      "luncliff@gmail.com",
-      "windwing987@gmail.com",
-      "jhjin2527@gmail.com",
-      "sudeki72@gmail.com",
-      "mtgoat9705@gmail.com",
-      "leesemi114@gmail.com"
-    ]
-  },
+  auth: {},
   firebase: {
     enabled: true,
     config: {
@@ -21,6 +9,11 @@ window.APP_CONFIG = {
       storageBucket: "semi-campaign-map.firebasestorage.app",
       messagingSenderId: "999294814733",
       appId: "1:999294814733:web:9d9543b33ed01b6d272344"
+    },
+    appCheck: {
+      enabled: false,
+      siteKey: "",
+      autoRefresh: true
     }
   },
   map: {

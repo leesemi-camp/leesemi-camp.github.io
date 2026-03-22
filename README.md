@@ -4,7 +4,7 @@
 
 ## 현재 포함된 기능
 
-1. 선거사무원만 로그인 허용 (Firebase Auth + 이메일 allowlist)
+1. 선거사무원만 로그인 허용 (Firebase Auth + custom claim `staff`)
 2. OSM 타일 + OpenLayers 지도 연동
 3. 동 경계(GeoJSON/WFS XML) 표시
 4. 혼잡 지점 마커 등록/실시간 공유(Firestore)
@@ -23,17 +23,41 @@
 3. Authentication > Settings > Authorized domains에 GitHub Pages 도메인 추가
 4. Firestore Database 생성(Production/Region 선택)
 5. 프로젝트 루트의 `firestore.rules` 규칙 적용
-6. Firestore에 allowlist 문서 생성
-   - 컬렉션: `meta`
-   - 문서 ID: `staff_allowlist`
-   - 필드: `emails` (Array)
-   - 값 예시: `["staff1@example.com", "staff2@example.com"]`
+6. 지도 수정 권한을 줄 계정에 Firebase custom claim을 부여
+   - claim key: `staff`
+   - claim value: `true`
+   - 방법: `scripts/set-staff-claim.js` 사용(아래 절차 참고)
+
+### staff 권한 부여 절차 (custom claim)
+
+1. Firebase Console > Project settings > Service accounts > `Generate new private key`로 서비스계정 JSON 다운로드
+2. 터미널에서 `firebase-admin` 설치
+   - 예: `npm i firebase-admin`
+3. 아래 명령으로 사용자 권한 부여
+   - `node scripts/set-staff-claim.js --service-account /절대경로/service-account.json --email staff@example.com --staff true`
+4. 권한 제거가 필요하면
+   - `node scripts/set-staff-claim.js --service-account /절대경로/service-account.json --email staff@example.com --staff false`
+5. 권한 변경 후 사용자는 로그아웃/재로그인(또는 토큰 갱신)해야 반영됩니다.
+
+### 보안 강화 체크리스트 (권장)
+
+1. Firebase Web API key 제한
+   - Google Cloud Console > APIs & Services > Credentials > 해당 API key
+   - `Application restrictions`: HTTP referrers(웹사이트)로 제한
+   - `API restrictions`: 필요한 API만 허용(Identity Toolkit, Firebase Installations 등)
+2. App Check 활성화
+   - Firebase Console > Build > App Check > Web 앱 등록(reCAPTCHA v3)
+   - 발급된 site key를 `config.js > firebase.appCheck.siteKey`에 입력 후 `enabled: true`로 변경
+   - Firestore/Functions 등 백엔드 리소스에 App Check 강제(enforce) 적용
+3. 외부 API 토큰은 프론트(config.js)에 직접 넣지 않기
+   - 정적 페이지 특성상 `config.js` 값은 사용자 브라우저에 공개됩니다.
+   - 토큰이 필요한 호출은 Cloud Functions/Cloud Run/Worker 프록시에서 처리하고,
+     토큰은 Secret Manager 등 서버측 비밀 저장소에 보관하세요.
 
 ## 3) 설정 파일 입력
 
 1. `config.js`에 아래 값 입력
    - `firebase.config` 값들
-   - `auth.allowedEmails`
    - `map.defaultCenter`, `map.defaultZoom`(선택)
    - `data.boundaryStrokeColor`, `data.boundaryStrokeWidth`, `data.boundaryHaloColor`, `data.boundaryHaloWidth`(선택)
    - `trafficOverlays.vehicle`, `trafficOverlays.pedestrian` URL/필드 설정(선택)
@@ -63,7 +87,8 @@
 
 1. View-T(Open API)에서 토큰키를 발급받습니다.
    - 접속: https://viewt.ktdb.go.kr/cong/map/page.do (상단 `Open API` 메뉴)
-2. `config.js > trafficOverlays.token`에 토큰을 입력합니다.
+2. (권장) 토큰은 `config.js`에 직접 넣지 말고 프록시 백엔드에서 주입하세요.
+   - 개발/임시 테스트만 `config.js > trafficOverlays.token` 직접 입력
 3. `trafficOverlays.vehicle.url`, `trafficOverlays.pedestrian.url`에 API URL을 입력합니다.
 4. 응답 구조에 따라 `rowPath`, `valueProperty`, `longitudeProperty`, `latitudeProperty`를 맞춥니다.
 5. 로그인 후 사이드패널의 토글(차량 통행 많은 곳 / 보행 유동 많은 곳)로 레이어를 켭니다.
