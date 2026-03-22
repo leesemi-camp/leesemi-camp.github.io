@@ -9,6 +9,8 @@
     map: null,
     popupOverlay: null,
     boundarySource: null,
+    boundaryDefaultStyle: null,
+    boundarySelectedStyle: null,
     hotspotSource: null,
     selectedCoordSource: null,
     populationSource: null,
@@ -45,20 +47,18 @@
     hotspotStyleCache: new Map(),
     availableDongs: [],
     availableDongMap: new Map(),
+    issueCatalogLoaded: false,
+    issueCatalogLoading: false,
+    issueCatalogLoadingPromise: null,
+    issueCatalogList: [],
+    issueCatalogMap: new Map(),
     issues: [],
     activeDongName: "",
-    empathyCounts: new Map(),
-    empathyRecords: [],
-    viewerEmpathyIssueIds: new Set(),
-    viewerToken: "",
-    viewerTokenPromise: null,
-    empathyInFlight: new Set(),
     overlayStyleCache: {
       vehicle: new Map(),
       pedestrian: new Map()
     },
     unsubscribeHotspots: null,
-    unsubscribeEmpathy: null,
     editingHotspotId: null,
     resolvingCurrentLocation: false,
     selectedCoordFeature: null,
@@ -72,6 +72,28 @@
     4: "#e8590c",
     5: "#c92a2a"
   };
+  const issueCategories = {
+    traffic_parking: "🚌 교통·주차",
+    education_childcare: "🏫 교육·보육",
+    environment_park: "🌳 환경·공원",
+    safety_security: "🚨 안전·치안",
+    housing_infra: "🏘️ 주거·인프라",
+    economy_culture: "🛒 경제·문화"
+  };
+  const defaultCommonPledges = [
+    {
+      title: "교통과 주차 해결",
+      description: "출퇴근 상습 정체 구간 개선과 공영주차장 확충"
+    },
+    {
+      title: "아이 키우기 좋은 교육·보육",
+      description: "과밀학급 완화, 통학안전 강화, 돌봄 인프라 확대"
+    },
+    {
+      title: "안전하고 쾌적한 생활환경",
+      description: "CCTV·가로등·보도 정비와 공원/산책로 개선"
+    }
+  ];
   const selectedCoordStyles = [
     new ol.style.Style({
       image: new ol.style.Circle({
@@ -134,9 +156,13 @@
     spotSubmitButton: document.getElementById("spot-submit-btn"),
     cancelSpotEditButton: document.getElementById("spot-cancel-edit-btn"),
     spotDongSelect: document.getElementById("spot-dong"),
+    spotIssueRefField: document.getElementById("spot-issue-ref-field"),
+    spotIssueRefSelect: document.getElementById("spot-issue-ref"),
+    spotIssueRefHelp: document.getElementById("spot-issue-ref-help"),
     spotList: document.getElementById("spot-list"),
     clearDongFilterButton: document.getElementById("clear-dong-filter-btn"),
     activeDongFilter: document.getElementById("active-dong-filter"),
+    commonPledgeList: document.getElementById("common-pledge-list"),
     toggleVehicleFlow: document.getElementById("toggle-vehicle-flow"),
     togglePedestrianFlow: document.getElementById("toggle-pedestrian-flow"),
     overlayStatus: document.getElementById("overlay-status"),
@@ -156,6 +182,8 @@
         throw new Error("OpenLayers 스크립트 로드에 실패했습니다.");
       }
       bindUiEvents();
+      syncIssueReferenceFieldVisibility();
+      renderCommonPledges();
       initPopulationMonthOptions();
       initPopulationHourOptions();
       setStatus("인증 초기화 중...");
@@ -171,6 +199,7 @@
         showAppShell();
         await ensureMapReady();
         await loadBoundaries();
+        await ensureIssueCatalogLoaded();
         updateOverlayControls();
         updatePopulationControls();
         updateCurrentLocationButtonAvailability();
@@ -178,8 +207,6 @@
         await applyDefaultOverlayVisibility();
         await applyDefaultPopulationVisibility();
         subscribeHotspots();
-        subscribeEmpathyReactions();
-        void resolveViewerToken();
         void centerMapToCurrentLocation({ silent: true, minZoom: 15 });
       }
     } catch (error) {
@@ -280,6 +307,13 @@
       });
     }
 
+    if (elements.spotIssueRefSelect) {
+      elements.spotIssueRefSelect.addEventListener("change", () => {
+        const issueRefId = String(elements.spotIssueRefSelect.value || "").trim();
+        applyIssueCatalogSelection(issueRefId);
+      });
+    }
+
     if (elements.toggleVehicleFlow) {
       elements.toggleVehicleFlow.addEventListener("change", () => {
         void handleOverlayToggle("vehicle", elements.toggleVehicleFlow.checked);
@@ -349,10 +383,6 @@
             void deleteHotspot(spotId);
             return;
           }
-          if (action === "empathy-spot") {
-            void registerEmpathy(spotId);
-            return;
-          }
         }
 
         const item = target.closest("[data-spot-id]");
@@ -417,14 +447,362 @@
     updateDongFilterUi();
   }
 
+  function renderCommonPledges() {
+    if (!elements.commonPledgeList) {
+      return;
+    }
+    const pledgeConfig = config.data && Array.isArray(config.data.commonPledges) && config.data.commonPledges.length > 0
+      ? config.data.commonPledges
+      : defaultCommonPledges;
+
+    const html = pledgeConfig.map((item) => {
+      const title = escapeHtml(item && item.title ? item.title : "공약");
+      const description = escapeHtml(item && item.description ? item.description : "");
+      return (
+        "<li class='pledge-item'>" +
+          "<strong>" + title + "</strong>" +
+          "<p>" + description + "</p>" +
+        "</li>"
+      );
+    });
+    elements.commonPledgeList.innerHTML = html.join("");
+  }
+
+  function getIssueCatalogConfig() {
+    const dataConfig = config.data && typeof config.data === "object" ? config.data : {};
+    const raw = dataConfig.issueCatalog && typeof dataConfig.issueCatalog === "object"
+      ? dataConfig.issueCatalog
+      : {};
+    const activeValues = Array.isArray(raw.activeValues) ? raw.activeValues : [];
+
+    return {
+      enabled: raw.enabled === true,
+      apiUrl: String(raw.apiUrl || "").trim(),
+      sourceType: String(raw.sourceType || "json").toLowerCase(),
+      delimiter: String(raw.delimiter || ","),
+      rowPath: String(raw.rowPath || "").trim(),
+      token: String(raw.token || "").trim(),
+      tokenQueryKey: String(raw.tokenQueryKey || "KEY").trim(),
+      queryParams: raw.queryParams && typeof raw.queryParams === "object" ? raw.queryParams : null,
+      idField: String(raw.idField || "issueId"),
+      titleField: String(raw.titleField || "title"),
+      memoField: String(raw.memoField || "memo"),
+      categoryIdField: String(raw.categoryIdField || "categoryId"),
+      categoryLabelField: String(raw.categoryLabelField || "categoryLabel"),
+      dongNameField: String(raw.dongNameField || "dongName"),
+      emdCodeField: String(raw.emdCodeField || "emdCode"),
+      activeField: String(raw.activeField || "").trim(),
+      activeValues: activeValues.map((value) => String(value || "").trim().toLowerCase()).filter(Boolean),
+      lockFormFields: raw.lockFormFields !== false,
+      requireSelection: raw.requireSelection === true
+    };
+  }
+
+  function syncIssueReferenceFieldVisibility() {
+    if (!elements.spotIssueRefField) {
+      return;
+    }
+    const shouldShow = isEditMode() && getIssueCatalogConfig().enabled;
+    elements.spotIssueRefField.classList.toggle("hidden", !shouldShow);
+  }
+
+  async function ensureIssueCatalogLoaded() {
+    const catalogConfig = getIssueCatalogConfig();
+    syncIssueReferenceFieldVisibility();
+
+    if (!catalogConfig.enabled) {
+      state.issueCatalogLoaded = false;
+      state.issueCatalogList = [];
+      state.issueCatalogMap = new Map();
+      syncIssueCatalogSelectOptions("");
+      return;
+    }
+
+    if (state.issueCatalogLoaded) {
+      syncIssueCatalogSelectOptions(elements.spotIssueRefSelect ? elements.spotIssueRefSelect.value : "");
+      return;
+    }
+
+    if (state.issueCatalogLoading && state.issueCatalogLoadingPromise) {
+      await state.issueCatalogLoadingPromise;
+      return;
+    }
+
+    state.issueCatalogLoading = true;
+    state.issueCatalogLoadingPromise = (async () => {
+      if (!catalogConfig.apiUrl) {
+        state.issueCatalogLoaded = true;
+        state.issueCatalogList = [];
+        state.issueCatalogMap = new Map();
+        syncIssueCatalogSelectOptions("");
+        if (elements.spotIssueRefHelp) {
+          elements.spotIssueRefHelp.textContent = "issueCatalog.apiUrl이 비어 있어 수동 입력 모드로 동작합니다.";
+        }
+        return;
+      }
+
+      try {
+        const requestUrl = buildIssueCatalogRequestUrl(catalogConfig);
+        const response = await fetch(requestUrl, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("요청 실패 (" + response.status + ")");
+        }
+        const payloadText = await response.text();
+        const rows = parseIssueCatalogRows(payloadText, catalogConfig);
+        const normalized = normalizeIssueCatalogRows(rows, catalogConfig);
+        state.issueCatalogList = normalized.list;
+        state.issueCatalogMap = normalized.map;
+        state.issueCatalogLoaded = true;
+        syncIssueCatalogSelectOptions(elements.spotIssueRefSelect ? elements.spotIssueRefSelect.value : "");
+      } catch (error) {
+        state.issueCatalogLoaded = true;
+        state.issueCatalogList = [];
+        state.issueCatalogMap = new Map();
+        syncIssueCatalogSelectOptions("");
+        if (elements.spotIssueRefHelp) {
+          elements.spotIssueRefHelp.textContent = "연동 현안을 불러오지 못했습니다: " + toMessage(error);
+        }
+        console.error("[issue-catalog]", toMessage(error));
+      }
+    })();
+
+    try {
+      await state.issueCatalogLoadingPromise;
+    } finally {
+      state.issueCatalogLoading = false;
+      state.issueCatalogLoadingPromise = null;
+    }
+  }
+
+  function buildIssueCatalogRequestUrl(catalogConfig) {
+    const parsedUrl = new URL(catalogConfig.apiUrl, window.location.href);
+    if (catalogConfig.token && catalogConfig.tokenQueryKey && !parsedUrl.searchParams.has(catalogConfig.tokenQueryKey)) {
+      parsedUrl.searchParams.set(catalogConfig.tokenQueryKey, catalogConfig.token);
+    }
+    if (catalogConfig.queryParams) {
+      Object.keys(catalogConfig.queryParams).forEach((key) => {
+        const rawValue = catalogConfig.queryParams[key];
+        if (rawValue === null || rawValue === undefined) {
+          return;
+        }
+        parsedUrl.searchParams.set(key, String(rawValue));
+      });
+    }
+    return parsedUrl.toString();
+  }
+
+  function parseIssueCatalogRows(payloadText, catalogConfig) {
+    const trimmed = String(payloadText || "").trim();
+    if (!trimmed) {
+      throw new Error("빈 응답입니다.");
+    }
+    const sourceType = String(catalogConfig.sourceType || "json").toLowerCase();
+    if (sourceType === "csv") {
+      return parseCsvRows(trimmed, catalogConfig.delimiter || ",");
+    }
+
+    if (trimmed.startsWith("<")) {
+      const htmlSummary = summarizeHtmlText(trimmed);
+      const suffix = htmlSummary ? " (" + htmlSummary + ")" : "";
+      throw new Error("JSON 대신 HTML 응답을 받았습니다" + suffix);
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch (error) {
+      throw new Error("JSON 파싱 실패: " + toMessage(error));
+    }
+
+    return extractPopulationRows(parsed, catalogConfig.rowPath);
+  }
+
+  function normalizeIssueCatalogRows(rows, catalogConfig) {
+    const map = new Map();
+    const activeField = catalogConfig.activeField;
+    const activeValues = catalogConfig.activeValues;
+
+    rows.forEach((row) => {
+      if (!row || typeof row !== "object") {
+        return;
+      }
+
+      const issueId = normalizeIssueCatalogId(row[catalogConfig.idField]);
+      if (!issueId || map.has(issueId)) {
+        return;
+      }
+
+      if (activeField && activeValues.length > 0) {
+        const statusValue = String(row[activeField] || "").trim().toLowerCase();
+        if (!activeValues.includes(statusValue)) {
+          return;
+        }
+      }
+
+      const title = String(row[catalogConfig.titleField] || "").trim();
+      const memo = String(row[catalogConfig.memoField] || "").trim();
+      const rawCategoryId = row[catalogConfig.categoryIdField];
+      const categoryId = normalizeCategoryId(rawCategoryId);
+      const categoryLabel = resolveCategoryLabel(categoryId, row[catalogConfig.categoryLabelField] || rawCategoryId);
+      const dongName = String(row[catalogConfig.dongNameField] || "").trim();
+      const emdCode = normalizeEmdCode(row[catalogConfig.emdCodeField]);
+
+      map.set(issueId, {
+        id: issueId,
+        title: title || "현안 " + issueId,
+        memo,
+        categoryId,
+        categoryLabel,
+        dongName,
+        emdCode,
+        raw: row
+      });
+    });
+
+    const list = Array.from(map.values()).sort((a, b) => {
+      const aDong = String(a.dongName || "");
+      const bDong = String(b.dongName || "");
+      if (aDong !== bDong) {
+        return aDong.localeCompare(bDong, "ko");
+      }
+      return String(a.title || "").localeCompare(String(b.title || ""), "ko");
+    });
+
+    return { list, map };
+  }
+
+  function normalizeIssueCatalogId(value) {
+    return String(value === null || value === undefined ? "" : value).trim();
+  }
+
+  function normalizeCategoryId(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return "";
+    }
+    if (issueCategories[raw]) {
+      return raw;
+    }
+
+    const normalizedRaw = sanitizeCategoryText(raw);
+    const categoryKeys = Object.keys(issueCategories);
+    for (const key of categoryKeys) {
+      if (sanitizeCategoryText(key) === normalizedRaw) {
+        return key;
+      }
+      if (sanitizeCategoryText(issueCategories[key]) === normalizedRaw) {
+        return key;
+      }
+    }
+    return "";
+  }
+
+  function sanitizeCategoryText(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9가-힣]+/g, "");
+  }
+
+  function syncIssueCatalogSelectOptions(preferredIssueRefId) {
+    if (!elements.spotIssueRefSelect) {
+      return;
+    }
+
+    const catalogConfig = getIssueCatalogConfig();
+    const select = elements.spotIssueRefSelect;
+    select.innerHTML = "";
+    const defaultOption = document.createElement("option");
+    defaultOption.value = "";
+    defaultOption.textContent = "직접 입력";
+    select.appendChild(defaultOption);
+
+    if (!catalogConfig.enabled || state.issueCatalogList.length === 0) {
+      select.value = "";
+      select.disabled = !catalogConfig.enabled;
+      applyIssueCatalogSelection("");
+      if (elements.spotIssueRefHelp && catalogConfig.enabled && state.issueCatalogLoaded) {
+        elements.spotIssueRefHelp.textContent = "연동 가능한 현안이 없습니다. 직접 입력 모드로 저장합니다.";
+      }
+      return;
+    }
+
+    state.issueCatalogList.forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.id;
+      const title = item.title || item.id;
+      option.textContent = item.dongName
+        ? "[" + item.dongName + "] " + title
+        : title;
+      select.appendChild(option);
+    });
+
+    const preferred = String(preferredIssueRefId || "").trim();
+    if (preferred && state.issueCatalogMap.has(preferred)) {
+      select.value = preferred;
+    } else if (catalogConfig.requireSelection) {
+      const firstItem = state.issueCatalogList[0];
+      select.value = firstItem ? firstItem.id : "";
+    } else {
+      select.value = "";
+    }
+
+    select.disabled = false;
+    applyIssueCatalogSelection(select.value);
+
+    if (elements.spotIssueRefHelp) {
+      elements.spotIssueRefHelp.textContent =
+        "연동 현안 " + String(state.issueCatalogList.length) + "건을 불러왔습니다.";
+    }
+  }
+
+  function applyIssueCatalogSelection(issueRefId) {
+    if (!isEditMode()) {
+      return;
+    }
+
+    const catalogConfig = getIssueCatalogConfig();
+    const normalizedIssueRefId = normalizeIssueCatalogId(issueRefId);
+    const selectedIssue = normalizedIssueRefId ? state.issueCatalogMap.get(normalizedIssueRefId) : null;
+    const titleInput = elements.form ? elements.form.querySelector("#spot-title") : null;
+    const memoInput = elements.form ? elements.form.querySelector("#spot-memo") : null;
+    const categoryInput = elements.form ? elements.form.querySelector("#spot-category") : null;
+    const shouldLockFormFields = Boolean(selectedIssue) && catalogConfig.lockFormFields;
+
+    if (titleInput) {
+      titleInput.readOnly = shouldLockFormFields;
+    }
+    if (memoInput) {
+      memoInput.readOnly = shouldLockFormFields;
+    }
+
+    if (!selectedIssue) {
+      if (elements.spotIssueRefHelp && catalogConfig.enabled) {
+        elements.spotIssueRefHelp.textContent = "직접 입력 모드입니다. 필요 시 연동 현안을 선택하세요.";
+      }
+      return;
+    }
+
+    if (titleInput && selectedIssue.title) {
+      titleInput.value = selectedIssue.title;
+    }
+    if (memoInput && selectedIssue.memo) {
+      memoInput.value = selectedIssue.memo;
+    }
+    if (categoryInput && selectedIssue.categoryId && issueCategories[selectedIssue.categoryId]) {
+      categoryInput.value = selectedIssue.categoryId;
+    }
+    if (elements.spotIssueRefHelp) {
+      elements.spotIssueRefHelp.textContent =
+        "선택한 연동 현안의 제목/분류/내용을 사용합니다. 좌표만 선택해 저장하세요.";
+    }
+  }
+
   async function onAuthStateChanged(user) {
     if (!user) {
       state.currentUser = null;
       exitHotspotEditMode(true);
       stopHotspotSubscription();
-      stopEmpathySubscription();
       clearHotspotFeatures();
-      clearEmpathyState();
       state.issues = [];
       resetOverlayState();
       resetPopulationState();
@@ -455,6 +833,7 @@
     showAppShell();
     await ensureMapReady();
     await loadBoundaries();
+    await ensureIssueCatalogLoaded();
     updateOverlayControls();
     updatePopulationControls();
     updateCurrentLocationButtonAvailability();
@@ -462,7 +841,6 @@
     await applyDefaultOverlayVisibility();
     await applyDefaultPopulationVisibility();
     subscribeHotspots();
-    subscribeEmpathyReactions();
   }
 
   function showLoginPanel(message, isError) {
@@ -873,7 +1251,20 @@
       strokeColor: boundaryStrokeColor,
       strokeWidth: boundaryStrokeWidth,
       haloColor: boundaryHaloColor,
-      haloWidth: boundaryHaloWidth
+      haloWidth: boundaryHaloWidth,
+      fillColor: "rgba(0,0,0,0)"
+    });
+    const boundarySelectedStyle = createBoundaryStyle({
+      strokeColor: "#083a7a",
+      strokeWidth: boundaryStrokeWidth + 0.8,
+      haloColor: "rgba(255,255,255,1)",
+      haloWidth: boundaryHaloWidth + 0.8,
+      fillColor: createBoundaryHatchPattern({
+        backgroundColor: "rgba(11,87,208,0.10)",
+        stripeColor: "rgba(11,87,208,0.36)",
+        cellSize: 10,
+        stripeWidth: 1.2
+      }) || "rgba(11,87,208,0.10)"
     });
 
     const loadedDongNames = [];
@@ -898,7 +1289,6 @@
       if (emdCode) {
         feature.set("emd_cd", emdCode);
       }
-      feature.setStyle(boundaryStyle);
     });
 
     if (drawableFeatures.length === 0) {
@@ -906,6 +1296,9 @@
     }
 
     state.boundarySource.addFeatures(drawableFeatures);
+    state.boundaryDefaultStyle = boundaryStyle;
+    state.boundarySelectedStyle = boundarySelectedStyle;
+    updateBoundaryHighlightStyles();
     state.availableDongs = Array.from(dongMap.values()).sort((a, b) => {
       return String(a.dongName).localeCompare(String(b.dongName), "ko");
     });
@@ -935,6 +1328,9 @@
     const strokeWidth = readPositiveNumber(options && options.strokeWidth, 3.2);
     const haloColor = options && options.haloColor ? options.haloColor : "rgba(255,255,255,0.95)";
     const haloWidth = readPositiveNumber(options && options.haloWidth, 6);
+    const fillColor = options && Object.prototype.hasOwnProperty.call(options, "fillColor")
+      ? options.fillColor
+      : "rgba(0,0,0,0)";
 
     return [
       new ol.style.Style({
@@ -946,7 +1342,7 @@
           lineJoin: "round"
         }),
         fill: new ol.style.Fill({
-          color: "rgba(0,0,0,0)"
+          color: fillColor
         })
       }),
       new ol.style.Style({
@@ -958,10 +1354,63 @@
           lineJoin: "round"
         }),
         fill: new ol.style.Fill({
-          color: "rgba(0,0,0,0)"
+          color: fillColor
         })
       })
     ];
+  }
+
+  function createBoundaryHatchPattern(options) {
+    if (typeof document === "undefined") {
+      return null;
+    }
+    const cellSize = Math.max(6, Math.round(readPositiveNumber(options && options.cellSize, 10)));
+    const stripeWidth = readPositiveNumber(options && options.stripeWidth, 1.2);
+    const backgroundColor = options && options.backgroundColor
+      ? String(options.backgroundColor)
+      : "rgba(11,87,208,0.10)";
+    const stripeColor = options && options.stripeColor
+      ? String(options.stripeColor)
+      : "rgba(11,87,208,0.34)";
+
+    const canvas = document.createElement("canvas");
+    canvas.width = cellSize;
+    canvas.height = cellSize;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return null;
+    }
+
+    context.fillStyle = backgroundColor;
+    context.fillRect(0, 0, cellSize, cellSize);
+    context.strokeStyle = stripeColor;
+    context.lineWidth = stripeWidth;
+
+    context.beginPath();
+    context.moveTo(-cellSize * 0.2, cellSize);
+    context.lineTo(cellSize, -cellSize * 0.2);
+    context.moveTo(0, cellSize);
+    context.lineTo(cellSize, 0);
+    context.moveTo(cellSize * 0.2, cellSize);
+    context.lineTo(cellSize, cellSize * 0.2);
+    context.stroke();
+
+    return context.createPattern(canvas, "repeat");
+  }
+
+  function updateBoundaryHighlightStyles() {
+    if (!state.boundarySource) {
+      return;
+    }
+    const activeDong = String(state.activeDongName || "").trim();
+    const defaultStyle = state.boundaryDefaultStyle;
+    const selectedStyle = state.boundarySelectedStyle || defaultStyle;
+
+    state.boundarySource.getFeatures().forEach((feature) => {
+      const dongName = String(feature.get("dongName") || "").trim();
+      const isSelected = Boolean(activeDong) && dongName === activeDong;
+      feature.setStyle(isSelected ? selectedStyle : defaultStyle);
+    });
   }
 
   function readPositiveNumber(value, fallback) {
@@ -992,6 +1441,18 @@
       return "";
     }
     return "name:" + normalizedName;
+  }
+
+  function resolveCategoryLabel(categoryId, fallbackLabel) {
+    const normalizedId = String(categoryId || "").trim();
+    if (normalizedId && issueCategories[normalizedId]) {
+      return issueCategories[normalizedId];
+    }
+    const normalizedFallback = String(fallbackLabel || "").trim();
+    if (normalizedFallback) {
+      return normalizedFallback;
+    }
+    return "미분류";
   }
 
   function resolveDongMetaByKey(dongKey) {
@@ -2523,42 +2984,7 @@
 
     state.unsubscribeHotspots = state.db.collection(collectionName).onSnapshot(
       (snapshot) => {
-        const hotspots = [];
-        snapshot.forEach((doc) => {
-          const value = doc.data() || {};
-          const lat = Number(value.lat);
-          const lng = Number(value.lng);
-          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-            return;
-          }
-
-          const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
-          const dongName = String(value.dongName || boundaryMeta.dongName || "").trim();
-          const emdCode = normalizeEmdCode(value.emdCode || value.emd_cd || boundaryMeta.emdCode);
-          const storedDongKey = String(value.dongKey || "").trim();
-          const computedDongKey = buildDongKey(emdCode, dongName);
-          hotspots.push({
-            id: doc.id,
-            title: typeof value.title === "string" ? value.title : "현안 제목 없음",
-            memo: typeof value.memo === "string" ? value.memo : "",
-            level: Number(value.level) || 3,
-            lat,
-            lng,
-            dongName,
-            emdCode,
-            dongSelectionMode: value.dongSelectionMode === "manual" ? "manual" : "auto",
-            dongKey: storedDongKey || computedDongKey,
-            empathyCount: Number(value.empathyCount) || 0,
-            updatedBy: value.updatedBy || "",
-            updatedAt: value.updatedAt || null
-          });
-        });
-
-        hotspots.sort((a, b) => toMillis(b.updatedAt) - toMillis(a.updatedAt));
-        state.issues = hotspots;
-        renderHotspots(hotspots);
-        renderHotspotList(applyIssueFilter(hotspots));
-        updateDongFilterUi();
+        void processHotspotSnapshot(snapshot);
       },
       (error) => {
         clearHotspotFeatures();
@@ -2571,6 +2997,83 @@
         console.error("[hotspot-subscribe]", toMessage(error));
       }
     );
+  }
+
+  async function processHotspotSnapshot(snapshot) {
+    await ensureIssueCatalogLoaded();
+    const hotspots = [];
+    snapshot.forEach((doc) => {
+      const value = doc.data() || {};
+      const lat = Number(value.lat);
+      const lng = Number(value.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return;
+      }
+
+      const issueRefId = normalizeIssueCatalogId(value.issueRefId || value.issue_id);
+      const catalogIssue = issueRefId && state.issueCatalogMap.has(issueRefId)
+        ? state.issueCatalogMap.get(issueRefId)
+        : null;
+      const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
+      const dongName = String(
+        value.dongName ||
+        value.dong_name ||
+        (catalogIssue ? catalogIssue.dongName : "") ||
+        boundaryMeta.dongName ||
+        ""
+      ).trim();
+      const emdCode = normalizeEmdCode(
+        value.emdCode ||
+        value.emd_cd ||
+        (catalogIssue ? catalogIssue.emdCode : "") ||
+        boundaryMeta.emdCode
+      );
+      const storedDongKey = String(value.dongKey || "").trim();
+      const computedDongKey = buildDongKey(emdCode, dongName);
+      const categoryId = normalizeCategoryId(
+        (catalogIssue ? catalogIssue.categoryId : "") ||
+        value.categoryId ||
+        value.category_id
+      );
+      const categoryLabel = resolveCategoryLabel(
+        categoryId,
+        (catalogIssue ? catalogIssue.categoryLabel : "") ||
+        value.categoryLabel ||
+        value.category_label
+      );
+
+      hotspots.push({
+        id: doc.id,
+        issueRefId,
+        title: String(
+          (catalogIssue ? catalogIssue.title : "") ||
+          value.title ||
+          "현안 제목 없음"
+        ),
+        memo: String(
+          (catalogIssue ? catalogIssue.memo : "") ||
+          value.memo ||
+          ""
+        ),
+        level: Number(value.level) || 3,
+        categoryId,
+        categoryLabel,
+        lat,
+        lng,
+        dongName,
+        emdCode,
+        dongSelectionMode: value.dongSelectionMode === "manual" ? "manual" : "auto",
+        dongKey: storedDongKey || computedDongKey,
+        updatedBy: value.updatedBy || "",
+        updatedAt: value.updatedAt || null
+      });
+    });
+
+    hotspots.sort((a, b) => toMillis(b.updatedAt) - toMillis(a.updatedAt));
+    state.issues = hotspots;
+    renderHotspots(hotspots);
+    renderHotspotList(applyIssueFilter(hotspots));
+    updateDongFilterUi();
   }
 
   function isFirestorePermissionError(error) {
@@ -2592,54 +3095,6 @@
     }
   }
 
-  function subscribeEmpathyReactions() {
-    if (!state.db) {
-      return;
-    }
-
-    stopEmpathySubscription();
-    const collectionName = getEmpathyCollectionName();
-    state.unsubscribeEmpathy = state.db.collection(collectionName).onSnapshot(
-      (snapshot) => {
-        const records = [];
-        snapshot.forEach((doc) => {
-          const value = doc.data() || {};
-          const issueId = String(value.issueId || "").trim();
-          const token = String(value.token || "").trim();
-          if (!issueId || !token) {
-            return;
-          }
-          records.push({ issueId, token });
-        });
-        state.empathyRecords = records;
-        recomputeEmpathyAggregates();
-      },
-      (error) => {
-        if (isFirestorePermissionError(error)) {
-          console.warn("[empathy-subscribe] insufficient permissions");
-          return;
-        }
-        console.error("[empathy-subscribe]", toMessage(error));
-      }
-    );
-  }
-
-  function stopEmpathySubscription() {
-    if (state.unsubscribeEmpathy) {
-      state.unsubscribeEmpathy();
-      state.unsubscribeEmpathy = null;
-    }
-  }
-
-  function clearEmpathyState() {
-    state.empathyCounts.clear();
-    state.empathyRecords = [];
-    state.viewerEmpathyIssueIds.clear();
-    state.viewerToken = "";
-    state.viewerTokenPromise = null;
-    state.empathyInFlight.clear();
-  }
-
   function getIssueCollectionName() {
     if (config.data && typeof config.data.issueCollection === "string" && config.data.issueCollection.trim()) {
       return config.data.issueCollection.trim();
@@ -2648,42 +3103,6 @@
       return config.data.hotspotCollection.trim();
     }
     return "crowd_hotspots";
-  }
-
-  function getEmpathyCollectionName() {
-    if (config.data && typeof config.data.issueEmpathyCollection === "string" && config.data.issueEmpathyCollection.trim()) {
-      return config.data.issueEmpathyCollection.trim();
-    }
-    return "issue_empathy";
-  }
-
-  function recomputeEmpathyAggregates() {
-    const counts = new Map();
-    const viewerIssueIds = new Set();
-    const viewerToken = String(state.viewerToken || "");
-
-    state.empathyRecords.forEach((record) => {
-      const issueId = record.issueId;
-      counts.set(issueId, (counts.get(issueId) || 0) + 1);
-      if (viewerToken && record.token === viewerToken) {
-        viewerIssueIds.add(issueId);
-      }
-    });
-
-    state.empathyCounts = counts;
-    state.viewerEmpathyIssueIds = viewerIssueIds;
-    renderHotspotList(applyIssueFilter(state.issues));
-  }
-
-  function getEmpathyCountForSpot(spot) {
-    if (!spot || !spot.id) {
-      return 0;
-    }
-    const counted = state.empathyCounts.get(spot.id);
-    if (Number.isFinite(counted)) {
-      return counted;
-    }
-    return Number(spot.empathyCount) || 0;
   }
 
   function applyIssueFilter(hotspots) {
@@ -2702,6 +3121,7 @@
     }
     state.activeDongName = normalized;
     updateDongFilterUi();
+    updateBoundaryHighlightStyles();
     renderHotspotList(applyIssueFilter(state.issues));
   }
 
@@ -2780,116 +3200,6 @@
     }
   }
 
-  async function registerEmpathy(spotId) {
-    if (isEditMode()) {
-      return;
-    }
-    if (!state.db) {
-      return;
-    }
-    const issueId = String(spotId || "").trim();
-    if (!issueId) {
-      return;
-    }
-    if (state.empathyInFlight.has(issueId)) {
-      return;
-    }
-    if (state.viewerEmpathyIssueIds.has(issueId)) {
-      window.alert("이미 이 현안에 공감하셨습니다.");
-      return;
-    }
-
-    state.empathyInFlight.add(issueId);
-    try {
-      const token = await resolveViewerToken();
-      if (!token) {
-        throw new Error("공감 식별 정보를 생성하지 못했습니다.");
-      }
-
-      const collectionName = getEmpathyCollectionName();
-      const reactionDocId = issueId + "__" + token;
-      await state.db.collection(collectionName).doc(reactionDocId).set({
-        issueId,
-        token,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    } catch (error) {
-      if (isFirestorePermissionError(error) || state.viewerEmpathyIssueIds.has(issueId)) {
-        window.alert("이미 이 현안에 공감하셨습니다.");
-      } else {
-        window.alert("공감 등록 실패: " + toMessage(error));
-      }
-    } finally {
-      state.empathyInFlight.delete(issueId);
-    }
-  }
-
-  async function resolveViewerToken() {
-    if (state.viewerToken) {
-      return state.viewerToken;
-    }
-    if (state.viewerTokenPromise) {
-      return state.viewerTokenPromise;
-    }
-
-    state.viewerTokenPromise = (async () => {
-      const storageKey = "issue_viewer_token_v1";
-      try {
-        const cached = window.localStorage.getItem(storageKey);
-        if (cached) {
-          state.viewerToken = cached;
-          recomputeEmpathyAggregates();
-          return cached;
-        }
-      } catch (error) {
-        console.warn("[viewer-token] localStorage read failed:", toMessage(error));
-      }
-
-      let rawIdentifier = "";
-      try {
-        const response = await fetch("https://api.ipify.org?format=json", { cache: "no-store" });
-        if (response.ok) {
-          const payload = await response.json();
-          rawIdentifier = String(payload.ip || "").trim();
-        }
-      } catch (error) {
-        console.warn("[viewer-token] ip lookup failed:", toMessage(error));
-      }
-
-      if (!rawIdentifier) {
-        rawIdentifier = "anon-" + Math.random().toString(36).slice(2) + "-" + Date.now().toString(36);
-      }
-
-      const hashInput = rawIdentifier + "::" + window.location.hostname;
-      const token = await hashText(hashInput);
-      state.viewerToken = token;
-      recomputeEmpathyAggregates();
-      try {
-        window.localStorage.setItem(storageKey, token);
-      } catch (error) {
-        console.warn("[viewer-token] localStorage write failed:", toMessage(error));
-      }
-      return token;
-    })();
-
-    try {
-      return await state.viewerTokenPromise;
-    } finally {
-      state.viewerTokenPromise = null;
-    }
-  }
-
-  async function hashText(value) {
-    const text = String(value || "");
-    if (!window.crypto || !window.crypto.subtle || typeof TextEncoder !== "function") {
-      return "fallback-" + btoa(unescape(encodeURIComponent(text))).replace(/=+$/g, "");
-    }
-    const encoded = new TextEncoder().encode(text);
-    const digest = await window.crypto.subtle.digest("SHA-256", encoded);
-    const bytes = Array.from(new Uint8Array(digest));
-    return bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  }
-
   function renderHotspots(hotspots) {
     if (!state.hotspotSource) {
       return;
@@ -2966,25 +3276,15 @@
       const title = escapeHtml(spot.title);
       const memo = escapeHtml(spot.memo || "메모 없음");
       const dongName = escapeHtml(spot.dongName || "동 정보 없음");
+      const categoryLabel = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
       const color = hotspotColors[spot.level] || hotspotColors[3];
       const safeId = escapeHtml(spot.id);
-      const empathyCount = getEmpathyCountForSpot(spot);
-      const hasEmpathized = state.viewerEmpathyIssueIds.has(spot.id);
       let actionsHtml = "";
       if (showEditorActions) {
         actionsHtml = (
           "<div class='spot-item-actions'>" +
             "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='edit-spot' data-spot-id='" + safeId + "'>수정</button>" +
             "<button type='button' class='btn-secondary btn-small spot-action-btn danger' data-action='delete-spot' data-spot-id='" + safeId + "'>삭제</button>" +
-          "</div>"
-        );
-      } else {
-        const empathyClass = hasEmpathized ? " spot-action-btn-checked" : "";
-        const empathyLabel = hasEmpathized ? "공감 완료" : "공감";
-        actionsHtml = (
-          "<div class='spot-item-actions'>" +
-            "<button type='button' class='btn-secondary btn-small spot-action-btn" + empathyClass + "' data-action='empathy-spot' data-spot-id='" + safeId + "'>" + empathyLabel + "</button>" +
-            "<span class='spot-empathy-count'>공감 " + String(empathyCount) + "</span>" +
           "</div>"
         );
       }
@@ -2995,6 +3295,7 @@
             "<strong>" + title + "</strong>" +
             "<span class='spot-badge' style='background:" + color + ";'>중요도 " + String(spot.level) + "</span>" +
           "</div>" +
+          "<div class='spot-category'>" + categoryLabel + "</div>" +
           "<div class='spot-dong'>" + dongName + "</div>" +
           "<div class='spot-memo'>" + memo + "</div>" +
           actionsHtml +
@@ -3026,8 +3327,30 @@
     const title = String(formData.get("title") || "").trim();
     const memo = String(formData.get("memo") || "").trim();
     const level = Number(formData.get("level") || 3);
+    const categoryId = String(formData.get("categoryId") || "").trim();
+    const issueRefId = normalizeIssueCatalogId(formData.get("issueRefId"));
+    const issueCatalogConfig = getIssueCatalogConfig();
+    const catalogIssue = issueRefId && state.issueCatalogMap.has(issueRefId)
+      ? state.issueCatalogMap.get(issueRefId)
+      : null;
 
-    if (!title) {
+    if (issueCatalogConfig.enabled && issueCatalogConfig.requireSelection && !catalogIssue) {
+      window.alert("연동 현안을 먼저 선택하세요.");
+      return;
+    }
+
+    const resolvedTitle = String(catalogIssue && catalogIssue.title ? catalogIssue.title : title).trim();
+    const resolvedMemo = String(catalogIssue && catalogIssue.memo ? catalogIssue.memo : memo).trim();
+    const resolvedCategoryId = normalizeCategoryId(
+      categoryId ||
+      (catalogIssue ? catalogIssue.categoryId : "")
+    );
+    const categoryLabel = resolveCategoryLabel(
+      resolvedCategoryId,
+      catalogIssue ? catalogIssue.categoryLabel : ""
+    );
+
+    if (!resolvedTitle) {
       window.alert("현안명을 입력하세요.");
       return;
     }
@@ -3049,9 +3372,12 @@
     }
 
     const payload = {
-      title,
-      memo,
+      title: resolvedTitle,
+      memo: resolvedMemo,
       level: level >= 1 && level <= 5 ? level : 3,
+      categoryId: issueCategories[resolvedCategoryId] ? resolvedCategoryId : "",
+      categoryLabel,
+      issueRefId: catalogIssue ? catalogIssue.id : issueRefId,
       lat,
       lng,
       dongName: finalDongName,
@@ -3085,16 +3411,29 @@
     state.editingHotspotId = spot.id || null;
     const titleInput = elements.form.querySelector("#spot-title");
     const levelInput = elements.form.querySelector("#spot-level");
+    const categoryInput = elements.form.querySelector("#spot-category");
     const memoInput = elements.form.querySelector("#spot-memo");
+    const issueRefSelect = elements.form.querySelector("#spot-issue-ref");
 
     if (titleInput) {
       titleInput.value = spot.title || "";
+      titleInput.readOnly = false;
     }
     if (levelInput) {
       levelInput.value = String(Number(spot.level) || 3);
     }
+    if (categoryInput) {
+      const normalizedCategoryId = String(spot.categoryId || "").trim();
+      categoryInput.value = issueCategories[normalizedCategoryId]
+        ? normalizedCategoryId
+        : "traffic_parking";
+    }
     if (memoInput) {
       memoInput.value = spot.memo || "";
+      memoInput.readOnly = false;
+    }
+    if (issueRefSelect) {
+      syncIssueCatalogSelectOptions(spot.issueRefId || "");
     }
 
     if (elements.spotDongSelect) {
@@ -3137,6 +3476,11 @@
     if (resetForm) {
       if (elements.form) {
         elements.form.reset();
+      }
+      if (elements.spotIssueRefSelect) {
+        syncIssueCatalogSelectOptions("");
+      } else {
+        applyIssueCatalogSelection("");
       }
       syncDongSelectOptions("__auto__");
       clearSelectedCoord();
@@ -3441,8 +3785,8 @@
     }
     const safeTitle = escapeHtml(spot.title);
     const safeMemo = escapeHtml(spot.memo || "-");
+    const safeCategory = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
     const safeDong = escapeHtml(spot.dongName || "-");
-    const empathyCount = getEmpathyCountForSpot(spot);
     const safeUser = escapeHtml(spot.updatedBy || "-");
     const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
 
@@ -3452,10 +3796,10 @@
     openPopup(
       coordinate,
       "<strong>" + safeTitle + "</strong>" +
+      "<div>분류: " + safeCategory + "</div>" +
       "<div>소속 동: " + safeDong + "</div>" +
       "<div>중요도: " + String(spot.level) + "</div>" +
       "<div>내용: " + safeMemo + "</div>" +
-      "<div>공감: " + String(empathyCount) + "</div>" +
       editorInfo
     );
   }

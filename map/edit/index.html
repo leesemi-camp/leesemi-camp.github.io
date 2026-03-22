@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>동별 현안 지도 수정</title>
+  <title>우리동네 현안도, 이세미입니다 - 수정</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css">
@@ -18,7 +18,7 @@
 <body data-map-mode="edit">
   <main class="layout">
     <section id="login-panel" class="panel">
-      <h1>동별 현안 지도 수정</h1>
+      <h1>우리동네 현안도, 이세미입니다</h1>
       <p class="muted">허용된 선거사무원 계정으로 로그인한 사용자만 현안을 등록/수정할 수 있습니다.</p>
       <button id="login-btn" type="button" class="btn-primary">Google 계정으로 로그인</button>
       <p id="status-text" class="status">초기화 중...</p>
@@ -26,7 +26,7 @@
 
     <section id="app-shell" class="app-shell hidden" aria-live="polite">
       <header class="topbar">
-        <h2 class="topbar-title">동별 현안 수정</h2>
+        <h2 class="topbar-title">우리동네 현안도, 이세미입니다</h2>
         <div class="topbar-actions">
           <a href="/system/" class="icon-btn" aria-label="시스템 랜딩으로 이동" title="시스템으로">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -73,13 +73,31 @@
               <label for="spot-title">현안명</label>
               <input id="spot-title" name="title" type="text" maxlength="40" required>
 
-              <label for="spot-level">중요도</label>
-              <select id="spot-level" name="level" required>
-                <option value="1">1 (낮음)</option>
-                <option value="2">2</option>
-                <option value="3" selected>3 (보통)</option>
-                <option value="4">4</option>
-                <option value="5">5 (높음)</option>
+            <label for="spot-level">중요도</label>
+            <select id="spot-level" name="level" required>
+              <option value="1">1 (낮음)</option>
+              <option value="2">2</option>
+              <option value="3" selected>3 (보통)</option>
+              <option value="4">4</option>
+              <option value="5">5 (높음)</option>
+            </select>
+
+            <div id="spot-issue-ref-field" class="spot-issue-ref-field hidden">
+              <label for="spot-issue-ref">연동 현안 선택(시트)</label>
+              <select id="spot-issue-ref" name="issueRefId">
+                <option value="">직접 입력</option>
+              </select>
+              <p id="spot-issue-ref-help" class="field-note">시트에서 현안을 선택하면 제목/분류/내용이 자동 반영됩니다.</p>
+            </div>
+
+            <label for="spot-category">현안 분류</label>
+            <select id="spot-category" name="categoryId" required>
+              <option value="traffic_parking">🚌 교통·주차 (출퇴근과 이동의 편리함)</option>
+                <option value="education_childcare">🏫 교육·보육 (아이 키우기 좋은 동네)</option>
+                <option value="environment_park">🌳 환경·공원 (쾌적하고 여유로운 휴식)</option>
+                <option value="safety_security">🚨 안전·치안 (불안감 없는 안심 귀갓길)</option>
+                <option value="housing_infra">🏘️ 주거·인프라 (오래된 동네의 기분 좋은 변화)</option>
+                <option value="economy_culture">🛒 경제·문화 (지갑이 열리고 사람이 모이는 곳)</option>
               </select>
 
               <label for="spot-dong">동 선택</label>
@@ -105,6 +123,11 @@
                 <button id="spot-cancel-edit-btn" type="button" class="btn-secondary hidden">수정 취소</button>
               </div>
             </form>
+          </section>
+
+          <section class="pledge-panel">
+            <h3>지역구 공통 공약</h3>
+            <ul id="common-pledge-list" class="pledge-list"></ul>
           </section>
 
           <h3 class="list-title">등록된 지역 현안</h3>

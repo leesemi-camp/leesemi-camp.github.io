@@ -45,6 +45,13 @@ window.APP_CONFIG = {
         tone: "sand"
       },
       {
+        label: "블로그 글 작성 도우미",
+        description: "정책/현안 글 작성 지원 도구",
+        href: "https://leesemi114.pythonanywhere.com/",
+        newTab: true,
+        tone: "slate"
+      },
+      {
         label: "추가 서비스 예시",
         description: "다른 내부 서비스 링크를 여기에 추가",
         href: "https://example.com",
@@ -62,12 +69,56 @@ window.APP_CONFIG = {
       "/data/pangyodong.wfs.xml",
       "/data/hasanundong.wfs.xml"
     ],
+    commonPledges: [
+      {
+        title: "🚌 교통·주차 공약",
+        description: "출퇴근 정체구간 개선, 버스 체계 개편, 공영주차장 확충"
+      },
+      {
+        title: "🏫 교육·보육 공약",
+        description: "통학 안전 강화, 돌봄 인프라 확충, 과밀학급 완화 지원"
+      },
+      {
+        title: "🌳 환경·안전 공약",
+        description: "공원/산책로 정비, CCTV·스마트 가로등 확충, 침수 취약지 개선"
+      },
+      {
+        title: "🏘️ 주거·경제 공약",
+        description: "노후 인프라 정비, 골목상권 활성화, 생활밀착 문화공간 확대"
+      }
+    ],
     boundaryStrokeColor: "#0b57d0",
     boundaryStrokeWidth: 3.2,
     boundaryHaloColor: "rgba(255,255,255,0.95)",
     boundaryHaloWidth: 6,
-    issueCollection: "crowd_hotspots",
-    issueEmpathyCollection: "issue_empathy"
+    issueCatalog: {
+      // true면 /map/edit에서 "연동 현안 선택" 드롭다운을 표시합니다.
+      enabled: false,
+      // Apps Script Web App(JSON) 또는 시트 연계 API URL
+      apiUrl: "",
+      sourceType: "json", // "json" | "csv"
+      rowPath: "", // 예: "rows" 또는 "result.items"
+      delimiter: ",", // CSV일 때 사용
+      token: "",
+      tokenQueryKey: "KEY",
+      queryParams: {},
+      // API 컬럼 매핑
+      idField: "issue_id",
+      titleField: "title",
+      memoField: "memo",
+      categoryIdField: "category_id",
+      categoryLabelField: "category_label",
+      dongNameField: "dong_name",
+      emdCodeField: "emd_cd",
+      // 상태 필터를 쓰려면 activeField + activeValues 설정
+      activeField: "",
+      activeValues: ["Y", "1", "active", "진행중"],
+      // true면 연동 현안을 선택한 경우 제목/내용을 편집 잠금
+      lockFormFields: true,
+      // true면 좌표 저장 시 연동 현안 선택을 필수화
+      requireSelection: false
+    },
+    issueCollection: "crowd_hotspots"
   },
   trafficOverlays: {
     // View-T Open API 토큰키(쿼리 파라미터) 사용 시 입력

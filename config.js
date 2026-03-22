@@ -47,6 +47,13 @@ window.APP_CONFIG = {
         description: "후원회 명부 기반 전화 지원",
         href: "https://script.google.com/macros/s/AKfycbySVaEO1wTe-TgYTCp7Uqg5F5LdwBVnTV71HKNUJ0WQCx0oN1Onxs585LGRidX5hTI_/exec",
         tone: "sand"
+      },
+      {
+        label: "블로그 글 작성 도우미",
+        description: "정책/현안 글 작성 지원 도구",
+        href: "https://leesemi114.pythonanywhere.com/",
+        newTab: true,
+        tone: "slate"
       }
     ]
   },
@@ -59,12 +66,50 @@ window.APP_CONFIG = {
       "/data/pangyodong.wfs.xml",
       "/data/hasanundong.wfs.xml"
     ],
+    commonPledges: [
+      {
+        title: "🚌 교통·주차 공약",
+        description: "출퇴근 정체구간 개선, 버스 체계 개편, 공영주차장 확충"
+      },
+      {
+        title: "🏫 교육·보육 공약",
+        description: "통학 안전 강화, 돌봄 인프라 확충, 과밀학급 완화 지원"
+      },
+      {
+        title: "🌳 환경·안전 공약",
+        description: "공원/산책로 정비, CCTV·스마트 가로등 확충, 침수 취약지 개선"
+      },
+      {
+        title: "🏘️ 주거·경제 공약",
+        description: "노후 인프라 정비, 골목상권 활성화, 생활밀착 문화공간 확대"
+      }
+    ],
     boundaryStrokeColor: "#0b57d0",
     boundaryStrokeWidth: 3.2,
     boundaryHaloColor: "rgba(255,255,255,0.95)",
     boundaryHaloWidth: 6,
-    issueCollection: "crowd_hotspots",
-    issueEmpathyCollection: "issue_empathy"
+    issueCatalog: {
+      enabled: false,
+      apiUrl: "",
+      sourceType: "json",
+      rowPath: "",
+      delimiter: ",",
+      token: "",
+      tokenQueryKey: "KEY",
+      queryParams: {},
+      idField: "issue_id",
+      titleField: "title",
+      memoField: "memo",
+      categoryIdField: "category_id",
+      categoryLabelField: "category_label",
+      dongNameField: "dong_name",
+      emdCodeField: "emd_cd",
+      activeField: "",
+      activeValues: ["Y", "1", "active", "진행중"],
+      lockFormFields: true,
+      requireSelection: false
+    },
+    issueCollection: "crowd_hotspots"
   },
   trafficOverlays: {
     enabled: true,

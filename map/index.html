@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>동별 현안 지도</title>
+  <title>우리동네 현안도, 이세미입니다</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css">
@@ -19,7 +19,7 @@
   <main class="layout">
     <section id="app-shell" class="app-shell" aria-live="polite">
       <header class="topbar">
-        <h2 class="topbar-title">동별 현안 지도</h2>
+        <h2 class="topbar-title">우리동네 현안도, 이세미입니다</h2>
         <div class="topbar-actions">
           <a href="../" class="icon-btn" aria-label="메인 랜딩으로 이동" title="메인으로">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -27,7 +27,7 @@
               <path d="M6 10.5V20h12v-9.5"/>
             </svg>
           </a>
-          <a href="/system/" class="icon-btn" aria-label="시스템 로그인으로 이동" title="시스템 로그인">
+          <a href="/map/edit/" class="icon-btn" aria-label="현안 수정으로 이동" title="현안 수정">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25z"/>
               <path d="m14.06 4.19 3.75 3.75"/>
@@ -43,7 +43,12 @@
         </div>
 
         <aside class="side-panel">
-          <h3 class="list-title">등록된 지역 현안</h3>
+          <section class="pledge-panel">
+            <h3>지역구 공통 공약</h3>
+            <ul id="common-pledge-list" class="pledge-list"></ul>
+          </section>
+
+          <h3 class="list-title">우리동네 현안</h3>
           <div class="spot-filter-row">
             <span id="active-dong-filter" class="active-dong-filter hidden"></span>
             <button id="clear-dong-filter-btn" type="button" class="btn-secondary btn-small hidden">전체 보기</button>

@@ -47,6 +47,11 @@
    - 판교/운중권 월·시간 샘플: `data/pangyo-focused-month-hour.csv`
    - 250m 격자 샘플: `data/capital-mobility-grid.sample.csv`
    - 설정: `config.js`의 `mobilityPopulation` (`mode`, `dataPath`, `fields`, `cellSizeMeter`)
+5. (선택) 스프레드시트/외부 API 현안 원문 연동
+   - 설정: `config.js`의 `data.issueCatalog`
+   - `enabled: true`로 켜면 `/map/edit`에 `연동 현안 선택(시트)` 드롭다운이 표시됩니다.
+   - 저장 시 좌표는 Firestore에 저장하고, 제목/분류/내용은 연동 API 데이터를 우선 사용합니다.
+   - 핵심 필드: `apiUrl`, `sourceType`, `rowPath`, `idField`, `titleField`, `categoryIdField`
 
 ## 4) GitHub Pages 배포
 
