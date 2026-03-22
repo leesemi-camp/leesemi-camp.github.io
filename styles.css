@@ -429,6 +429,23 @@ textarea {
   font-weight: 600;
 }
 
+.issue-contact-note {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #29456b;
+  line-height: 1.45;
+}
+
+.issue-contact-link {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.issue-contact-link:hover {
+  text-decoration: underline;
+}
+
 .empty {
   border: 1px dashed var(--line);
   border-radius: 10px;
