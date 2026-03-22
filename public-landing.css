@@ -5,6 +5,7 @@
   --text: #17283f;
   --muted: #556a85;
   --line: #d1dceb;
+  --landing-content-max-width: 560px;
 }
 
 * {
@@ -22,13 +23,50 @@ body {
 
 .public-landing {
   min-height: 100vh;
-  padding: 18px 14px;
+  padding: 18px 14px 28px;
   display: grid;
-  place-items: center;
+  justify-items: center;
+  align-content: start;
+  gap: 14px;
+}
+
+.public-hero {
+  width: min(var(--landing-content-max-width), 100%);
+  display: grid;
+  gap: 10px;
+}
+
+.public-banner-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.public-banner {
+  position: relative;
+  width: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid #c7d6ee;
+  box-shadow: 0 14px 28px rgba(15, 38, 68, 0.2);
+  background: #1e3a8a;
+}
+
+.public-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 19, 44, 0.04), rgba(8, 19, 44, 0.12));
+  pointer-events: none;
+}
+
+.public-banner-image {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 
 .public-card {
-  width: min(560px, 100%);
+  width: min(var(--landing-content-max-width), 100%);
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--panel);
@@ -53,6 +91,37 @@ body {
 .public-actions {
   display: grid;
   gap: 10px;
+}
+
+.public-social-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  margin-top: 6px;
+}
+
+.public-social-icon-link {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  border-radius: 999px;
+  transition: transform 0.14s ease, opacity 0.14s ease;
+}
+
+.public-social-icon-link img {
+  width: 26px;
+  height: 26px;
+  display: block;
+  filter: grayscale(1) brightness(0) contrast(1.05);
+}
+
+.public-social-icon-link:hover {
+  transform: translateY(-1px);
+  opacity: 0.76;
 }
 
 .public-link {
@@ -106,6 +175,30 @@ body {
 }
 
 @media (max-width: 640px) {
+  .public-landing {
+    padding: 10px 10px 22px;
+    gap: 10px;
+  }
+
+  .public-banner {
+    border-radius: 12px;
+  }
+
+  .public-social-inline {
+    gap: 24px;
+    margin-top: 4px;
+  }
+
+  .public-social-icon-link {
+    width: 30px;
+    height: 30px;
+  }
+
+  .public-social-icon-link img {
+    width: 24px;
+    height: 24px;
+  }
+
   .public-card {
     border-radius: 14px;
     padding: 18px;
