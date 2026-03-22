@@ -59,6 +59,16 @@
         </div>
 
         <aside class="side-panel">
+          <section class="issue-contact-banner" aria-label="현안 제보 안내">
+            <p class="issue-contact-copy">
+              이 지도에 담고 싶은 동네의 이야기가 있나요? 사소한 의견이라도 좋으니 제보해 주세요. 귀 기울여 듣겠습니다!
+            </p>
+            <p class="issue-contact-actions">
+              <a href="sms:01081901440" class="issue-contact-link" aria-label="현안 추가 문의 문자 보내기">010-8190-1440</a>
+              <span class="issue-contact-divider" aria-hidden="true">/</span>
+              <a href="mailto:leesemi114@gmail.com" class="issue-contact-link" aria-label="현안 추가 문의 이메일 보내기">leesemi114@gmail.com</a>
+            </p>
+          </section>
           <section id="spot-form-sheet" class="spot-form-sheet">
             <div class="spot-form-head">
               <h3>지역 현안 등록</h3>
@@ -74,14 +84,7 @@
               <label for="spot-title">현안명</label>
               <input id="spot-title" name="title" type="text" maxlength="40" required>
 
-            <label for="spot-level">중요도</label>
-            <select id="spot-level" name="level" required>
-              <option value="1">1 (낮음)</option>
-              <option value="2">2</option>
-              <option value="3" selected>3 (보통)</option>
-              <option value="4">4</option>
-              <option value="5">5 (높음)</option>
-            </select>
+              <input id="spot-level" name="level" type="hidden" value="3">
 
             <div id="spot-issue-ref-field" class="spot-issue-ref-field hidden">
               <label for="spot-issue-ref">연동 현안 선택(시트)</label>
@@ -104,6 +107,7 @@
               <label for="spot-dong">동 선택</label>
               <select id="spot-dong" name="dongKey">
                 <option value="__auto__" selected>좌표 기준 자동 판별</option>
+                <option value="__common__">공통 (전체 동)</option>
               </select>
 
               <label for="spot-memo">현안 내용</label>
@@ -127,21 +131,17 @@
           </section>
 
           <section class="pledge-panel">
-            <h3>지역구 공통 공약</h3>
+            <h3>지역구 공통 현안</h3>
             <ul id="common-pledge-list" class="pledge-list"></ul>
           </section>
 
           <h3 class="list-title">등록된 지역 현안</h3>
           <div class="spot-filter-row">
+            <button id="issue-view-list-btn" type="button" class="btn-secondary btn-small spot-action-btn spot-action-btn-checked">개별 보기</button>
+            <button id="issue-view-group-btn" type="button" class="btn-secondary btn-small spot-action-btn">그룹 보기</button>
             <span id="active-dong-filter" class="active-dong-filter hidden"></span>
             <button id="clear-dong-filter-btn" type="button" class="btn-secondary btn-small hidden">전체 보기</button>
           </div>
-          <p class="issue-contact-note">
-            지도에 현안 추가 관련 문의는
-            <a href="sms:01081901440" class="issue-contact-link" aria-label="현안 추가 문의 문자 보내기">010-8190-1440</a>
-            /
-            <a href="mailto:leesemi114@gmail.com" class="issue-contact-link" aria-label="현안 추가 문의 이메일 보내기">leesemi114@gmail.com</a>
-          </p>
           <ul id="spot-list" class="spot-list"></ul>
         </aside>
       </section>

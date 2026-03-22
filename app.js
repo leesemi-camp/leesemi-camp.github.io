@@ -45,6 +45,7 @@
     populationMaxByPeriod: new Map(),
     hotspotData: new Map(),
     hotspotStyleCache: new Map(),
+    highlightedHotspotIds: new Set(),
     availableDongs: [],
     availableDongMap: new Map(),
     issueCatalogLoaded: false,
@@ -53,6 +54,9 @@
     issueCatalogList: [],
     issueCatalogMap: new Map(),
     issues: [],
+    commonIssueTagMap: new Map(),
+    issueGroupMap: new Map(),
+    issueListMode: "spot",
     activeDongName: "",
     overlayStyleCache: {
       vehicle: new Map(),
@@ -62,16 +66,15 @@
     editingHotspotId: null,
     resolvingCurrentLocation: false,
     selectedCoordFeature: null,
-    autoCenteredToCurrentLocation: false
+    autoCenteredToCurrentLocation: false,
+    suppressPopupCloseOnNextMoveStart: false
   };
 
-  const hotspotColors = {
-    1: "#2f9e44",
-    2: "#74b816",
-    3: "#f08c00",
-    4: "#e8590c",
-    5: "#c92a2a"
-  };
+  const DONG_AUTO_KEY = "__auto__";
+  const DONG_COMMON_KEY = "__common__";
+  const DONG_COMMON_NAME = "공통";
+  const DONG_COMMON_LABEL = "공통 (전체 동)";
+
   const issueCategories = {
     traffic_parking: "🚌 교통·주차",
     education_childcare: "🏫 교육·보육",
@@ -80,6 +83,23 @@
     housing_infra: "🏘️ 주거·인프라",
     economy_culture: "🛒 경제·문화"
   };
+  const issueCategoryMeta = {
+    traffic_parking: { icon: "🚌", color: "#2f6fb8" },
+    education_childcare: { icon: "🏫", color: "#188e5b" },
+    environment_park: { icon: "🌳", color: "#2b8a3e" },
+    safety_security: { icon: "🚨", color: "#d9480f" },
+    housing_infra: { icon: "🏘️", color: "#8d6e63" },
+    economy_culture: { icon: "🛒", color: "#c2255c" }
+  };
+  const fallbackCategoryPalette = [
+    "#2f6fb8",
+    "#188e5b",
+    "#2b8a3e",
+    "#d9480f",
+    "#8d6e63",
+    "#c2255c"
+  ];
+  const defaultIssueCategoryColor = "#4263eb";
   const defaultCommonPledges = [
     {
       title: "교통과 주차 해결",
@@ -160,6 +180,8 @@
     spotIssueRefSelect: document.getElementById("spot-issue-ref"),
     spotIssueRefHelp: document.getElementById("spot-issue-ref-help"),
     spotList: document.getElementById("spot-list"),
+    issueViewListButton: document.getElementById("issue-view-list-btn"),
+    issueViewGroupButton: document.getElementById("issue-view-group-btn"),
     clearDongFilterButton: document.getElementById("clear-dong-filter-btn"),
     activeDongFilter: document.getElementById("active-dong-filter"),
     commonPledgeList: document.getElementById("common-pledge-list"),
@@ -347,24 +369,41 @@
           return;
         }
 
-        const actionButton = target.closest("[data-action][data-spot-id]");
+        const actionButton = target.closest("[data-action]");
         if (actionButton) {
           const action = String(actionButton.getAttribute("data-action") || "");
-          const spotId = String(actionButton.getAttribute("data-spot-id") || "");
-          if (!spotId) {
-            return;
-          }
-          if (action === "edit-spot") {
-            const editSpot = state.hotspotData.get(spotId);
-            if (editSpot) {
-              enterHotspotEditMode(editSpot);
+          if (action === "focus-group") {
+            const groupKey = String(actionButton.getAttribute("data-group-key") || "").trim();
+            if (groupKey) {
+              focusIssueGroup(groupKey);
             }
             return;
           }
-          if (action === "delete-spot") {
+
+          if (action === "edit-spot" || action === "delete-spot") {
+            const spotId = String(actionButton.getAttribute("data-spot-id") || "");
+            if (!spotId) {
+              return;
+            }
+            if (action === "edit-spot") {
+              const editSpot = state.hotspotData.get(spotId);
+              if (editSpot) {
+                enterHotspotEditMode(editSpot);
+              }
+              return;
+            }
             void deleteHotspot(spotId);
             return;
           }
+        }
+
+        const groupItem = target.closest("[data-group-key]");
+        if (groupItem) {
+          const groupKey = String(groupItem.getAttribute("data-group-key") || "").trim();
+          if (groupKey) {
+            focusIssueGroup(groupKey);
+          }
+          return;
         }
 
         const item = target.closest("[data-spot-id]");
@@ -384,8 +423,45 @@
         }
 
         const coordinate = feature.getGeometry().getCoordinates();
-        state.map.getView().animate({ center: coordinate, duration: 240 });
+        setHighlightedHotspots([spot.id]);
+        const mapView = state.map.getView();
+        if (mapView) {
+          state.suppressPopupCloseOnNextMoveStart = true;
+          mapView.animate({ center: coordinate, duration: 240 }, () => {
+            state.suppressPopupCloseOnNextMoveStart = false;
+          });
+        }
         openHotspotPopup(coordinate, spot);
+      });
+    }
+
+    if (elements.commonPledgeList) {
+      elements.commonPledgeList.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        const actionButton = target.closest("[data-action='focus-common-tag'][data-common-tag]");
+        if (!actionButton) {
+          return;
+        }
+        const commonTag = String(actionButton.getAttribute("data-common-tag") || "").trim();
+        if (!commonTag) {
+          return;
+        }
+        focusCommonIssueTag(commonTag);
+      });
+    }
+
+    if (elements.issueViewListButton) {
+      elements.issueViewListButton.addEventListener("click", () => {
+        setIssueListMode("spot");
+      });
+    }
+
+    if (elements.issueViewGroupButton) {
+      elements.issueViewGroupButton.addEventListener("click", () => {
+        setIssueListMode("group");
       });
     }
 
@@ -426,7 +502,9 @@
 
     syncSpotFormLayoutState();
     updateCurrentLocationButtonAvailability();
+    syncDongSelectOptions();
     updateDongFilterUi();
+    syncIssueListModeUi();
   }
 
   function renderCommonPledges() {
@@ -436,18 +514,169 @@
     const pledgeConfig = config.data && Array.isArray(config.data.commonPledges) && config.data.commonPledges.length > 0
       ? config.data.commonPledges
       : defaultCommonPledges;
+    const commonIssueTagMap = buildCommonIssueTagMap(state.issues);
+    state.commonIssueTagMap = commonIssueTagMap;
+    const commonIssueTagsByCategory = buildCommonIssueTagsByCategory(state.issues);
+    const usedCategoryIds = new Set();
 
     const html = pledgeConfig.map((item) => {
-      const title = escapeHtml(item && item.title ? item.title : "공약");
+      const title = escapeHtml(item && item.title ? item.title : "현안");
       const description = escapeHtml(item && item.description ? item.description : "");
+      const categoryIds = inferCategoryIdsFromCommonTitle(item && item.title ? item.title : "");
+      const tags = collectCommonIssueTagsForCategories(commonIssueTagsByCategory, categoryIds);
+      categoryIds.forEach((categoryId) => {
+        usedCategoryIds.add(categoryId);
+      });
+      const tagsHtml = renderCommonIssueTagsHtml(tags, commonIssueTagMap);
       return (
         "<li class='pledge-item'>" +
           "<strong>" + title + "</strong>" +
           "<p>" + description + "</p>" +
+          tagsHtml +
+        "</li>"
+      );
+    });
+
+    const remainingCategories = Array.from(commonIssueTagsByCategory.keys())
+      .filter((categoryId) => !usedCategoryIds.has(categoryId))
+      .sort(compareKoreanText);
+
+    remainingCategories.forEach((categoryId) => {
+      const tags = collectCommonIssueTagsForCategories(commonIssueTagsByCategory, [categoryId]);
+      if (tags.length === 0) {
+        return;
+      }
+      const categoryTitle = categoryId === "__uncategorized__"
+        ? "기타 공통 현안"
+        : resolveCategoryLabel(categoryId, "") + " 현안";
+      html.push(
+        "<li class='pledge-item'>" +
+          "<strong>" + escapeHtml(categoryTitle) + "</strong>" +
+          "<p>공통으로 제보된 현안입니다.</p>" +
+          renderCommonIssueTagsHtml(tags, commonIssueTagMap) +
         "</li>"
       );
     });
     elements.commonPledgeList.innerHTML = html.join("");
+  }
+
+  function buildCommonIssueTagMap(issues) {
+    const tagMap = new Map();
+    const list = Array.isArray(issues) ? issues : [];
+    list.forEach((spot) => {
+      const bracketTag = resolveBracketedCommonTag(spot);
+      if (!bracketTag) {
+        return;
+      }
+      if (!tagMap.has(bracketTag)) {
+        tagMap.set(bracketTag, []);
+      }
+      tagMap.get(bracketTag).push(spot);
+    });
+    tagMap.forEach((spots) => {
+      spots.sort(compareHotspotByTitle);
+    });
+    return tagMap;
+  }
+
+  function buildCommonIssueTagsByCategory(issues) {
+    const tagsByCategory = new Map();
+    const list = Array.isArray(issues) ? issues : [];
+
+    list.forEach((spot) => {
+      const bracketTag = resolveBracketedCommonTag(spot);
+      if (!bracketTag) {
+        return;
+      }
+      const categoryId = normalizeCategoryId(spot && spot.categoryId)
+        || normalizeCategoryId(spot && spot.categoryLabel)
+        || "__uncategorized__";
+      if (!tagsByCategory.has(categoryId)) {
+        tagsByCategory.set(categoryId, new Set());
+      }
+      tagsByCategory.get(categoryId).add(bracketTag);
+    });
+
+    const normalizedMap = new Map();
+    tagsByCategory.forEach((tagSet, categoryId) => {
+      const tags = Array.from(tagSet).sort(compareKoreanText);
+      normalizedMap.set(categoryId, tags);
+    });
+    return normalizedMap;
+  }
+
+  function inferCategoryIdsFromCommonTitle(titleText) {
+    const raw = String(titleText || "").trim();
+    if (!raw) {
+      return [];
+    }
+
+    const categoryIds = new Set();
+    const directId = normalizeCategoryId(raw) || normalizeCategoryId(raw.replace(/\s*(현안|공약)\s*$/g, ""));
+    if (directId) {
+      categoryIds.add(directId);
+    }
+
+    const keywordRules = [
+      { categoryId: "traffic_parking", keywords: ["교통", "주차"] },
+      { categoryId: "education_childcare", keywords: ["교육", "보육", "통학"] },
+      { categoryId: "environment_park", keywords: ["환경", "공원", "산책"] },
+      { categoryId: "safety_security", keywords: ["안전", "치안"] },
+      { categoryId: "housing_infra", keywords: ["주거", "인프라"] },
+      { categoryId: "economy_culture", keywords: ["경제", "문화", "상권"] }
+    ];
+    keywordRules.forEach((rule) => {
+      const matched = rule.keywords.some((keyword) => raw.includes(keyword));
+      if (matched) {
+        categoryIds.add(rule.categoryId);
+      }
+    });
+    return Array.from(categoryIds);
+  }
+
+  function collectCommonIssueTagsForCategories(tagsByCategory, categoryIds) {
+    const collected = new Set();
+    const ids = Array.isArray(categoryIds) ? categoryIds : [];
+    ids.forEach((categoryId) => {
+      if (!tagsByCategory.has(categoryId)) {
+        return;
+      }
+      const tags = tagsByCategory.get(categoryId);
+      tags.forEach((tag) => {
+        collected.add(tag);
+      });
+    });
+    return Array.from(collected).sort(compareKoreanText);
+  }
+
+  function renderCommonIssueTagsHtml(tags, commonIssueTagMap) {
+    const list = Array.isArray(tags) ? tags : [];
+    if (list.length === 0) {
+      return "";
+    }
+    return (
+      "<div class='pledge-common-tags'>" +
+        list.map((tag) => {
+          const normalizedTag = String(tag || "").trim();
+          if (!normalizedTag) {
+            return "";
+          }
+          const safeTag = escapeHtml(normalizedTag);
+          const spotCount = commonIssueTagMap && commonIssueTagMap.has(normalizedTag)
+            ? commonIssueTagMap.get(normalizedTag).length
+            : 0;
+          const countLabel = spotCount > 0
+            ? "<span class='pledge-common-tag-count'>" + String(spotCount) + "</span>"
+            : "";
+          return (
+            "<button type='button' class='pledge-common-tag' data-action='focus-common-tag' data-common-tag='" + safeTag + "'>" +
+              "<span>[" + safeTag + "]</span>" +
+              countLabel +
+            "</button>"
+          );
+        }).join("") +
+      "</div>"
+    );
   }
 
   function getIssueCatalogConfig() {
@@ -1003,6 +1232,7 @@
       );
       if (!hitFeature) {
         closePopup();
+        clearHighlightedHotspots();
         if (!isEditMode() && state.activeDongName) {
           setActiveDongFilter("");
         }
@@ -1012,11 +1242,17 @@
       const kind = hitFeature.get("kind");
       if (kind === "hotspot") {
         const spot = hitFeature.get("spot");
+        if (spot && spot.id) {
+          setHighlightedHotspots([spot.id]);
+        } else {
+          clearHighlightedHotspots();
+        }
         openHotspotPopup(event.coordinate, spot);
         return;
       }
 
       if (kind === "boundary") {
+        clearHighlightedHotspots();
         if (!isEditMode()) {
           const dongName = String(hitFeature.get("dongName") || "").trim();
           setActiveDongFilter(dongName);
@@ -1026,6 +1262,7 @@
       }
 
       if (kind === "traffic_overlay") {
+        clearHighlightedHotspots();
         openTrafficOverlayPopup(
           event.coordinate,
           hitFeature.get("overlayType"),
@@ -1035,6 +1272,7 @@
       }
 
       if (kind === "population_grid") {
+        clearHighlightedHotspots();
         openPopulationGridPopup(
           event.coordinate,
           hitFeature.get("populationMonth"),
@@ -1045,6 +1283,10 @@
     });
 
     state.map.on("movestart", () => {
+      if (state.suppressPopupCloseOnNextMoveStart) {
+        state.suppressPopupCloseOnNextMoveStart = false;
+        return;
+      }
       closePopup();
     });
   }
@@ -1310,9 +1552,17 @@
     state.boundaryDefaultStyle = boundaryStyle;
     state.boundarySelectedStyle = boundarySelectedStyle;
     updateBoundaryHighlightStyles();
-    state.availableDongs = Array.from(dongMap.values()).sort((a, b) => {
-      return String(a.dongName).localeCompare(String(b.dongName), "ko");
+    const sortedDongs = Array.from(dongMap.values()).sort((a, b) => {
+      return compareKoreanText(a.dongName, b.dongName);
     });
+    state.availableDongs = [
+      {
+        key: DONG_COMMON_KEY,
+        dongName: DONG_COMMON_NAME,
+        emdCode: ""
+      },
+      ...sortedDongs
+    ];
     state.availableDongMap = new Map(state.availableDongs.map((item) => [item.key, item]));
     syncDongSelectOptions();
     if (getPopulationConfig().mode === "emd") {
@@ -1448,6 +1698,9 @@
     if (!normalizedName) {
       return "";
     }
+    if (normalizedName === DONG_COMMON_NAME) {
+      return DONG_COMMON_KEY;
+    }
     return "name:" + normalizedName;
   }
 
@@ -1463,10 +1716,179 @@
     return "미분류";
   }
 
+  function resolveIssueCategoryMeta(categoryId, fallbackLabel) {
+    const normalizedId = normalizeCategoryId(categoryId);
+    const knownMeta = normalizedId && issueCategoryMeta[normalizedId]
+      ? issueCategoryMeta[normalizedId]
+      : null;
+    const resolvedLabel = resolveCategoryLabel(normalizedId, fallbackLabel);
+    const resolvedColor = knownMeta && knownMeta.color
+      ? knownMeta.color
+      : resolveFallbackCategoryColor(normalizedId || resolvedLabel);
+    const resolvedIcon = knownMeta && knownMeta.icon
+      ? knownMeta.icon
+      : resolveCategoryIcon(resolvedLabel);
+    return {
+      id: normalizedId,
+      label: resolvedLabel,
+      color: resolvedColor || defaultIssueCategoryColor,
+      icon: resolvedIcon || "📍"
+    };
+  }
+
+  function resolveCategoryIcon(labelText) {
+    const firstToken = String(labelText || "").trim().split(/\s+/)[0];
+    if (firstToken && !/^[A-Za-z0-9가-힣]+$/.test(firstToken)) {
+      return firstToken;
+    }
+    return "📍";
+  }
+
+  function resolveFallbackCategoryColor(seedText) {
+    const raw = String(seedText || "").trim();
+    if (!raw) {
+      return defaultIssueCategoryColor;
+    }
+    let hash = 0;
+    for (let index = 0; index < raw.length; index += 1) {
+      hash = ((hash << 5) - hash) + raw.charCodeAt(index);
+      hash |= 0;
+    }
+    const paletteIndex = Math.abs(hash) % fallbackCategoryPalette.length;
+    return fallbackCategoryPalette[paletteIndex];
+  }
+
+  function mixHexColorWithWhite(color, ratio) {
+    const normalized = String(color || "").trim();
+    const match = normalized.match(/^#([0-9a-fA-F]{6})$/);
+    if (!match) {
+      return normalized || defaultIssueCategoryColor;
+    }
+    const clampedRatio = Math.max(0, Math.min(1, Number(ratio)));
+    const hex = match[1];
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    const mixedR = Math.round(r + (255 - r) * clampedRatio);
+    const mixedG = Math.round(g + (255 - g) * clampedRatio);
+    const mixedB = Math.round(b + (255 - b) * clampedRatio);
+    return "#" + [mixedR, mixedG, mixedB].map((value) => {
+      return value.toString(16).padStart(2, "0");
+    }).join("");
+  }
+
+  function buildCategoryBadgeStyle(color) {
+    const resolved = String(color || "").trim() || defaultIssueCategoryColor;
+    const borderColor = toRgba(resolved, 0.45);
+    const backgroundColor = toRgba(resolved, 0.16);
+    const textColor = resolved;
+    return (
+      "background:" + backgroundColor + ";" +
+      "color:" + textColor + ";" +
+      "border:1px solid " + borderColor + ";"
+    );
+  }
+
+  function extractBracketedCommonTag(title) {
+    const rawTitle = String(title || "");
+    const match = rawTitle.match(/^\s*\[([^\]]+)\]/);
+    if (!match) {
+      return "";
+    }
+    return String(match[1] || "").trim();
+  }
+
+  function resolveBracketedCommonTag(spot) {
+    if (!spot || typeof spot !== "object") {
+      return "";
+    }
+    return extractBracketedCommonTag(spot.title);
+  }
+
+  function isExplicitCommonSpot(spot) {
+    if (!spot || typeof spot !== "object") {
+      return false;
+    }
+    const mode = String(spot.dongSelectionMode || "").trim().toLowerCase();
+    if (mode === "common") {
+      return true;
+    }
+    const key = String(spot.dongKey || "").trim();
+    if (key === DONG_COMMON_KEY) {
+      return true;
+    }
+    const computedKey = buildDongKey(spot.emdCode, spot.dongName);
+    if (computedKey === DONG_COMMON_KEY) {
+      return true;
+    }
+    return String(spot.dongName || "").trim() === DONG_COMMON_NAME;
+  }
+
+  function isCommonSpot(spot) {
+    return isExplicitCommonSpot(spot) || Boolean(resolveBracketedCommonTag(spot));
+  }
+
+  function formatSpotDongLabel(spot) {
+    if (isExplicitCommonSpot(spot)) {
+      return DONG_COMMON_LABEL;
+    }
+    const bracketTag = resolveBracketedCommonTag(spot);
+    const dongName = String(spot && spot.dongName ? spot.dongName : "").trim();
+    if (bracketTag) {
+      if (dongName && dongName !== DONG_COMMON_NAME) {
+        return DONG_COMMON_LABEL + " · " + dongName;
+      }
+      return DONG_COMMON_LABEL;
+    }
+    return dongName || "동 정보 없음";
+  }
+
+  function setIssueListMode(mode) {
+    const normalized = mode === "group" ? "group" : "spot";
+    if (state.issueListMode === normalized) {
+      return;
+    }
+    state.issueListMode = normalized;
+    syncIssueListModeUi();
+    renderVisibleIssueList();
+  }
+
+  function syncIssueListModeUi() {
+    if (elements.issueViewListButton) {
+      elements.issueViewListButton.classList.toggle("spot-action-btn-checked", state.issueListMode === "spot");
+    }
+    if (elements.issueViewGroupButton) {
+      elements.issueViewGroupButton.classList.toggle("spot-action-btn-checked", state.issueListMode === "group");
+    }
+  }
+
+  function compareKoreanText(a, b) {
+    return String(a || "").localeCompare(String(b || ""), "ko", { sensitivity: "base" });
+  }
+
+  function compareHotspotByTitle(a, b) {
+    const titleOrder = compareKoreanText(a && a.title, b && b.title);
+    if (titleOrder !== 0) {
+      return titleOrder;
+    }
+    const dongOrder = compareKoreanText(formatSpotDongLabel(a), formatSpotDongLabel(b));
+    if (dongOrder !== 0) {
+      return dongOrder;
+    }
+    return compareKoreanText(a && a.id, b && b.id);
+  }
+
   function resolveDongMetaByKey(dongKey) {
     const key = String(dongKey || "").trim();
-    if (!key || key === "__auto__") {
+    if (!key || key === DONG_AUTO_KEY) {
       return null;
+    }
+    if (key === DONG_COMMON_KEY) {
+      return {
+        key: DONG_COMMON_KEY,
+        dongName: DONG_COMMON_NAME,
+        emdCode: ""
+      };
     }
     if (!state.availableDongMap || !state.availableDongMap.has(key)) {
       return null;
@@ -1480,12 +1902,16 @@
     }
 
     const select = elements.spotDongSelect;
-    const selectedKey = String(preferredKey || select.value || "__auto__").trim() || "__auto__";
+    const selectedKey = String(preferredKey || select.value || DONG_AUTO_KEY).trim() || DONG_AUTO_KEY;
     const options = [
-      "<option value='__auto__'>좌표 기준 자동 판별</option>"
+      "<option value='" + DONG_AUTO_KEY + "'>좌표 기준 자동 판별</option>",
+      "<option value='" + DONG_COMMON_KEY + "'>" + escapeHtml(DONG_COMMON_LABEL) + "</option>"
     ];
 
     state.availableDongs.forEach((dong) => {
+      if (!dong || dong.key === DONG_COMMON_KEY) {
+        return;
+      }
       const label = dong.emdCode
         ? escapeHtml(dong.dongName + " (" + dong.emdCode + ")")
         : escapeHtml(dong.dongName);
@@ -1493,8 +1919,8 @@
     });
 
     select.innerHTML = options.join("");
-    const hasPreferred = state.availableDongMap.has(selectedKey);
-    select.value = hasPreferred ? selectedKey : "__auto__";
+    const hasPreferred = selectedKey === DONG_COMMON_KEY || state.availableDongMap.has(selectedKey);
+    select.value = hasPreferred ? selectedKey : DONG_AUTO_KEY;
   }
 
   function initPopulationMonthOptions() {
@@ -2997,7 +3423,8 @@
       (error) => {
         clearHotspotFeatures();
         state.issues = [];
-        renderHotspotList([]);
+        renderCommonPledges();
+        renderVisibleIssueList();
         if (isFirestorePermissionError(error)) {
           console.warn("[hotspot-subscribe] insufficient permissions");
           return;
@@ -3036,6 +3463,7 @@
         (catalogIssue ? catalogIssue.emdCode : "") ||
         boundaryMeta.emdCode
       );
+      const rawDongSelectionMode = String(value.dongSelectionMode || "").trim().toLowerCase();
       const storedDongKey = String(value.dongKey || "").trim();
       const computedDongKey = buildDongKey(emdCode, dongName);
       const categoryId = normalizeCategoryId(
@@ -3049,6 +3477,13 @@
         value.categoryLabel ||
         value.category_label
       );
+      const groupLabel = String(
+        value.groupLabel ||
+        value.group_label ||
+        value.issueGroupLabel ||
+        value.issue_group_label ||
+        ""
+      ).trim();
 
       hotspots.push({
         id: doc.id,
@@ -3070,17 +3505,21 @@
         lng,
         dongName,
         emdCode,
-        dongSelectionMode: value.dongSelectionMode === "manual" ? "manual" : "auto",
+        dongSelectionMode: rawDongSelectionMode === "common" || rawDongSelectionMode === "manual"
+          ? rawDongSelectionMode
+          : "auto",
         dongKey: storedDongKey || computedDongKey,
+        groupLabel,
         updatedBy: value.updatedBy || "",
         updatedAt: value.updatedAt || null
       });
     });
 
-    hotspots.sort((a, b) => toMillis(b.updatedAt) - toMillis(a.updatedAt));
+    hotspots.sort(compareHotspotByTitle);
     state.issues = hotspots;
+    renderCommonPledges();
     renderHotspots(hotspots);
-    renderHotspotList(applyIssueFilter(hotspots));
+    renderVisibleIssueList();
     updateDongFilterUi();
   }
 
@@ -3119,7 +3558,9 @@
     if (!activeDong) {
       return list;
     }
-    return list.filter((spot) => String(spot.dongName || "").trim() === activeDong);
+    return list.filter((spot) => {
+      return String(spot.dongName || "").trim() === activeDong || isCommonSpot(spot);
+    });
   }
 
   function setActiveDongFilter(dongName) {
@@ -3130,7 +3571,7 @@
     state.activeDongName = normalized;
     updateDongFilterUi();
     updateBoundaryHighlightStyles();
-    renderHotspotList(applyIssueFilter(state.issues));
+    renderVisibleIssueList();
   }
 
   function updateDongFilterUi() {
@@ -3148,7 +3589,7 @@
     }
 
     elements.activeDongFilter.classList.remove("hidden");
-    elements.activeDongFilter.textContent = activeDong + "만 보기";
+    elements.activeDongFilter.textContent = activeDong + " + " + DONG_COMMON_NAME + " 보기";
     if (elements.clearDongFilterButton) {
       elements.clearDongFilterButton.classList.remove("hidden");
     }
@@ -3278,10 +3719,12 @@
       feature.set("dongName", spot.dongName || "");
       feature.set("emd_cd", spot.emdCode || "");
       feature.set("spot", spot);
-      feature.setStyle(getHotspotStyle(spot.level));
+      feature.setStyle(getHotspotStyle(spot, "normal"));
       state.hotspotSource.addFeature(feature);
       state.hotspotData.set(spot.id, spot);
     });
+
+    applyHotspotHighlightStyles();
 
     if (state.editingHotspotId && !state.hotspotData.has(state.editingHotspotId)) {
       exitHotspotEditMode(true);
@@ -3295,26 +3738,163 @@
     state.hotspotData.clear();
   }
 
-  function getHotspotStyle(level) {
-    const normalized = level >= 1 && level <= 5 ? level : 3;
-    if (state.hotspotStyleCache.has(normalized)) {
-      return state.hotspotStyleCache.get(normalized);
+  function setHighlightedHotspots(spotIds) {
+    const ids = Array.isArray(spotIds)
+      ? spotIds.map((id) => String(id || "").trim()).filter(Boolean)
+      : [];
+    state.highlightedHotspotIds = new Set(ids);
+    applyHotspotHighlightStyles();
+  }
+
+  function clearHighlightedHotspots() {
+    if (!state.highlightedHotspotIds || state.highlightedHotspotIds.size === 0) {
+      return;
+    }
+    state.highlightedHotspotIds = new Set();
+    applyHotspotHighlightStyles();
+  }
+
+  function applyHotspotHighlightStyles() {
+    if (!state.hotspotSource) {
+      return;
+    }
+    const features = state.hotspotSource.getFeatures();
+    let highlightSet = state.highlightedHotspotIds instanceof Set
+      ? state.highlightedHotspotIds
+      : new Set();
+
+    if (highlightSet.size > 0) {
+      const presentIds = new Set();
+      features.forEach((feature) => {
+        const spot = feature.get("spot");
+        const spotId = String(feature.getId() || (spot && spot.id) || "").trim();
+        if (spotId) {
+          presentIds.add(spotId);
+        }
+      });
+      highlightSet = new Set(Array.from(highlightSet).filter((id) => presentIds.has(id)));
+    }
+    state.highlightedHotspotIds = highlightSet;
+    const hasHighlight = highlightSet.size > 0;
+
+    features.forEach((feature) => {
+      const spot = feature.get("spot");
+      const spotId = String(feature.getId() || (spot && spot.id) || "").trim();
+      const emphasisMode = hasHighlight
+        ? (highlightSet.has(spotId) ? "focus" : "dim")
+        : "normal";
+      feature.setStyle(getHotspotStyle(spot, emphasisMode));
+    });
+  }
+
+  function getHotspotStyle(spot, emphasisMode) {
+    const categoryMeta = resolveIssueCategoryMeta(spot && spot.categoryId, spot && spot.categoryLabel);
+    const baseColor = categoryMeta.color || defaultIssueCategoryColor;
+    const markerColor = mixHexColorWithWhite(baseColor, 0.34);
+    const markerBorderColor = mixHexColorWithWhite(baseColor, 0.10);
+    const markerIcon = categoryMeta.icon || "📍";
+    const mode = emphasisMode === "focus" || emphasisMode === "dim"
+      ? emphasisMode
+      : "normal";
+    const cacheKey = String(categoryMeta.id || "") + "|" + baseColor + "|" + markerIcon + "|" + mode;
+
+    if (state.hotspotStyleCache.has(cacheKey)) {
+      return state.hotspotStyleCache.get(cacheKey);
     }
 
-    const color = hotspotColors[normalized];
-    const style = new ol.style.Style({
-      image: new ol.style.Circle({
-        radius: 7,
-        fill: new ol.style.Fill({ color }),
-        stroke: new ol.style.Stroke({
-          color: "#ffffff",
-          width: 2
+    const isDim = mode === "dim";
+    const isFocus = mode === "focus";
+    const haloRadius = isFocus ? 24 : 22;
+    const coreRadius = isFocus ? 20 : 18;
+    const iconFontSize = isFocus ? 24 : isDim ? 20 : 22;
+    const haloFillColor = isDim
+      ? "rgba(255,255,255,0.44)"
+      : isFocus
+      ? "rgba(255,255,255,0.98)"
+      : "rgba(255,255,255,0.90)";
+    const haloStrokeColor = isDim
+      ? "rgba(15,23,42,0.14)"
+      : isFocus
+      ? toRgba(baseColor, 0.58)
+      : "rgba(15,23,42,0.22)";
+    const coreFillColor = isDim ? toRgba(markerColor, 0.30) : markerColor;
+    const coreStrokeColor = isDim ? toRgba(markerBorderColor, 0.56) : markerBorderColor;
+    const textFillColor = isDim ? "rgba(15,23,42,0.52)" : "#0f172a";
+    const textStrokeColor = isDim ? "rgba(255,255,255,0.78)" : "rgba(255,255,255,0.95)";
+    const style = [];
+
+    if (isFocus) {
+      style.push(
+        new ol.style.Style({
+          zIndex: 24,
+          image: new ol.style.Circle({
+            radius: 27,
+            fill: new ol.style.Fill({ color: "rgba(255,255,255,0)" }),
+            stroke: new ol.style.Stroke({
+              color: toRgba(baseColor, 0.46),
+              width: 3
+            })
+          })
+        })
+      );
+    }
+
+    style.push(
+      new ol.style.Style({
+        zIndex: isFocus ? 25 : isDim ? 10 : 20,
+        image: new ol.style.Circle({
+          radius: haloRadius,
+          fill: new ol.style.Fill({ color: haloFillColor }),
+          stroke: new ol.style.Stroke({
+            color: haloStrokeColor,
+            width: 1.4
+          })
         })
       })
-    });
+    );
 
-    state.hotspotStyleCache.set(normalized, style);
+    style.push(
+      new ol.style.Style({
+        zIndex: isFocus ? 26 : isDim ? 11 : 21,
+        image: new ol.style.Circle({
+          radius: coreRadius,
+          fill: new ol.style.Fill({ color: coreFillColor }),
+          stroke: new ol.style.Stroke({
+            color: coreStrokeColor,
+            width: 2.8
+          })
+        }),
+        text: new ol.style.Text({
+          text: markerIcon,
+          placement: "point",
+          justify: "center",
+          textAlign: "center",
+          textBaseline: "middle",
+          offsetX: 0,
+          offsetY: 1,
+          font: "700 " + String(iconFontSize) + "px \"Pretendard\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+          fill: new ol.style.Fill({
+            color: textFillColor
+          }),
+          stroke: new ol.style.Stroke({
+            color: textStrokeColor,
+            width: 2
+          })
+        })
+      })
+    );
+
+    state.hotspotStyleCache.set(cacheKey, style);
     return style;
+  }
+
+  function renderVisibleIssueList() {
+    const filtered = applyIssueFilter(state.issues);
+    if (state.issueListMode === "group") {
+      renderIssueGroupList(filtered);
+      return;
+    }
+    renderHotspotList(filtered);
   }
 
   function renderHotspotList(hotspots) {
@@ -3322,10 +3902,12 @@
       return;
     }
 
+    state.issueGroupMap = new Map();
+
     if (hotspots.length === 0) {
       if (state.activeDongName) {
         const safeDongName = escapeHtml(state.activeDongName);
-        elements.spotList.innerHTML = "<li class='empty'>" + safeDongName + "에 등록된 현안이 없습니다.</li>";
+        elements.spotList.innerHTML = "<li class='empty'>" + safeDongName + " 및 " + DONG_COMMON_NAME + "에 등록된 현안이 없습니다.</li>";
       } else {
         elements.spotList.innerHTML = "<li class='empty'>등록된 지역 현안이 없습니다.</li>";
       }
@@ -3336,9 +3918,10 @@
     const items = hotspots.map((spot) => {
       const title = escapeHtml(spot.title);
       const memo = escapeHtml(spot.memo || "메모 없음");
-      const dongName = escapeHtml(spot.dongName || "동 정보 없음");
+      const dongName = escapeHtml(formatSpotDongLabel(spot));
       const categoryLabel = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
-      const color = hotspotColors[spot.level] || hotspotColors[3];
+      const categoryMeta = resolveIssueCategoryMeta(spot.categoryId, spot.categoryLabel);
+      const categoryStyle = buildCategoryBadgeStyle(categoryMeta.color);
       const safeId = escapeHtml(spot.id);
       let actionsHtml = "";
       if (showEditorActions) {
@@ -3354,9 +3937,8 @@
         "<li class='spot-item' data-spot-id='" + safeId + "'>" +
           "<div class='spot-item-top'>" +
             "<strong>" + title + "</strong>" +
-            "<span class='spot-badge' style='background:" + color + ";'>중요도 " + String(spot.level) + "</span>" +
           "</div>" +
-          "<div class='spot-category'>" + categoryLabel + "</div>" +
+          "<div class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</div>" +
           "<div class='spot-dong'>" + dongName + "</div>" +
           "<div class='spot-memo'>" + memo + "</div>" +
           actionsHtml +
@@ -3365,6 +3947,261 @@
     });
 
     elements.spotList.innerHTML = items.join("");
+  }
+
+  function renderIssueGroupList(hotspots) {
+    if (!elements.spotList) {
+      return;
+    }
+
+    if (hotspots.length === 0) {
+      state.issueGroupMap = new Map();
+      if (state.activeDongName) {
+        const safeDongName = escapeHtml(state.activeDongName);
+        elements.spotList.innerHTML = "<li class='empty'>" + safeDongName + " 및 " + DONG_COMMON_NAME + "에 등록된 현안이 없습니다.</li>";
+      } else {
+        elements.spotList.innerHTML = "<li class='empty'>등록된 지역 현안이 없습니다.</li>";
+      }
+      return;
+    }
+
+    const groups = buildIssueGroups(hotspots);
+    state.issueGroupMap = new Map(groups.map((group) => [group.key, group]));
+    const showEditorHint = isEditMode();
+    const items = groups.map((group) => {
+      const safeKey = escapeHtml(group.key);
+      const safeTitle = escapeHtml(group.title);
+      const categoryLabel = escapeHtml(resolveCategoryLabel(group.categoryId, group.categoryLabel));
+      const categoryMeta = resolveIssueCategoryMeta(group.categoryId, group.categoryLabel);
+      const categoryStyle = buildCategoryBadgeStyle(categoryMeta.color);
+      const countLabel = String(group.spots.length) + "곳";
+      const dongLabel = group.dongNames.length > 0
+        ? group.dongNames.join(", ")
+        : "동 정보 없음";
+      const previewDongNames = group.dongNames.slice(0, 3).join(" · ");
+      const restCount = group.dongNames.length - 3;
+      const previewText = restCount > 0
+        ? previewDongNames + " 외 " + String(restCount) + "곳"
+        : previewDongNames;
+      const editorHintHtml = showEditorHint
+        ? "<div class='spot-group-hint'>개별 수정/삭제는 개별 보기에서 가능합니다.</div>"
+        : "";
+      return (
+        "<li class='spot-item spot-group-item' data-group-key='" + safeKey + "'>" +
+          "<div class='spot-item-top'>" +
+            "<strong>" + safeTitle + "</strong>" +
+            "<span class='spot-group-count'>" + countLabel + "</span>" +
+          "</div>" +
+          "<div class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</div>" +
+          "<div class='spot-dong'>대상 동: " + escapeHtml(dongLabel) + "</div>" +
+          "<div class='spot-memo'>분포: " + escapeHtml(previewText || dongLabel) + "</div>" +
+          "<div class='spot-item-actions'>" +
+            "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='focus-group' data-group-key='" + safeKey + "'>지도에서 한 번에 보기</button>" +
+          "</div>" +
+          editorHintHtml +
+        "</li>"
+      );
+    });
+    elements.spotList.innerHTML = items.join("");
+  }
+
+  function buildIssueGroups(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    const groupMap = new Map();
+
+    list.forEach((spot) => {
+      const key = resolveIssueGroupKey(spot);
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          key,
+          title: resolveIssueGroupTitle(spot),
+          categoryId: String(spot.categoryId || "").trim(),
+          categoryLabel: String(spot.categoryLabel || "").trim(),
+          spots: [],
+          dongNames: []
+        });
+      }
+      const group = groupMap.get(key);
+      group.spots.push(spot);
+      if (!group.categoryId && spot.categoryId) {
+        group.categoryId = String(spot.categoryId).trim();
+      }
+      if (!group.categoryLabel && spot.categoryLabel) {
+        group.categoryLabel = String(spot.categoryLabel).trim();
+      }
+    });
+
+    return Array.from(groupMap.values())
+      .map((group) => {
+        group.spots.sort(compareHotspotByTitle);
+        const uniqueDongs = Array.from(new Set(group.spots.map((spot) => formatSpotDongLabel(spot))));
+        group.dongNames = uniqueDongs.sort(compareKoreanText);
+        return group;
+      })
+      .sort((a, b) => compareKoreanText(a.title, b.title));
+  }
+
+  function resolveIssueGroupKey(spot) {
+    const issueRefId = normalizeIssueCatalogId(spot && spot.issueRefId);
+    if (issueRefId) {
+      return "ref:" + issueRefId;
+    }
+    const normalizedGroupLabel = normalizeIssueGroupLabel(spot && spot.groupLabel);
+    if (normalizedGroupLabel) {
+      return "group:" + normalizedGroupLabel.toLowerCase();
+    }
+    const bracketTag = normalizeIssueGroupLabel(resolveBracketedCommonTag(spot));
+    if (bracketTag) {
+      return "bracket:" + bracketTag.toLowerCase();
+    }
+    const normalizedTitle = normalizeIssueGroupLabel(spot && spot.title);
+    if (normalizedTitle) {
+      return "title:" + normalizedTitle.toLowerCase();
+    }
+    return "id:" + String(spot && spot.id ? spot.id : "");
+  }
+
+  function resolveIssueGroupTitle(spot) {
+    const normalizedGroupLabel = normalizeIssueGroupLabel(spot && spot.groupLabel);
+    if (normalizedGroupLabel) {
+      return normalizedGroupLabel;
+    }
+    const bracketTag = normalizeIssueGroupLabel(resolveBracketedCommonTag(spot));
+    if (bracketTag) {
+      return "[" + bracketTag + "]";
+    }
+    const issueRefId = normalizeIssueCatalogId(spot && spot.issueRefId);
+    if (issueRefId && state.issueCatalogMap.has(issueRefId)) {
+      const catalogIssue = state.issueCatalogMap.get(issueRefId);
+      const catalogTitle = String(catalogIssue && catalogIssue.title ? catalogIssue.title : "").trim();
+      if (catalogTitle) {
+        return catalogTitle;
+      }
+    }
+    const title = String(spot && spot.title ? spot.title : "").trim();
+    return title || "현안";
+  }
+
+  function normalizeIssueGroupLabel(value) {
+    return String(value || "").trim();
+  }
+
+  function focusIssueGroup(groupKey) {
+    const key = String(groupKey || "").trim();
+    if (!key || !state.map || !state.issueGroupMap.has(key)) {
+      return;
+    }
+    const group = state.issueGroupMap.get(key);
+    setHighlightedHotspots((group && Array.isArray(group.spots) ? group.spots : []).map((spot) => spot.id));
+    const extentMeta = resolveHotspotExtentMeta(group ? group.spots : []);
+    if (!extentMeta) {
+      return;
+    }
+
+    const view = state.map.getView();
+    if (!view) {
+      return;
+    }
+    if (extentMeta.count === 1) {
+      const currentZoom = view.getZoom();
+      state.suppressPopupCloseOnNextMoveStart = true;
+      view.animate({
+        center: extentMeta.center,
+        zoom: Number.isFinite(currentZoom) ? Math.max(currentZoom, 16) : 16,
+        duration: 240
+      }, () => {
+        state.suppressPopupCloseOnNextMoveStart = false;
+      });
+    } else {
+      state.suppressPopupCloseOnNextMoveStart = true;
+      window.setTimeout(() => {
+        state.suppressPopupCloseOnNextMoveStart = false;
+      }, 420);
+      view.fit(extentMeta.extent, {
+        padding: [52, 52, 52, 52],
+        duration: 250,
+        maxZoom: 16
+      });
+    }
+    openIssueGroupPopup(extentMeta.center, group);
+  }
+
+  function focusCommonIssueTag(commonTag) {
+    const normalizedTag = String(commonTag || "").trim();
+    if (!normalizedTag || !state.map) {
+      return;
+    }
+    const spots = state.commonIssueTagMap && state.commonIssueTagMap.has(normalizedTag)
+      ? state.commonIssueTagMap.get(normalizedTag)
+      : state.issues.filter((spot) => resolveBracketedCommonTag(spot) === normalizedTag);
+    setHighlightedHotspots(spots.map((spot) => spot.id));
+    const extentMeta = resolveHotspotExtentMeta(spots);
+    if (!extentMeta) {
+      return;
+    }
+
+    const view = state.map.getView();
+    if (!view) {
+      return;
+    }
+    if (extentMeta.count === 1) {
+      const currentZoom = view.getZoom();
+      state.suppressPopupCloseOnNextMoveStart = true;
+      view.animate({
+        center: extentMeta.center,
+        zoom: Number.isFinite(currentZoom) ? Math.max(currentZoom, 16) : 16,
+        duration: 240
+      }, () => {
+        state.suppressPopupCloseOnNextMoveStart = false;
+      });
+    } else {
+      state.suppressPopupCloseOnNextMoveStart = true;
+      window.setTimeout(() => {
+        state.suppressPopupCloseOnNextMoveStart = false;
+      }, 420);
+      view.fit(extentMeta.extent, {
+        padding: [52, 52, 52, 52],
+        duration: 250,
+        maxZoom: 16
+      });
+    }
+
+    const group = {
+      title: "[" + normalizedTag + "]",
+      categoryId: "",
+      categoryLabel: "공통 현안",
+      spots,
+      dongNames: Array.from(new Set(spots.map((spot) => formatSpotDongLabel(spot)))).sort(compareKoreanText)
+    };
+    openIssueGroupPopup(extentMeta.center, group);
+  }
+
+  function resolveHotspotExtentMeta(spots) {
+    if (!Array.isArray(spots) || spots.length === 0) {
+      return null;
+    }
+
+    const extent = ol.extent.createEmpty();
+    let count = 0;
+    spots.forEach((spot) => {
+      const lat = Number(spot && spot.lat);
+      const lng = Number(spot && spot.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return;
+      }
+      const projected = ol.proj.fromLonLat([lng, lat]);
+      ol.extent.extend(extent, [projected[0], projected[1], projected[0], projected[1]]);
+      count += 1;
+    });
+
+    if (count === 0) {
+      return null;
+    }
+    return {
+      extent,
+      center: ol.extent.getCenter(extent),
+      count
+    };
   }
 
   async function handleHotspotSubmit(event) {
@@ -3417,13 +4254,18 @@
     }
 
     const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
-    const selectedDongKey = String(formData.get("dongKey") || "__auto__").trim();
+    const selectedDongKey = String(formData.get("dongKey") || DONG_AUTO_KEY).trim() || DONG_AUTO_KEY;
+    const isCommonSelection = selectedDongKey === DONG_COMMON_KEY;
     const selectedDongMeta = resolveDongMetaByKey(selectedDongKey);
-    const usingManualDong = Boolean(selectedDongMeta);
-    const finalDongName = usingManualDong
+    const usingManualDong = Boolean(selectedDongMeta) && !isCommonSelection;
+    const finalDongName = isCommonSelection
+      ? DONG_COMMON_NAME
+      : usingManualDong
       ? String(selectedDongMeta.dongName || "").trim()
       : String(boundaryMeta.dongName || "").trim();
-    const finalEmdCode = usingManualDong
+    const finalEmdCode = isCommonSelection
+      ? ""
+      : usingManualDong
       ? normalizeEmdCode(selectedDongMeta.emdCode)
       : normalizeEmdCode(boundaryMeta.emdCode);
 
@@ -3443,8 +4285,8 @@
       lng,
       dongName: finalDongName,
       emdCode: finalEmdCode || "",
-      dongSelectionMode: usingManualDong ? "manual" : "auto",
-      dongKey: usingManualDong ? String(selectedDongMeta.key || "") : "",
+      dongSelectionMode: isCommonSelection ? "common" : usingManualDong ? "manual" : "auto",
+      dongKey: isCommonSelection ? DONG_COMMON_KEY : usingManualDong ? String(selectedDongMeta.key || "") : "",
       updatedBy: normalizeEmail(state.currentUser.email),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
@@ -3498,8 +4340,10 @@
     }
 
     if (elements.spotDongSelect) {
-      let preferredDongKey = "__auto__";
-      if (spot.dongSelectionMode === "manual") {
+      let preferredDongKey = DONG_AUTO_KEY;
+      if (spot.dongSelectionMode === "common" || isCommonSpot(spot)) {
+        preferredDongKey = DONG_COMMON_KEY;
+      } else if (spot.dongSelectionMode === "manual") {
         const explicitKey = String(spot.dongKey || "").trim();
         if (explicitKey && state.availableDongMap.has(explicitKey)) {
           preferredDongKey = explicitKey;
@@ -3543,7 +4387,7 @@
       } else {
         applyIssueCatalogSelection("");
       }
-      syncDongSelectOptions("__auto__");
+      syncDongSelectOptions(DONG_AUTO_KEY);
       clearSelectedCoord();
       closeSpotFormSheetForMobile();
     }
@@ -3866,7 +4710,7 @@
     const safeTitle = escapeHtml(spot.title);
     const safeMemo = escapeHtml(spot.memo || "-");
     const safeCategory = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
-    const safeDong = escapeHtml(spot.dongName || "-");
+    const safeDong = escapeHtml(formatSpotDongLabel(spot));
     const safeUser = escapeHtml(spot.updatedBy || "-");
     const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
 
@@ -3878,9 +4722,30 @@
       "<strong>" + safeTitle + "</strong>" +
       "<div>분류: " + safeCategory + "</div>" +
       "<div>소속 동: " + safeDong + "</div>" +
-      "<div>중요도: " + String(spot.level) + "</div>" +
       "<div>내용: " + safeMemo + "</div>" +
       editorInfo
+    );
+  }
+
+  function openIssueGroupPopup(coordinate, group) {
+    if (!group) {
+      return;
+    }
+
+    const safeTitle = escapeHtml(group.title || "현안 그룹");
+    const safeCategory = escapeHtml(resolveCategoryLabel(group.categoryId, group.categoryLabel));
+    const countLabel = String(Array.isArray(group.spots) ? group.spots.length : 0);
+    const dongNames = Array.isArray(group.dongNames)
+      ? group.dongNames
+      : [];
+    const safeDongs = escapeHtml(dongNames.join(", ") || "동 정보 없음");
+
+    openPopup(
+      coordinate,
+      "<strong>" + safeTitle + "</strong>" +
+      "<div>분류: " + safeCategory + "</div>" +
+      "<div>포인트 수: " + countLabel + "곳</div>" +
+      "<div>대상 동: " + safeDongs + "</div>"
     );
   }
 
