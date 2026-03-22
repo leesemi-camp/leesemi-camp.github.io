@@ -70,16 +70,23 @@ p {
   box-shadow: 0 12px 36px rgba(13, 32, 63, 0.09);
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .topbar {
-  height: 60px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+}
+
+.topbar-texts {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
 }
 
 .topbar-title {
@@ -90,14 +97,35 @@ p {
   text-overflow: ellipsis;
 }
 
+.topbar-message {
+  margin: 0;
+  font-size: 12px;
+  color: #3a5274;
+  line-height: 1.35;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.topbar-message-link {
+  font-weight: 600;
+}
+
+.topbar-message-divider {
+  color: #6f87a8;
+}
+
 .topbar-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 0 0 auto;
 }
 
 .workspace {
-  height: calc(100% - 60px);
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);
   grid-template-areas: "panel map";
@@ -604,7 +632,8 @@ body.modal-open {
   }
 
   .workspace {
-    height: calc(100vh - 76px);
+    flex: 1 1 auto;
+    min-height: 0;
     grid-template-columns: 1fr;
     grid-template-rows: minmax(320px, 56vh) minmax(0, 1fr);
     grid-template-areas:
@@ -616,16 +645,6 @@ body.modal-open {
     border-right: none;
     border-top: 1px solid var(--line);
     padding: 12px;
-  }
-
-  .issue-contact-banner {
-    margin-bottom: 10px;
-    padding: 9px 10px;
-  }
-
-  .issue-contact-copy,
-  .issue-contact-actions {
-    font-size: 12px;
   }
 
   .list-title {
@@ -694,5 +713,10 @@ body.modal-open {
 
   .topbar-title {
     font-size: 17px;
+    white-space: normal;
+  }
+
+  .topbar-message {
+    font-size: 11px;
   }
 }

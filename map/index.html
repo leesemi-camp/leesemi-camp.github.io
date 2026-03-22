@@ -20,7 +20,15 @@
   <main class="layout">
     <section id="app-shell" class="app-shell" aria-live="polite">
       <header class="topbar">
-        <h2 class="topbar-title">우리동네 현안도, 이세미입니다</h2>
+        <div class="topbar-texts">
+          <h2 class="topbar-title">우리동네 현안도, 이세미입니다</h2>
+          <p class="topbar-message">
+            이 지도에 담고 싶은 동네의 이야기가 있나요? 사소한 의견이라도 좋으니 제보해 주세요. 귀 기울여 듣겠습니다!
+            <a href="sms:01081901440" class="issue-contact-link topbar-message-link" aria-label="현안 추가 문의 문자 보내기">010-8190-1440</a>
+            <span class="topbar-message-divider" aria-hidden="true">/</span>
+            <a href="mailto:leesemi114@gmail.com" class="issue-contact-link topbar-message-link" aria-label="현안 추가 문의 이메일 보내기">leesemi114@gmail.com</a>
+          </p>
+        </div>
         <div class="topbar-actions">
           <a href="../" class="icon-btn" aria-label="메인 랜딩으로 이동" title="메인으로">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -44,16 +52,6 @@
         </div>
 
         <aside class="side-panel">
-          <section class="issue-contact-banner" aria-label="현안 제보 안내">
-            <p class="issue-contact-copy">
-              이 지도에 담고 싶은 동네의 이야기가 있나요? 사소한 의견이라도 좋으니 제보해 주세요. 귀 기울여 듣겠습니다!
-            </p>
-            <p class="issue-contact-actions">
-              <a href="sms:01081901440" class="issue-contact-link" aria-label="현안 추가 문의 문자 보내기">010-8190-1440</a>
-              <span class="issue-contact-divider" aria-hidden="true">/</span>
-              <a href="mailto:leesemi114@gmail.com" class="issue-contact-link" aria-label="현안 추가 문의 이메일 보내기">leesemi114@gmail.com</a>
-            </p>
-          </section>
           <section class="pledge-panel">
             <h3>지역구 공통 현안</h3>
             <ul id="common-pledge-list" class="pledge-list"></ul>

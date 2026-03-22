@@ -426,8 +426,16 @@
         setHighlightedHotspots([spot.id]);
         const mapView = state.map.getView();
         if (mapView) {
+          const currentZoom = mapView.getZoom();
+          const animateOptions = {
+            center: coordinate,
+            duration: 240
+          };
+          if (Number.isFinite(currentZoom)) {
+            animateOptions.zoom = currentZoom;
+          }
           state.suppressPopupCloseOnNextMoveStart = true;
-          mapView.animate({ center: coordinate, duration: 240 }, () => {
+          mapView.animate(animateOptions, () => {
             state.suppressPopupCloseOnNextMoveStart = false;
           });
         }
@@ -3817,9 +3825,13 @@
 
     const isDim = mode === "dim";
     const isFocus = mode === "focus";
-    const haloRadius = isFocus ? 24 : 22;
-    const coreRadius = isFocus ? 20 : 18;
-    const iconFontSize = isFocus ? 24 : isDim ? 20 : 22;
+    const normalHaloRadius = 22;
+    const normalCoreRadius = 18;
+    const normalIconFontSize = 22;
+    const focusScale = 1.5;
+    const haloRadius = isFocus ? Math.round(normalHaloRadius * focusScale) : normalHaloRadius;
+    const coreRadius = isFocus ? Math.round(normalCoreRadius * focusScale) : normalCoreRadius;
+    const iconFontSize = isFocus ? Math.round(normalIconFontSize * focusScale) : isDim ? 20 : normalIconFontSize;
     const haloFillColor = isDim
       ? "rgba(255,255,255,0.44)"
       : isFocus
@@ -3841,7 +3853,7 @@
         new ol.style.Style({
           zIndex: 24,
           image: new ol.style.Circle({
-            radius: 27,
+            radius: haloRadius + 3,
             fill: new ol.style.Fill({ color: "rgba(255,255,255,0)" }),
             stroke: new ol.style.Stroke({
               color: toRgba(baseColor, 0.46),
@@ -4115,27 +4127,18 @@
     if (!view) {
       return;
     }
-    if (extentMeta.count === 1) {
-      const currentZoom = view.getZoom();
-      state.suppressPopupCloseOnNextMoveStart = true;
-      view.animate({
-        center: extentMeta.center,
-        zoom: Number.isFinite(currentZoom) ? Math.max(currentZoom, 16) : 16,
-        duration: 240
-      }, () => {
-        state.suppressPopupCloseOnNextMoveStart = false;
-      });
-    } else {
-      state.suppressPopupCloseOnNextMoveStart = true;
-      window.setTimeout(() => {
-        state.suppressPopupCloseOnNextMoveStart = false;
-      }, 420);
-      view.fit(extentMeta.extent, {
-        padding: [52, 52, 52, 52],
-        duration: 250,
-        maxZoom: 16
-      });
+    const currentZoom = view.getZoom();
+    const animateOptions = {
+      center: extentMeta.center,
+      duration: extentMeta.count === 1 ? 240 : 250
+    };
+    if (Number.isFinite(currentZoom)) {
+      animateOptions.zoom = currentZoom;
     }
+    state.suppressPopupCloseOnNextMoveStart = true;
+    view.animate(animateOptions, () => {
+      state.suppressPopupCloseOnNextMoveStart = false;
+    });
     openIssueGroupPopup(extentMeta.center, group);
   }
 
@@ -4157,27 +4160,18 @@
     if (!view) {
       return;
     }
-    if (extentMeta.count === 1) {
-      const currentZoom = view.getZoom();
-      state.suppressPopupCloseOnNextMoveStart = true;
-      view.animate({
-        center: extentMeta.center,
-        zoom: Number.isFinite(currentZoom) ? Math.max(currentZoom, 16) : 16,
-        duration: 240
-      }, () => {
-        state.suppressPopupCloseOnNextMoveStart = false;
-      });
-    } else {
-      state.suppressPopupCloseOnNextMoveStart = true;
-      window.setTimeout(() => {
-        state.suppressPopupCloseOnNextMoveStart = false;
-      }, 420);
-      view.fit(extentMeta.extent, {
-        padding: [52, 52, 52, 52],
-        duration: 250,
-        maxZoom: 16
-      });
+    const currentZoom = view.getZoom();
+    const animateOptions = {
+      center: extentMeta.center,
+      duration: extentMeta.count === 1 ? 240 : 250
+    };
+    if (Number.isFinite(currentZoom)) {
+      animateOptions.zoom = currentZoom;
     }
+    state.suppressPopupCloseOnNextMoveStart = true;
+    view.animate(animateOptions, () => {
+      state.suppressPopupCloseOnNextMoveStart = false;
+    });
 
     const group = {
       title: "[" + normalizedTag + "]",
