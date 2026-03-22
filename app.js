@@ -9,6 +9,8 @@
     map: null,
     popupOverlay: null,
     boundarySource: null,
+    boundaryMaskSource: null,
+    boundaryMaskLayer: null,
     boundaryDefaultStyle: null,
     boundarySelectedStyle: null,
     hotspotSource: null,
@@ -147,6 +149,9 @@
     ? String(config.data.boundaryHaloColor)
     : "rgba(255,255,255,0.95)";
   const boundaryHaloWidth = readPositiveNumber(config.data && config.data.boundaryHaloWidth, 6);
+  const outsideBoundaryMaskColor = (config.data && config.data.outsideBoundaryMaskColor)
+    ? String(config.data.outsideBoundaryMaskColor)
+    : "rgba(8, 26, 56, 0.40)";
   const trafficOverlayConfig = config.trafficOverlays && typeof config.trafficOverlays === "object"
     ? config.trafficOverlays
     : {};
@@ -1163,6 +1168,7 @@
     const zoom = config.map && config.map.defaultZoom ? config.map.defaultZoom : 13;
 
     state.boundarySource = new ol.source.Vector();
+    state.boundaryMaskSource = new ol.source.Vector();
     state.hotspotSource = new ol.source.Vector();
     state.selectedCoordSource = new ol.source.Vector();
     state.populationSource = new ol.source.Vector();
@@ -1190,6 +1196,15 @@
     const boundaryLayer = new ol.layer.Vector({
       source: state.boundarySource
     });
+    state.boundaryMaskLayer = new ol.layer.Vector({
+      source: state.boundaryMaskSource,
+      style: new ol.style.Style({
+        fill: new ol.style.Fill({
+          color: outsideBoundaryMaskColor
+        }),
+        zIndex: 8
+      })
+    });
 
     const hotspotLayer = new ol.layer.Vector({
       source: state.hotspotSource
@@ -1204,6 +1219,7 @@
         state.populationLayer,
         state.overlayLayers.vehicle,
         state.overlayLayers.pedestrian,
+        state.boundaryMaskLayer,
         boundaryLayer,
         hotspotLayer,
         state.selectedCoordLayer
@@ -1232,7 +1248,7 @@
       const hitFeature = state.map.forEachFeatureAtPixel(
         event.pixel,
         (feature, layer) => {
-          if (layer === state.selectedCoordLayer) {
+          if (layer === state.selectedCoordLayer || layer === state.boundaryMaskLayer) {
             return undefined;
           }
           return feature;
@@ -1506,6 +1522,9 @@
     }
 
     state.boundarySource.clear();
+    if (state.boundaryMaskSource) {
+      state.boundaryMaskSource.clear();
+    }
 
     const drawableFeatures = features.filter((feature) => Boolean(feature.getGeometry()));
     const boundaryStyle = createBoundaryStyle({
@@ -1557,6 +1576,7 @@
     }
 
     state.boundarySource.addFeatures(drawableFeatures);
+    updateOutsideBoundaryMask(drawableFeatures);
     state.boundaryDefaultStyle = boundaryStyle;
     state.boundarySelectedStyle = boundarySelectedStyle;
     updateBoundaryHighlightStyles();
@@ -1587,6 +1607,126 @@
       duration: 250,
       maxZoom: 16
     });
+  }
+
+  function updateOutsideBoundaryMask(boundaryFeatures) {
+    if (!state.boundaryMaskSource) {
+      return;
+    }
+    state.boundaryMaskSource.clear();
+
+    const maskFeature = buildOutsideBoundaryMaskFeature(boundaryFeatures);
+    if (maskFeature) {
+      state.boundaryMaskSource.addFeature(maskFeature);
+    }
+  }
+
+  function buildOutsideBoundaryMaskFeature(boundaryFeatures) {
+    if (!Array.isArray(boundaryFeatures) || boundaryFeatures.length === 0) {
+      return null;
+    }
+
+    const projection = state.map && state.map.getView
+      ? state.map.getView().getProjection()
+      : null;
+    const projectionExtent = projection && typeof projection.getExtent === "function"
+      ? projection.getExtent()
+      : null;
+    const worldExtent = (
+      Array.isArray(projectionExtent) &&
+      projectionExtent.length === 4 &&
+      projectionExtent.every((value) => Number.isFinite(value))
+    )
+      ? projectionExtent
+      : [-20037508.342789244, -20037508.342789244, 20037508.342789244, 20037508.342789244];
+
+    const outerRing = [
+      [worldExtent[0], worldExtent[1]],
+      [worldExtent[0], worldExtent[3]],
+      [worldExtent[2], worldExtent[3]],
+      [worldExtent[2], worldExtent[1]],
+      [worldExtent[0], worldExtent[1]]
+    ];
+
+    const holeRings = [];
+    boundaryFeatures.forEach((feature) => {
+      if (!feature || typeof feature.getGeometry !== "function") {
+        return;
+      }
+      appendMaskHolesFromGeometry(feature.getGeometry(), holeRings);
+    });
+    if (holeRings.length === 0) {
+      return null;
+    }
+
+    const geometry = new ol.geom.Polygon([outerRing, ...holeRings]);
+    const feature = new ol.Feature({
+      geometry
+    });
+    feature.set("kind", "boundary-mask");
+    return feature;
+  }
+
+  function appendMaskHolesFromGeometry(geometry, targetRings) {
+    if (!geometry || !Array.isArray(targetRings)) {
+      return;
+    }
+
+    if (geometry instanceof ol.geom.MultiPolygon) {
+      geometry.getPolygons().forEach((polygon) => {
+        appendMaskHolesFromGeometry(polygon, targetRings);
+      });
+      return;
+    }
+
+    if (!(geometry instanceof ol.geom.Polygon)) {
+      return;
+    }
+
+    const rings = geometry.getCoordinates();
+    if (!Array.isArray(rings) || rings.length === 0) {
+      return;
+    }
+    const outerRing = normalizeMaskRing(rings[0]);
+    if (outerRing) {
+      targetRings.push(outerRing);
+    }
+  }
+
+  function normalizeMaskRing(ring) {
+    if (!Array.isArray(ring) || ring.length < 3) {
+      return null;
+    }
+
+    const normalized = ring
+      .map((coordinate) => {
+        if (!Array.isArray(coordinate) || coordinate.length < 2) {
+          return null;
+        }
+        const x = Number(coordinate[0]);
+        const y = Number(coordinate[1]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          return null;
+        }
+        return [x, y];
+      })
+      .filter((coordinate) => Boolean(coordinate));
+
+    if (normalized.length < 3) {
+      return null;
+    }
+
+    const first = normalized[0];
+    const last = normalized[normalized.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      normalized.push([first[0], first[1]]);
+    }
+
+    if (normalized.length < 4) {
+      return null;
+    }
+
+    return normalized;
   }
 
   function createBoundaryStyle(options) {

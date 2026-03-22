@@ -62,19 +62,19 @@ window.APP_CONFIG = {
     ],
     commonPledges: [
       {
-        title: "🚌 교통·주차 공약",
+        title: "🚌 교통·주차 현안",
         description: "출퇴근 정체구간 개선, 버스 체계 개편, 공영주차장 확충"
       },
       {
-        title: "🏫 교육·보육 공약",
+        title: "🏫 교육·보육 현안",
         description: "통학 안전 강화, 돌봄 인프라 확충, 과밀학급 완화 지원"
       },
       {
-        title: "🌳 환경·안전 공약",
+        title: "🌳 환경·안전 현안",
         description: "공원/산책로 정비, CCTV·스마트 가로등 확충, 침수 취약지 개선"
       },
       {
-        title: "🏘️ 주거·경제 공약",
+        title: "🏘️ 주거·경제 현안",
         description: "노후 인프라 정비, 골목상권 활성화, 생활밀착 문화공간 확대"
       }
     ],
