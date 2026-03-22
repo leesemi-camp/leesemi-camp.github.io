@@ -35,7 +35,7 @@
 
       elements.loginButton.addEventListener("click", () => {
         state.manualLoginOnly = false;
-        void startLogin();
+        void startLogin({ interactive: true });
       });
 
       elements.logoutButton.addEventListener("click", () => {
@@ -72,12 +72,12 @@
     if (!user) {
       const attemptedInSession = readAutoLoginAttemptFlag();
       if (state.manualLoginOnly || state.autoLoginAttempted || attemptedInSession) {
-        showError("허용된 Google 계정으로 로그인하세요.");
+        showError(buildMissingSessionMessage());
         return;
       }
       state.autoLoginAttempted = true;
       writeAutoLoginAttemptFlag(true);
-      await startLogin();
+      await startLogin({ interactive: false });
       return;
     }
 
@@ -92,21 +92,40 @@
     showShell();
   }
 
-  async function startLogin() {
+  async function startLogin(options) {
     if (!state.auth || state.loginInFlight) {
       return;
     }
+    const interactive = Boolean(options && options.interactive === true);
     state.loginInFlight = true;
-    showLoading("Google 로그인 화면으로 이동 중...");
+    showLoading(interactive ? "Google 로그인 창을 여는 중..." : "Google 로그인 화면으로 이동 중...");
 
     try {
       const provider = new firebase.auth.GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
+      if (interactive) {
+        try {
+          await state.auth.signInWithPopup(provider);
+          return;
+        } catch (error) {
+          const code = String(error && error.code ? error.code : "").toLowerCase();
+          // Popup이 막힌 환경에서는 redirect로 한 번 더 시도한다.
+          if (
+            code === "auth/popup-blocked" ||
+            code === "auth/cancelled-popup-request" ||
+            code === "auth/operation-not-supported-in-this-environment"
+          ) {
+            await state.auth.signInWithRedirect(provider);
+            return;
+          }
+          throw error;
+        }
+      }
       await state.auth.signInWithRedirect(provider);
     } catch (error) {
       state.loginInFlight = false;
       state.manualLoginOnly = true;
-      showError("로그인 실패: " + toMessage(error));
+      showError("로그인 실패: " + toAuthErrorMessage(error));
     }
   }
 
@@ -237,6 +256,35 @@
       return error.message;
     }
     return String(error);
+  }
+
+  function toAuthErrorMessage(error) {
+    const code = String(error && error.code ? error.code : "").toLowerCase();
+    if (code === "auth/popup-closed-by-user") {
+      return "로그인 창이 닫혀 인증이 완료되지 않았습니다. 다시 시도하세요.";
+    }
+    if (code === "auth/popup-blocked") {
+      return "브라우저가 로그인 팝업을 차단했습니다. 팝업 허용 후 다시 시도하세요.";
+    }
+    if (code === "auth/unauthorized-domain") {
+      return "Firebase Authentication Authorized domains에 현재 도메인이 등록되지 않았습니다.";
+    }
+    if (code === "auth/network-request-failed") {
+      return "네트워크 오류로 인증 요청에 실패했습니다. 네트워크/보안 확장 기능을 확인하세요.";
+    }
+    if (code === "auth/cancelled-popup-request") {
+      return "이미 로그인 요청이 진행 중입니다. 잠시 후 다시 시도하세요.";
+    }
+    return toMessage(error);
+  }
+
+  function buildMissingSessionMessage() {
+    return (
+      "로그인 세션을 확인하지 못했습니다. " +
+      "1) config.js allowedEmails에 계정이 포함되어 있는지, " +
+      "2) Firebase Authentication Authorized domains에 현재 도메인이 등록되어 있는지, " +
+      "3) 시크릿 모드의 쿠키/사이트데이터 차단 또는 보안 확장 기능이 인증을 막고 있지 않은지 확인하세요."
+    );
   }
 
   function escapeHtml(value) {

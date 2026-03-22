@@ -235,20 +235,6 @@
     return state.mode === "edit";
   }
 
-  function getSystemLandingPath() {
-    const configuredPath = config && config.launcher && typeof config.launcher.systemPath === "string"
-      ? String(config.launcher.systemPath).trim()
-      : "";
-    if (configuredPath) {
-      return configuredPath;
-    }
-    return "/system/";
-  }
-
-  function redirectToSystemLanding() {
-    window.location.replace(getSystemLandingPath());
-  }
-
   function validateConfig(appConfig) {
     if (!appConfig) {
       throw new Error("config.js 파일이 없습니다.");
@@ -806,11 +792,10 @@
       state.issues = [];
       resetOverlayState();
       resetPopulationState();
-      if (isEditMode()) {
-        redirectToSystemLanding();
-        return;
-      }
-      showLoginPanel("로그인이 필요합니다.");
+      const loginMessage = isEditMode()
+        ? "로그인이 필요합니다. 시크릿 모드에서는 쿠키/사이트데이터 차단 시 인증 상태가 유지되지 않을 수 있습니다."
+        : "로그인이 필요합니다.";
+      showLoginPanel(loginMessage);
       updateOverlayControls();
       updatePopulationControls();
       updateCurrentLocationButtonAvailability();
@@ -821,11 +806,11 @@
     const email = normalizeEmail(user.email);
     if (!isAllowedStaff(email)) {
       await state.auth.signOut();
-      if (isEditMode()) {
-        redirectToSystemLanding();
-      } else {
-        showLoginPanel("허용되지 않은 계정입니다: " + email, true);
-      }
+      showLoginPanel(
+        "허용되지 않은 계정입니다: " + email +
+        " (config.js allowedEmails, Firestore meta/staff_allowlist 확인 필요)",
+        true
+      );
       return;
     }
 
@@ -886,17 +871,13 @@
       provider.setCustomParameters({ prompt: "select_account" });
       await state.auth.signInWithPopup(provider);
     } catch (error) {
-      setStatus("로그인 실패: " + toMessage(error), true);
+      setStatus("로그인 실패: " + toAuthErrorMessage(error), true);
     }
   }
 
   async function signOut() {
     try {
       await state.auth.signOut();
-      if (isEditMode()) {
-        redirectToSystemLanding();
-        return;
-      }
       showLoginPanel("로그아웃되었습니다.");
     } catch (error) {
       setStatus("로그아웃 실패: " + toMessage(error), true);
@@ -3857,6 +3838,26 @@
       return error.message;
     }
     return String(error);
+  }
+
+  function toAuthErrorMessage(error) {
+    const code = String(error && error.code ? error.code : "").toLowerCase();
+    if (code === "auth/popup-closed-by-user") {
+      return "로그인 창이 닫혀 인증이 완료되지 않았습니다. 다시 시도하세요.";
+    }
+    if (code === "auth/popup-blocked") {
+      return "브라우저가 로그인 팝업을 차단했습니다. 팝업 허용 후 다시 시도하세요.";
+    }
+    if (code === "auth/unauthorized-domain") {
+      return "Firebase Authentication Authorized domains에 현재 도메인이 등록되지 않았습니다.";
+    }
+    if (code === "auth/network-request-failed") {
+      return "네트워크 오류로 인증 요청에 실패했습니다. 네트워크/보안 확장 기능을 확인하세요.";
+    }
+    if (code === "auth/cancelled-popup-request") {
+      return "이미 로그인 요청이 진행 중입니다. 잠시 후 다시 시도하세요.";
+    }
+    return toMessage(error);
   }
 
   function toMillis(value) {
