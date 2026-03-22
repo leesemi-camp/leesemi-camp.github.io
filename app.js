@@ -1866,8 +1866,21 @@
     return String(a || "").localeCompare(String(b || ""), "ko", { sensitivity: "base" });
   }
 
+  function isBracketLeadingTitle(value) {
+    return /^\s*\[/.test(String(value || ""));
+  }
+
+  function compareIssueTitleForList(aTitle, bTitle) {
+    const aIsBracketLeading = isBracketLeadingTitle(aTitle);
+    const bIsBracketLeading = isBracketLeadingTitle(bTitle);
+    if (aIsBracketLeading !== bIsBracketLeading) {
+      return aIsBracketLeading ? 1 : -1;
+    }
+    return compareKoreanText(aTitle, bTitle);
+  }
+
   function compareHotspotByTitle(a, b) {
-    const titleOrder = compareKoreanText(a && a.title, b && b.title);
+    const titleOrder = compareIssueTitleForList(a && a.title, b && b.title);
     if (titleOrder !== 0) {
       return titleOrder;
     }
@@ -4038,7 +4051,7 @@
         group.dongNames = uniqueDongs.sort(compareKoreanText);
         return group;
       })
-      .sort((a, b) => compareKoreanText(a.title, b.title));
+      .sort((a, b) => compareIssueTitleForList(a.title, b.title));
   }
 
   function resolveIssueGroupKey(spot) {
