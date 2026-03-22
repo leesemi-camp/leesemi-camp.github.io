@@ -142,6 +142,12 @@ p {
   grid-area: map;
   position: relative;
   min-width: 0;
+  transition: opacity 0.18s ease;
+}
+
+.map-wrap.map-wrap-initializing {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .icon-btn {

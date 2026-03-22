@@ -8,6 +8,9 @@
     db: null,
     map: null,
     popupOverlay: null,
+    currentLocationSource: null,
+    currentLocationLayer: null,
+    currentLocationFeature: null,
     boundarySource: null,
     boundaryMaskSource: null,
     boundaryMaskLayer: null,
@@ -140,6 +143,30 @@
       })
     })
   ];
+  const currentLocationStyles = [
+    new ol.style.Style({
+      zIndex: 39,
+      image: new ol.style.Circle({
+        radius: 12,
+        fill: new ol.style.Fill({ color: "rgba(44,123,246,0.22)" }),
+        stroke: new ol.style.Stroke({
+          color: "rgba(44,123,246,0.48)",
+          width: 1.5
+        })
+      })
+    }),
+    new ol.style.Style({
+      zIndex: 40,
+      image: new ol.style.Circle({
+        radius: 6,
+        fill: new ol.style.Fill({ color: "#2c7bf6" }),
+        stroke: new ol.style.Stroke({
+          color: "#ffffff",
+          width: 2
+        })
+      })
+    })
+  ];
 
   const boundaryStrokeColor = (config.data && config.data.boundaryStrokeColor)
     ? String(config.data.boundaryStrokeColor)
@@ -166,6 +193,7 @@
     statusText: document.getElementById("status-text"),
     loginButton: document.getElementById("login-btn"),
     logoutButton: document.getElementById("logout-btn"),
+    mapWrap: document.querySelector(".map-wrap"),
     map: document.getElementById("map"),
     mapPopup: document.getElementById("map-popup"),
     spotFormSheet: document.getElementById("spot-form-sheet"),
@@ -234,7 +262,6 @@
         await applyDefaultOverlayVisibility();
         await applyDefaultPopulationVisibility();
         subscribeHotspots();
-        void centerMapToCurrentLocation({ silent: true, minZoom: 15 });
       }
     } catch (error) {
       showFatal(error);
@@ -1167,6 +1194,7 @@
       : [126.978, 37.5665];
     const zoom = config.map && config.map.defaultZoom ? config.map.defaultZoom : 13;
 
+    state.currentLocationSource = new ol.source.Vector();
     state.boundarySource = new ol.source.Vector();
     state.boundaryMaskSource = new ol.source.Vector();
     state.hotspotSource = new ol.source.Vector();
@@ -1177,6 +1205,10 @@
 
     state.selectedCoordLayer = new ol.layer.Vector({
       source: state.selectedCoordSource
+    });
+    state.currentLocationLayer = new ol.layer.Vector({
+      source: state.currentLocationSource,
+      style: currentLocationStyles
     });
 
     state.populationLayer = new ol.layer.Vector({
@@ -1222,6 +1254,7 @@
         state.boundaryMaskLayer,
         boundaryLayer,
         hotspotLayer,
+        state.currentLocationLayer,
         state.selectedCoordLayer
       ],
       view: new ol.View({
@@ -1248,7 +1281,11 @@
       const hitFeature = state.map.forEachFeatureAtPixel(
         event.pixel,
         (feature, layer) => {
-          if (layer === state.selectedCoordLayer || layer === state.boundaryMaskLayer) {
+          if (
+            layer === state.selectedCoordLayer ||
+            layer === state.boundaryMaskLayer ||
+            layer === state.currentLocationLayer
+          ) {
             return undefined;
           }
           return feature;
@@ -1313,6 +1350,18 @@
       }
       closePopup();
     });
+
+    void refreshCurrentLocationIndicator();
+  }
+
+  function revealMapViewport() {
+    const mapWrap = elements.mapWrap || (elements.map ? elements.map.parentElement : null);
+    if (mapWrap && mapWrap.classList && mapWrap.classList.contains("map-wrap-initializing")) {
+      mapWrap.classList.remove("map-wrap-initializing");
+    }
+    if (state.map) {
+      window.setTimeout(() => state.map.updateSize(), 0);
+    }
   }
 
   async function loadBoundaries() {
@@ -1351,6 +1400,8 @@
       state.boundariesLoaded = true;
     } catch (error) {
       window.alert("동 경계 로딩 실패: " + toMessage(error));
+    } finally {
+      revealMapViewport();
     }
   }
 
@@ -1604,7 +1655,7 @@
 
     fitMapToBoundaryExtent({
       padding: [22, 22, 22, 22],
-      duration: 250,
+      duration: 0,
       maxZoom: 16
     });
   }
@@ -3810,6 +3861,48 @@
     return true;
   }
 
+  async function refreshCurrentLocationIndicator() {
+    if (!state.currentLocationSource) {
+      return;
+    }
+    if (!navigator.geolocation || typeof navigator.geolocation.getCurrentPosition !== "function") {
+      return;
+    }
+
+    try {
+      const position = await getCurrentGeolocation();
+      const lat = Number(position.coords && position.coords.latitude);
+      const lng = Number(position.coords && position.coords.longitude);
+      setCurrentLocationIndicator(lat, lng);
+    } catch (error) {
+      // 위치 권한 거부/실패는 조용히 무시하고 지도 사용 흐름을 유지합니다.
+    }
+  }
+
+  function setCurrentLocationIndicator(lat, lng) {
+    if (!state.currentLocationSource) {
+      return;
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return;
+    }
+
+    const projected = ol.proj.fromLonLat([lng, lat]);
+    if (!state.currentLocationFeature) {
+      state.currentLocationFeature = new ol.Feature({
+        geometry: new ol.geom.Point(projected)
+      });
+      state.currentLocationFeature.set("kind", "current-location");
+      state.currentLocationSource.addFeature(state.currentLocationFeature);
+      return;
+    }
+
+    const geometry = state.currentLocationFeature.getGeometry();
+    if (geometry && typeof geometry.setCoordinates === "function") {
+      geometry.setCoordinates(projected);
+    }
+  }
+
   async function centerMapToCurrentLocation(options) {
     const mapView = state.map ? state.map.getView() : null;
     if (!mapView) {
@@ -3828,6 +3921,7 @@
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         return;
       }
+      setCurrentLocationIndicator(lat, lng);
       const hasBoundaryData = Boolean(
         state.boundariesLoaded &&
         state.boundarySource &&
@@ -4720,6 +4814,7 @@
         throw new Error("좌표 형식이 올바르지 않습니다.");
       }
 
+      setCurrentLocationIndicator(lat, lng);
       setSelectedCoord(lat, lng);
       if (state.map) {
         const hasBoundaryData = Boolean(
