@@ -41,3 +41,9 @@
 - `/map/` : 현안 열람
 - `/map/edit/` : 현안 편집(로그인 필요)
 - `/system/` : 내부 시스템 런처
+
+## Workflow Instructions
+
+- No fake implementation, no stubs, no mocks.
+- Include failure handling and test execution in every planning process.
+- Use subagent whenever possible.
