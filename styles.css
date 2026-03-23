@@ -423,6 +423,19 @@ textarea {
   background: #fcfdff;
 }
 
+.spot-item--no-memo {
+  padding: 8px 10px;
+}
+
+.spot-item--no-memo .spot-category,
+.spot-item--no-memo .spot-dong {
+  margin-top: 4px;
+}
+
+.spot-item--no-memo .spot-item-actions {
+  margin-top: 6px;
+}
+
 .spot-dong {
   margin-top: 6px;
   font-size: 12px;
