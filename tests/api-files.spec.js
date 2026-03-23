@@ -9,7 +9,7 @@ function resolveBaseURL(testInfo) {
   return baseURL || "http://localhost:5173";
 }
 
-test("API files respond in browser context", async ({ page }, testInfo) => {
+test("API endpoints respond in browser", async ({ page }, testInfo) => {
   const config = loadAppConfig();
   const baseURL = resolveBaseURL(testInfo);
   const result = buildApiRequests(config, baseURL);
@@ -17,12 +17,14 @@ test("API files respond in browser context", async ({ page }, testInfo) => {
   const missing = result.missing;
 
   if (missing.length > 0) {
+    // 누락된 API 설정은 경고로 기록한다. (테스트는 계속 진행)
     testInfo.annotations.push({
       type: "warning",
       description: "Missing API config keys: " + missing.join(", ")
     });
   }
 
+  // 브라우저 컨텍스트에서 실제 API 응답 여부를 확인한다.
   await page.goto("/");
 
   for (const request of requests) {

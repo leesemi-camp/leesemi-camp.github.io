@@ -42,8 +42,17 @@
 - `/map/edit/` : 현안 편집(로그인 필요)
 - `/system/` : 내부 시스템 런처
 
-## Workflow Instructions
+## Implementation Policies
 
 - No fake implementation, no stubs, no mocks.
+
+### Test Files
+
+- 테스트 파일은 최소한으로 유지하고, 불필요한 헬퍼 추가를 지양합니다. 테스트 커버리지를 높이는 것보다, 핵심 기능이 망가지지 않는다는 것을 확인하는 것이 중요합니다.
+- 테스트 제목은 짧고 이해하기 쉽게 작성합니다.
+- 테스트 코드 주석은 한국어로 작성합니다.
+
+## Workflow Notes
+
 - Include failure handling and test execution in every planning process.
 - Use subagent whenever possible.
