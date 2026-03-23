@@ -12,9 +12,9 @@ function resolveBaseURL(testInfo) {
 test("API endpoints respond in browser", async ({ page }, testInfo) => {
   const config = loadAppConfig();
   const baseURL = resolveBaseURL(testInfo);
-  const result = buildApiRequests(config, baseURL);
-  const requests = result.requests;
-  const missing = result.missing;
+  const apiPlan = buildApiRequests(config, baseURL);
+  const requests = apiPlan.requests;
+  const missing = apiPlan.missing;
 
   if (missing.length > 0) {
     // 누락된 API 설정은 경고로 기록한다. (테스트는 계속 진행)
