@@ -4176,7 +4176,9 @@
     const showEditorActions = isEditMode();
     const items = hotspots.map((spot) => {
       const title = escapeHtml(spot.title);
-      const memo = escapeHtml(spot.memo || "메모 없음");
+      const memoRaw = typeof spot.memo === "string" ? spot.memo.trim() : "";
+      const memo = memoRaw ? escapeHtml(memoRaw) : "";
+      const spotItemClassName = "spot-item" + (memo ? "" : " spot-item--no-memo");
       const dongName = escapeHtml(formatSpotDongLabel(spot));
       const categoryLabel = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
       const categoryMeta = resolveIssueCategoryMeta(spot.categoryId, spot.categoryLabel);
@@ -4193,19 +4195,28 @@
       }
 
       return (
-        "<li class='spot-item' data-spot-id='" + safeId + "'>" +
+        "<li class='" + spotItemClassName + "' data-spot-id='" + safeId + "'>" +
           "<div class='spot-item-top'>" +
             "<strong>" + title + "</strong>" +
           "</div>" +
           "<div class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</div>" +
           "<div class='spot-dong'>" + dongName + "</div>" +
-          "<div class='spot-memo'>" + memo + "</div>" +
+          (memo ? "<div class='spot-memo'>" + memo + "</div>" : "") +
           actionsHtml +
         "</li>"
       );
     });
 
     elements.spotList.innerHTML = items.join("");
+  }
+
+  function exposeSpotListTestHooks() {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.__spotListTestHooks = {
+      renderHotspotList
+    };
   }
 
   function renderIssueGroupList(hotspots) {
@@ -5183,4 +5194,6 @@
       }
     });
   }
+
+  exposeSpotListTestHooks();
 })();
