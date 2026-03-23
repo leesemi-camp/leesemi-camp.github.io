@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    # branches: ["main"]
+    branches-ignore:
+      - "gh-pages"
+      - "docs/**"
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: 'npm'
+
+      - name: "Install Dependencies, Playwright Browsers"
+        run: |
+          npm install
+          npx playwright install --with-deps
+
+      - name: "Run Playwright Tests"
+        run: npm test
