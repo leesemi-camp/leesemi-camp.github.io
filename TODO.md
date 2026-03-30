@@ -72,93 +72,6 @@
   - “메모 유무에 따른 카드 클래스/DOM”: `tests/spot-list.spec.js`, `tests/smoke.spec.js` (훅 사용)
 - 그 외 지도 상호작용/편집 기능은 현재 테스트 공백(아래 TODO에서 우선순위로 보강)
 
-### 추가 TODO (요청 반영)
-
-#### A) CI에서 “변경된 웹페이지” 스크린샷 캡처 + PR 코멘트(시각 회귀 설명)
-
-목표: PR이 업데이트될 때마다(현재 `pull_request` 트리거) Playwright로 주요 페이지 스크린샷을 자동 생성하고, 이전 결과 대비 변경점이 있으면 PR 코멘트로 요약합니다. 스크린샷 파일은 매 실행마다 동일 경로/파일명으로 생성되어 “최신 결과로 덮어쓰기”됩니다.
-
-- [ ] Playwright “스크린샷 캡처 전용” spec 추가
-  - 대상 페이지 최소 세트: `/`, `/map/`, `/map/edit/`, `/system/`
-  - 각 페이지의 “레이아웃 안정화 지점(셀렉터)”를 기다린 뒤 `page.screenshot({ path })`
-  - 저장 경로 고정: 예) `test-results/visual/latest/<project>/<page>.png`
-
-- [ ] CI 워크플로(`.github/workflows/ci.yml`)에 시각 결과 아티팩트 업로드 추가
-  - `actions/upload-artifact`로 `test-results/visual/latest/**` 업로드
-  - 실행마다 같은 artifact name 사용(예: `visual-snapshots`)
-
-- [ ] PR 코멘트 자동 작성/업데이트(권장: “기존 코멘트 갱신”)
-  - `actions/github-script`로 “마커(예: `<!-- visual-regression -->`)”가 포함된 코멘트를 찾아 업데이트
-  - 코멘트 내용(최소): 캡처한 페이지 리스트 + diff 여부 + artifact 링크
-
-- [ ] “변화 비교(diff)” 전략 결정
-  - 옵션 1(권장): base branch(main) 기준 스크린샷도 같은 워크플로에서 생성 후 픽셀 diff 생성
-  - 옵션 2: 기준 스크린샷을 별도 저장소/버킷에 저장해 내려받아 비교(운영 복잡도 ↑)
-
-주의:
-
-- PR 코멘트에서 이미지를 “바로 표시”하려면 공개 URL이 필요합니다(artifact 링크만으로는 미리보기 제약이 있을 수 있음). 필요 시 `gh-pages`에 PR별 “latest”로 발행하는 방식을 별도 검토합니다.
-
-#### B) 지도 API 교체 기술 검토(OpenLayers → Kakao Map / Naver Map)
-
-목표: 시민들이 익숙한 지도(카카오/네이버)로 전환 가능성을 검토하고, 기능/비용/운영 리스크를 비교합니다.
-
-- [ ] 요구사항 정리(현재 기능 기준)
-  - 동 경계 폴리곤 렌더 + 클릭 판별(동 필터)
-  - hotspot 포인트 렌더 + 강조/디밍 + 팝업
-  - (확장) route/trajectory(선) 렌더 + 편집 UI
-
-- [ ] Kakao / Naver 비교 표 작성(문서)
-  - 라이선스/요금/쿼터/도메인 제한 정책
-  - 도형(폴리곤/폴리라인) 렌더 + 히트테스트 + 커스텀 오버레이 지원
-  - 좌표계/GeoJSON 변환 편의성, 성능(모바일)
-
-- [ ] 마이그레이션 설계(최소 변경)
-  - 지도 어댑터 계층(`MapProvider`) 도입 → OL 구현을 기준으로 유지한 채 제공자 교체 실험
-
-#### C) Firestore 데이터/스키마 테스트를 위한 Hotspot 스냅샷(data/ 사본) 준비
-
-목표: 실제 Firebase에 축적된 `crowd_hotspots` 데이터를 `data/` 폴더에 스냅샷(사본)으로 보관(또는 안전한 저장소에 보관 후 CI에서 내려받음)하여 테스트 커버리지를 고도화합니다.
-
-- [ ] 데이터 반출(export) 방식 결정
-  - 옵션 1: `firebase-admin` + 서비스 계정으로 컬렉션 덤프(JSON) 생성
-  - 옵션 2: GCP Firestore export(버킷) → 다운로드
-
-- [ ] 보안/개인정보 점검(필수)
-  - 공개 저장소 커밋 여부 재검토(우선 `.gitignore` 제외 권장)
-  - 익명화/삭제 규칙(PII 제거) 수립
-
-- [ ] 테스트 적용(“가짜 구현”이 아니라 실제 데이터 사본 사용)
-  - `processHotspotSnapshot()`의 정규화 로직을 순수 함수로 분리 → 스냅샷 기반 단위테스트
-  - 그룹 보기/공통 태그/정렬 규칙 회귀 고정
-
-#### D) 저장소/배포 보안 검수(GitHub Pages + GitHub 기본 기능) + Agent Skill 적용 검토
-
-목표: GitHub Pages로 배포되는 정적 웹앱 특성(설정 파일 노출, CDN 의존, 공개 URL)을 전제로, **저장소/워크플로/Pages 설정**을 점검하고 GitHub 기본 기능으로 가능한 보안 강화를 적용합니다.
-
-- [ ] 저장소 보안 점검(체크리스트)
-  - 노출 점검: `config.js`/로그/문서에 토큰/비밀키/개인정보(PII) 포함 여부 재검토
-  - Firebase 키/도메인 제한: Web API key의 HTTP referrer 제한, Authorized domains 최소화(운영/로컬 분리)
-  - Firestore rules 재검토: 공개 read 필요성, 최소 권한(필요 시 read 제한/조건 추가)
-  - 외부 API 호출: CORS/프록시 필요성, 토큰 프록시화(Cloudflare Worker/Cloud Run 등)
-
-- [ ] GitHub 기본 기능 활용(권장)
-  - Security 탭 활성 기능 확인: Dependabot alerts/updates, Secret scanning(+ push protection 가능 여부), Code scanning(CodeQL)
-  - 브랜치 보호: `main` 보호 규칙(PR 필수, CI 통과 필수, 관리자 예외 정책)
-  - Actions 하드닝: 워크플로 권한 최소화(`permissions:`), 서드파티 액션 pinning(커밋 SHA), PR에서 fork 권한 정책
-  - 릴리즈/배포: Pages “Enforce HTTPS” 확인, 배포 워크플로에서 최소 권한 유지(`deploy-pages.yml`는 이미 제한적)
-
-- [ ] 문서/정책 파일 추가(필요 시)
-  - `SECURITY.md`: 취약점 제보 채널/응답 절차/지원 버전
-  - `.github/dependabot.yml`: npm(Playwright) 의존성 업데이트 자동화
-  - `.github/workflows/codeql.yml`: JS CodeQL 스캔(정적 분석)
-  - (선택) OSSF Scorecard 워크플로(공급망 관점)
-
-- [ ] “Agent Skill” 적용 검토
-  - Codex/에이전트 커뮤니티에서 사용하는 보안 점검 스킬이 있는지 확인 후 적용(가능하면 `skill-installer`로 설치)
-  - 없다면: 이 저장소 전용 “보안 점검 런북(skill)”을 내부에 정의(예: 체크리스트/명령/리포트 템플릿)
-  - 목표 산출물: PR 템플릿/체크리스트로 자동화(리뷰 시 누락 방지)
-
 ### 단계별 리팩터링 로드맵(테스트 우선)
 
 #### 0) 베이스라인 고정
@@ -244,3 +157,89 @@
 
 - 테스트: `npm test`
 - 로컬 서빙(수동 확인): `npm run serve` (기본 `http://localhost:5173`)
+
+
+## CI에서 “변경된 웹페이지” 스크린샷 캡처 + PR 코멘트(시각 회귀 설명)
+
+목표: PR이 업데이트될 때마다(현재 `pull_request` 트리거) Playwright로 주요 페이지 스크린샷을 자동 생성하고, 이전 결과 대비 변경점이 있으면 PR 코멘트로 요약합니다. 스크린샷 파일은 매 실행마다 동일 경로/파일명으로 생성되어 “최신 결과로 덮어쓰기”됩니다.
+
+- [ ] Playwright “스크린샷 캡처 전용” spec 추가
+  - 대상 페이지 최소 세트: `/`, `/map/`, `/map/edit/`, `/system/`
+  - 각 페이지의 “레이아웃 안정화 지점(셀렉터)”를 기다린 뒤 `page.screenshot({ path })`
+  - 저장 경로 고정: 예) `test-results/visual/latest/<project>/<page>.png`
+
+- [ ] CI 워크플로(`.github/workflows/ci.yml`)에 시각 결과 아티팩트 업로드 추가
+  - `actions/upload-artifact`로 `test-results/visual/latest/**` 업로드
+  - 실행마다 같은 artifact name 사용(예: `visual-snapshots`)
+
+- [ ] PR 코멘트 자동 작성/업데이트(권장: “기존 코멘트 갱신”)
+  - `actions/github-script`로 “마커(예: `<!-- visual-regression -->`)”가 포함된 코멘트를 찾아 업데이트
+  - 코멘트 내용(최소): 캡처한 페이지 리스트 + diff 여부 + artifact 링크
+
+- [ ] “변화 비교(diff)” 전략 결정
+  - 옵션 1(권장): base branch(main) 기준 스크린샷도 같은 워크플로에서 생성 후 픽셀 diff 생성
+  - 옵션 2: 기준 스크린샷을 별도 저장소/버킷에 저장해 내려받아 비교(운영 복잡도 ↑)
+
+주의:
+
+- PR 코멘트에서 이미지를 “바로 표시”하려면 공개 URL이 필요합니다(artifact 링크만으로는 미리보기 제약이 있을 수 있음). 필요 시 `gh-pages`에 PR별 “latest”로 발행하는 방식을 별도 검토합니다.
+
+## 지도 API 교체 기술 검토(OpenLayers → Kakao Map / Naver Map)
+
+목표: 시민들이 익숙한 지도(카카오/네이버)로 전환 가능성을 검토하고, 기능/비용/운영 리스크를 비교합니다.
+
+- [ ] 요구사항 정리(현재 기능 기준)
+  - 동 경계 폴리곤 렌더 + 클릭 판별(동 필터)
+  - hotspot 포인트 렌더 + 강조/디밍 + 팝업
+  - (확장) route/trajectory(선) 렌더 + 편집 UI
+
+- [ ] Kakao / Naver 비교 표 작성(문서)
+  - 라이선스/요금/쿼터/도메인 제한 정책
+  - 도형(폴리곤/폴리라인) 렌더 + 히트테스트 + 커스텀 오버레이 지원
+  - 좌표계/GeoJSON 변환 편의성, 성능(모바일)
+
+- [ ] 마이그레이션 설계(최소 변경)
+  - 지도 어댑터 계층(`MapProvider`) 도입 → OL 구현을 기준으로 유지한 채 제공자 교체 실험
+
+## Firestore 데이터/스키마 테스트를 위한 Hotspot 스냅샷(data/ 사본) 준비
+
+목표: 실제 Firebase에 축적된 `crowd_hotspots` 데이터를 `data/` 폴더에 스냅샷(사본)으로 보관(또는 안전한 저장소에 보관 후 CI에서 내려받음)하여 테스트 커버리지를 고도화합니다.
+
+- [ ] 데이터 반출(export) 방식 결정
+  - 옵션 1: `firebase-admin` + 서비스 계정으로 컬렉션 덤프(JSON) 생성
+  - 옵션 2: GCP Firestore export(버킷) → 다운로드
+
+- [ ] 보안/개인정보 점검(필수)
+  - 공개 저장소 커밋 여부 재검토(우선 `.gitignore` 제외 권장)
+  - 익명화/삭제 규칙(PII 제거) 수립
+
+- [ ] 테스트 적용(“가짜 구현”이 아니라 실제 데이터 사본 사용)
+  - `processHotspotSnapshot()`의 정규화 로직을 순수 함수로 분리 → 스냅샷 기반 단위테스트
+  - 그룹 보기/공통 태그/정렬 규칙 회귀 고정
+
+## 저장소/배포 보안 검수(GitHub Pages + GitHub 기본 기능) + Agent Skill 적용 검토
+
+목표: GitHub Pages로 배포되는 정적 웹앱 특성(설정 파일 노출, CDN 의존, 공개 URL)을 전제로, **저장소/워크플로/Pages 설정**을 점검하고 GitHub 기본 기능으로 가능한 보안 강화를 적용합니다.
+
+- [ ] 저장소 보안 점검(체크리스트)
+  - 노출 점검: `config.js`/로그/문서에 토큰/비밀키/개인정보(PII) 포함 여부 재검토
+  - Firebase 키/도메인 제한: Web API key의 HTTP referrer 제한, Authorized domains 최소화(운영/로컬 분리)
+  - Firestore rules 재검토: 공개 read 필요성, 최소 권한(필요 시 read 제한/조건 추가)
+  - 외부 API 호출: CORS/프록시 필요성, 토큰 프록시화(Cloudflare Worker/Cloud Run 등)
+
+- [ ] GitHub 기본 기능 활용(권장)
+  - Security 탭 활성 기능 확인: Dependabot alerts/updates, Secret scanning(+ push protection 가능 여부), Code scanning(CodeQL)
+  - 브랜치 보호: `main` 보호 규칙(PR 필수, CI 통과 필수, 관리자 예외 정책)
+  - Actions 하드닝: 워크플로 권한 최소화(`permissions:`), 서드파티 액션 pinning(커밋 SHA), PR에서 fork 권한 정책
+  - 릴리즈/배포: Pages “Enforce HTTPS” 확인, 배포 워크플로에서 최소 권한 유지(`deploy-pages.yml`는 이미 제한적)
+
+- [ ] 문서/정책 파일 추가(필요 시)
+  - `SECURITY.md`: 취약점 제보 채널/응답 절차/지원 버전
+  - `.github/dependabot.yml`: npm(Playwright) 의존성 업데이트 자동화
+  - `.github/workflows/codeql.yml`: JS CodeQL 스캔(정적 분석)
+  - (선택) OSSF Scorecard 워크플로(공급망 관점)
+
+- [ ] “Agent Skill” 적용 검토
+  - Codex/에이전트 커뮤니티에서 사용하는 보안 점검 스킬이 있는지 확인 후 적용(가능하면 `skill-installer`로 설치)
+  - 없다면: 이 저장소 전용 “보안 점검 런북(skill)”을 내부에 정의(예: 체크리스트/명령/리포트 템플릿)
+  - 목표 산출물: PR 템플릿/체크리스트로 자동화(리뷰 시 누락 방지)
