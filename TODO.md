@@ -62,7 +62,7 @@
 
 ## 핵심 사용자 시나리오 → 구현 위치/테스트 매핑
 
-상세 매핑은 `user-scenarios.md` 참고.
+상세 매핑은 [user-scenarios.md](user-scenarios.md) 참고.
 
 - 기본 렌더/라우팅(테스트 있음)
   - `/` 렌더: `tests/smoke.spec.js`
@@ -82,7 +82,7 @@
 
 - [ ] `npm install`
 - [ ] `npm test`로 현재 상태 통과 확인(3 projects: Chrome/Edge/WebKit)
-- [ ] `user-scenarios.md`를 “정답”으로 두고, 이후 리팩터링 시 시나리오 변화가 있으면 문서/테스트를 먼저 수정
+- [ ] [user-scenarios.md](user-scenarios.md)를 “정답”으로 두고, 이후 리팩터링 시 시나리오 변화가 있으면 문서/테스트를 먼저 수정
 
 ### 1) 테스트 가능한 “핵심 UI 로직” 범위를 확장(가장 작은 변화로)
 

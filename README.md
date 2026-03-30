@@ -2,14 +2,33 @@
 
 선거구 동 경계와 현장 혼잡 지점을 공유하기 위한 기본 골격입니다.
 
+## 문서(Documentation)
+
+아래 문서들은 목적에 따라 3가지로 분류합니다.
+
+### 1) 현재 상태를 기록하는 문서
+
+- [TODO.md](TODO.md): `app.js`를 테스트 기반으로 점진 리팩터링하기 위한 작업 계획/우선순위
+- [user-scenarios.md](user-scenarios.md): 실제 사용자 시나리오와 `app.js` 구현/테스트 매핑(커버리지 공백 포함)
+
+### 2) 구현 중인 요구사항/명세를 개괄적으로 설명하는 비-기술자용 문서
+
+- [project-brief.md](project-brief.md): “누가 무엇을 할 수 있는지” 중심의 서비스 개요(비-기술자용)
+
+### 3) 기술자를 위한 문서
+
+- [getting-started.md](getting-started.md): 로컬 실행/설정/권한 부여 등 온보딩
+- [external-api.md](external-api.md): 외부 API 및 로컬 데이터 파일 연결(설정 키 중심)
+- [data-hotspots-and-routes.md](data-hotspots-and-routes.md): `data/` 파일 사용처 + Firestore hotspot 관리 + route/trajectory 확장 조사(초안)
+
 ## 현재 포함된 기능
 
 1. 선거사무원만 로그인 허용 (Firebase Auth + custom claim `staff`)
 2. OSM 타일 + OpenLayers 지도 연동
 3. 동 경계(GeoJSON/WFS XML) 표시
 4. 혼잡 지점 마커 등록/실시간 공유(Firestore)
-5. 교통 오버레이 토글(차량 통행/보행 유동, 원격 JSON/GeoJSON)
-6. 수도권 생활이동 시간대 인구 오버레이(행정동 기준)
+5. 교통 오버레이(차량 통행/보행 유동, 원격 JSON/GeoJSON) (코드상 구현 / UI는 정리 필요)
+6. 수도권 생활이동 시간대 인구 오버레이(행정동 기준) (코드상 구현 / UI는 정리 필요)
 
 ## 1) OSM/OpenLayers 준비
 
