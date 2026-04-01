@@ -33,7 +33,7 @@
 
 ### 0.2 시나리오/테스트 매핑
 
-- 상세: `user-scenarios.md`
+- 상세: `docs/user-scenarios.md`
 - 현재 자동 테스트: Playwright `npm test`
 
 ---

@@ -4,22 +4,24 @@
 
 ## 문서(Documentation)
 
+문서는 루트의 `README.md`, `TODO.md`를 제외하고 `docs/` 폴더에 모아둡니다.
+
 아래 문서들은 목적에 따라 3가지로 분류합니다.
 
 ### 1) 현재 상태를 기록하는 문서
 
 - [TODO.md](TODO.md): `app.js`를 테스트 기반으로 점진 리팩터링하기 위한 작업 계획/우선순위
-- [user-scenarios.md](user-scenarios.md): 실제 사용자 시나리오와 `app.js` 구현/테스트 매핑(커버리지 공백 포함)
+- [docs/user-scenarios.md](docs/user-scenarios.md): 실제 사용자 시나리오와 `app.js` 구현/테스트 매핑(커버리지 공백 포함)
 
 ### 2) 구현 중인 요구사항/명세를 개괄적으로 설명하는 비-기술자용 문서
 
-- [project-brief.md](project-brief.md): “누가 무엇을 할 수 있는지” 중심의 서비스 개요(비-기술자용)
+- [docs/project-brief.md](docs/project-brief.md): “누가 무엇을 할 수 있는지” 중심의 서비스 개요(비-기술자용)
 
 ### 3) 기술자를 위한 문서
 
-- [getting-started.md](getting-started.md): 로컬 실행/설정/권한 부여 등 온보딩
-- [external-api.md](external-api.md): 외부 API 및 로컬 데이터 파일 연결(설정 키 중심)
-- [data-hotspots-and-routes.md](data-hotspots-and-routes.md): `data/` 파일 사용처 + Firestore hotspot 관리 + route/trajectory 확장 조사(초안)
+- [docs/getting-started.md](docs/getting-started.md): 로컬 실행/설정/권한 부여 등 온보딩
+- [docs/external-api.md](docs/external-api.md): 외부 API 및 로컬 데이터 파일 연결(설정 키 중심)
+- [docs/data-hotspots-and-routes.md](docs/data-hotspots-and-routes.md): `data/` 파일 사용처 + Firestore hotspot 관리 + route/trajectory 확장 조사(초안)
 
 ## 현재 포함된 기능
 
