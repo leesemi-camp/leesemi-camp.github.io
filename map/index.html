@@ -33,6 +33,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-check-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js" defer></script>
   <script src="../config.js" defer></script>
+  <script src="../config.local.js" defer></script>
   <script src="../app.js" defer></script>
 </head>
 <body data-map-mode="view">
@@ -83,7 +84,13 @@
             <span id="active-dong-filter" class="active-dong-filter hidden"></span>
             <button id="clear-dong-filter-btn" type="button" class="btn-secondary btn-small hidden">전체 보기</button>
           </div>
-          <p class="muted">지도에서 동 영역을 클릭하면 해당 동 현안만 볼 수 있습니다.</p>
+          <p class="muted">지도에서 동 경계를 클릭하면 해당 동 현안만 볼 수 있습니다.</p>
+          <p class="issue-contact-note">
+            현안 추가 제보는
+            <a href="sms:01081901440" class="issue-contact-link" aria-label="현안 추가 문의 문자 보내기">010-8190-1440</a>
+            /
+            <a href="mailto:leesemi114@gmail.com" class="issue-contact-link" aria-label="현안 추가 문의 이메일 보내기">leesemi114@gmail.com</a>
+          </p>
           <ul id="spot-list" class="spot-list"></ul>
         </aside>
       </section>

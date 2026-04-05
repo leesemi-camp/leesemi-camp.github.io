@@ -37,7 +37,7 @@ window.APP_CONFIG = {
       {
         label: "당원 명부 전화 시스템",
         description: "당원 명부 기반 전화 지원",
-        href: "https://script.google.com/macros/s/AKfycbyX-psBvoVHiYpdQKlRT4og6kCQCNsiWdhPoAr5wVz-Iz7LZF5RT5pylnxGe0D4JYU/exec",
+        href: "https://script.google.com/macros/s/AKfycbzVoRC3s4o3oRuF6YfqFqCbXceg--Z1n2r3IP51oxPmlH7O0Ab4xkmYSjjqdnQ07F0/exec",
         tone: "sage"
       },
       {
