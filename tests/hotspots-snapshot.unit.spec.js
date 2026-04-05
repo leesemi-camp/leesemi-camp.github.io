@@ -32,6 +32,7 @@ test("Hotspot snapshot schema validation", () => {
           dongName: "판교동",
           emdCode: "41135107",
           categoryId: "traffic_parking",
+          externalUrl: "https://example.com/",
           updatedAt: new Date().toISOString()
         },
         {
@@ -88,6 +89,19 @@ test("Hotspot snapshot schema validation", () => {
       const visibility = String(spot.visibility).trim().toLowerCase();
       if (visibility !== "public" && visibility !== "internal") {
         throw new Error("Invalid hotspot visibility at index " + String(index));
+      }
+    }
+    const rawExternalUrl = spot.externalUrl || spot.external_url;
+    if (rawExternalUrl) {
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(String(rawExternalUrl));
+      } catch (error) {
+        throw new Error("Invalid hotspot externalUrl at index " + String(index));
+      }
+      const protocol = String(parsedUrl.protocol || "").toLowerCase();
+      if (protocol !== "http:" && protocol !== "https:") {
+        throw new Error("Invalid hotspot externalUrl protocol at index " + String(index));
       }
     }
   });

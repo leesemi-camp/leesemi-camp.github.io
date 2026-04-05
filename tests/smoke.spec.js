@@ -161,6 +161,103 @@ test("HS-VIS-001 Public view hides internal hotspots", async ({ page }) => {
   expect(result.hasInternal).toBe(false);
 });
 
+test("HS-LINK-001 Invalid externalUrl is ignored", async ({ page }) => {
+  await page.goto("/map/");
+  await page.waitForFunction(() => {
+    return window.__spotListTestHooks && typeof window.__spotListTestHooks.openHotspotPopup === "function";
+  });
+
+  await page.evaluate(() => {
+    window.__spotListTestHooks.openHotspotPopup({
+      id: "spot-invalid-link",
+      title: "잘못된 링크",
+      memo: "",
+      dongName: "판교동",
+      categoryId: "traffic_parking",
+      externalUrl: "javascript:alert(1)"
+    });
+  });
+
+  await expect(page.locator("#map-popup a")).toHaveCount(0);
+});
+
+test("HS-LINK-002 Popup renders external link", async ({ page }) => {
+  await page.goto("/map/");
+  await page.waitForFunction(() => {
+    return window.__spotListTestHooks && typeof window.__spotListTestHooks.openHotspotPopup === "function";
+  });
+
+  await page.evaluate(() => {
+    window.__spotListTestHooks.openHotspotPopup({
+      id: "spot-external-link",
+      title: "외부 링크",
+      memo: "",
+      dongName: "판교동",
+      categoryId: "traffic_parking",
+      externalUrl: "https://example.com/"
+    });
+  });
+
+  const link = page.locator("#map-popup a");
+  await expect(link).toHaveCount(1);
+  await expect(link).toHaveAttribute("href", "https://example.com/");
+});
+
+test("HS-LINK-003 External link opens new tab", async ({ page }) => {
+  await page.goto("/map/");
+  await page.waitForFunction(() => {
+    return window.__spotListTestHooks && typeof window.__spotListTestHooks.openHotspotPopup === "function";
+  });
+
+  await page.evaluate(() => {
+    window.__spotListTestHooks.openHotspotPopup({
+      id: "spot-external-link-tab",
+      title: "외부 링크",
+      memo: "",
+      dongName: "판교동",
+      categoryId: "traffic_parking",
+      externalUrl: "https://example.com/"
+    });
+  });
+
+  const link = page.locator("#map-popup a");
+  await expect(link).toHaveAttribute("target", "_blank");
+  await expect(link).toHaveAttribute("rel", /noopener/);
+});
+
+test("HS-LINK-004 Google edit URL warns once on change", async ({ page }) => {
+  await page.goto("/map/edit/");
+  let dialogCount = 0;
+  page.on("dialog", async (dialog) => {
+    dialogCount += 1;
+    await dialog.dismiss();
+  });
+
+  await page.evaluate(() => {
+    const input = document.getElementById("spot-external-url");
+    if (!input) {
+      return;
+    }
+    input.value = "https://docs.google.com/document/d/abc/edit";
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  await page.waitForTimeout(100);
+  expect(dialogCount).toBe(1);
+
+  await page.evaluate(() => {
+    const input = document.getElementById("spot-external-url");
+    if (!input) {
+      return;
+    }
+    input.value = "https://docs.google.com/document/d/abc/edit";
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  await page.waitForTimeout(100);
+  expect(dialogCount).toBe(1);
+});
+
 test("System launcher loads", async ({ page }) => {
   // 시스템 런처 초기 화면 확인
   await page.goto("/system/");

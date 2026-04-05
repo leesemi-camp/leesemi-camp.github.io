@@ -10,6 +10,9 @@
 - **visibility**: `public` 또는 `internal`.
   - 값이 없거나 유효하지 않으면 `public`으로 처리합니다.
   - `internal`은 `/map/`에서 숨기고 `/map/edit/`에서만 staff가 볼 수 있습니다.
+- **externalUrl**: 선택한 현안에 연결할 외부 링크.
+  - 허용 스킴: `http`, `https`.
+  - edit 페이지 입력/수정 시 Google Docs/Drive 편집 URL이면 1회 경고합니다.
 - **데이터 소스**
   - `/map/`: 정적 스냅샷(JSON) 경로에서 로드.
   - `/map/edit/`: Firestore 실시간 구독.
@@ -38,6 +41,7 @@
 | dongSelectionMode | string | no | `auto` / `manual` / `common` |
 | dongKey | string | no | `__common__` 또는 명시 key |
 | groupLabel | string | no | 그룹 라벨(선택) |
+| externalUrl | string | no | 외부 링크 (`http`/`https`만 허용) |
 | visibility | string | no | `public` / `internal` (없으면 `public`) |
 | updatedBy | string | no | 수정자 이메일 |
 | updatedAt | timestamp | no | 수정 시각 |
@@ -46,6 +50,7 @@
 
 - 기존 데이터는 `visibility`가 없어도 정상 표시되어야 합니다.
 - 클라이언트는 `snake_case` 필드(`dong_name`, `emd_cd`, `category_id` 등)를 함께 읽습니다.
+- `externalUrl`은 `external_url`과 호환됩니다.
 - 스냅샷(JSON)은 `visibility`를 포함할 수 있으며, 누락 시 `public`으로 처리합니다.
 
 ## 2) 요구사항 (Spec IDs)
@@ -78,11 +83,19 @@
 
 - **HS-FB-001**: `/map/edit/`는 로컬 `config.local.js`가 존재할 때 실 Firebase 설정을 사용한다.
 
+### 2.7 External Link
+
+- **HS-LINK-001**: `externalUrl`은 `http`/`https`만 허용하며 그 외는 빈 값으로 정규화한다.
+- **HS-LINK-002**: 현안을 선택하면 정보 팝업에 외부 링크를 확인할 수 있다.
+- **HS-LINK-003**: 외부 링크를 클릭하면 새 탭으로 열린다.
+- **HS-LINK-004**: edit 페이지에서 Google Docs/Drive 편집 URL을 입력/수정할 때 1회 경고한다.
+
 ## 3) 동작 요약
 
 - `/map/`: 스냅샷(JSON)에서 데이터를 읽고, `public`만 리스트/지도에 표시합니다.
 - `/map/edit/`: staff 로그인 성공 시 Firestore 구독을 시작합니다.
 - visibility가 `internal`인 hotspot은 edit 화면에서만 노출됩니다.
+- 외부 링크가 있으면 팝업에서 확인하고 새 탭으로 열 수 있습니다.
 
 ## 4) 테스트 매핑
 
@@ -91,6 +104,10 @@
 | HS-LIST-001 | [tests/spot-list.spec.js](../tests/spot-list.spec.js) | 자동 |
 | HS-VIS-001 | [tests/smoke.spec.js](../tests/smoke.spec.js) | 자동 |
 | HS-FB-001 | [tests/smoke.spec.js](../tests/smoke.spec.js), [tests/config-local-secret.unit.spec.js](../tests/config-local-secret.unit.spec.js) | 자동 |
+| HS-LINK-001 | [tests/smoke.spec.js](../tests/smoke.spec.js) | 자동 |
+| HS-LINK-002 | [tests/smoke.spec.js](../tests/smoke.spec.js) | 자동 |
+| HS-LINK-003 | [tests/smoke.spec.js](../tests/smoke.spec.js) | 자동 |
+| HS-LINK-004 | [tests/smoke.spec.js](../tests/smoke.spec.js) | 자동 |
 | HS-EDIT-001 | (수동) edit 폼 UI 확인 | 수동 |
 | HS-EDIT-002 | (수동) Firestore payload 확인 | 수동 |
 | HS-RULE-001 | (수동) 비인증 읽기 제한 확인 | 수동 |
@@ -104,7 +121,9 @@
 2. `npm run serve`로 로컬 서버를 띄웁니다.
 3. `/map/edit/`에 접속해 Google 로그인 후 staff 권한을 확인합니다.
 4. `public`과 `internal` hotspot을 각각 저장하고, 재로드 후 표시 여부를 확인합니다.
-5. `/map/`에서 `internal`이 표시되지 않는지 확인합니다.
+5. 외부 링크가 있는 hotspot을 저장하고, 팝업에 링크가 표시되는지 확인합니다.
+6. Google Docs/Drive 편집 URL을 입력/수정했을 때 1회 경고가 뜨는지 확인합니다.
+7. `/map/`에서 `internal`이 표시되지 않는지 확인합니다.
 
 ## 6) TODO / Backlog
 

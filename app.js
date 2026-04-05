@@ -63,6 +63,7 @@
     issueGroupMap: new Map(),
     issueListMode: "spot",
     activeDongName: "",
+    googleEditUrlWarnings: new Set(),
     overlayStyleCache: {
       vehicle: new Map(),
       pedestrian: new Map()
@@ -215,6 +216,7 @@
     spotIssueRefSelect: document.getElementById("spot-issue-ref"),
     spotIssueRefHelp: document.getElementById("spot-issue-ref-help"),
     spotVisibilitySelect: document.getElementById("spot-visibility"),
+    spotExternalUrlInput: document.getElementById("spot-external-url"),
     spotList: document.getElementById("spot-list"),
     issueViewListButton: document.getElementById("issue-view-list-btn"),
     issueViewGroupButton: document.getElementById("issue-view-group-btn"),
@@ -338,6 +340,12 @@
       });
     }
 
+    if (elements.spotExternalUrlInput) {
+      elements.spotExternalUrlInput.addEventListener("change", () => {
+        warnGoogleEditUrlOnce(elements.spotExternalUrlInput.value);
+      });
+    }
+
     if (elements.clearCoordButton) {
       elements.clearCoordButton.addEventListener("click", () => {
         clearSelectedCoord();
@@ -408,6 +416,7 @@
     }
 
     if (elements.spotList) {
+      // TODO(refactor-hotspot): move spot list click handling to a hotspot interaction module.
       elements.spotList.addEventListener("click", (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) {
@@ -3745,12 +3754,66 @@
     });
   }
 
+  // TODO(refactor-hotspot): move URL normalization and warning helpers to a hotspot module.
+  function normalizeExternalUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return "";
+    }
+    let parsed;
+    try {
+      parsed = new URL(raw);
+    } catch (error) {
+      return "";
+    }
+    const protocol = String(parsed.protocol || "").toLowerCase();
+    if (protocol !== "http:" && protocol !== "https:") {
+      return "";
+    }
+    return parsed.toString();
+  }
+
+  function isGoogleDocsEditUrl(urlString) {
+    const raw = normalizeExternalUrl(urlString);
+    if (!raw) {
+      return false;
+    }
+    let parsed;
+    try {
+      parsed = new URL(raw);
+    } catch (error) {
+      return false;
+    }
+    const host = String(parsed.hostname || "").toLowerCase();
+    if (host !== "docs.google.com" && host !== "drive.google.com") {
+      return false;
+    }
+    return parsed.pathname.toLowerCase().includes("/edit");
+  }
+
+  function warnGoogleEditUrlOnce(urlString) {
+    const normalized = normalizeExternalUrl(urlString);
+    if (!normalized || !isGoogleDocsEditUrl(normalized)) {
+      return;
+    }
+    if (state.googleEditUrlWarnings.has(normalized)) {
+      return;
+    }
+    state.googleEditUrlWarnings.add(normalized);
+    window.alert(
+      "Google Docs/Drive 편집 링크가 입력되었습니다. " +
+      "공개용 보기 링크(view) 사용을 권장합니다."
+    );
+  }
+
   function normalizeHotspotRecord(recordId, value) {
     const lat = Number(value.lat);
     const lng = Number(value.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return null;
     }
+
+    // TODO(refactor-hotspot): split hotspot normalization from shared app state.
 
     const normalizedId = String(recordId || value.id || "").trim();
     if (!normalizedId) {
@@ -3796,6 +3859,7 @@
       value.issue_group_label ||
       ""
     ).trim();
+    const externalUrl = normalizeExternalUrl(value.externalUrl || value.external_url);
     const visibility = normalizeVisibility(value.visibility);
 
     return {
@@ -3823,6 +3887,7 @@
         : "auto",
       dongKey: storedDongKey || computedDongKey,
       groupLabel,
+      externalUrl,
       visibility,
       updatedBy: value.updatedBy || "",
       updatedAt: value.updatedAt || null
@@ -4066,6 +4131,8 @@
       return;
     }
 
+    // TODO(refactor-hotspot): move map marker rendering to a hotspot renderer module.
+
     clearHotspotFeatures();
 
     hotspots.forEach((spot) => {
@@ -4264,6 +4331,8 @@
     if (!elements.spotList) {
       return;
     }
+
+    // TODO(refactor-hotspot): move list item rendering to a hotspot list module.
 
     state.issueGroupMap = new Map();
 
@@ -4576,6 +4645,8 @@
       return;
     }
 
+    // TODO(refactor-hotspot): extract hotspot payload building into a hotspot form module.
+
     const lat = Number(elements.latInput.value);
     const lng = Number(elements.lngInput.value);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -4590,6 +4661,7 @@
     const categoryId = String(formData.get("categoryId") || "").trim();
     const issueRefId = normalizeIssueCatalogId(formData.get("issueRefId"));
     const visibility = normalizeVisibility(formData.get("visibility"));
+    const externalUrl = normalizeExternalUrl(formData.get("externalUrl"));
     const issueCatalogConfig = getIssueCatalogConfig();
     const catalogIssue = issueRefId && state.issueCatalogMap.has(issueRefId)
       ? state.issueCatalogMap.get(issueRefId)
@@ -4650,6 +4722,7 @@
       emdCode: finalEmdCode || "",
       dongSelectionMode: isCommonSelection ? "common" : usingManualDong ? "manual" : "auto",
       dongKey: isCommonSelection ? DONG_COMMON_KEY : usingManualDong ? String(selectedDongMeta.key || "") : "",
+      externalUrl,
       visibility,
       updatedBy: normalizeEmail(state.currentUser.email),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -4681,6 +4754,7 @@
     const categoryInput = elements.form.querySelector("#spot-category");
     const memoInput = elements.form.querySelector("#spot-memo");
     const visibilityInput = elements.form.querySelector("#spot-visibility");
+    const externalUrlInput = elements.form.querySelector("#spot-external-url");
     const issueRefSelect = elements.form.querySelector("#spot-issue-ref");
 
     if (titleInput) {
@@ -4702,6 +4776,9 @@
     }
     if (visibilityInput) {
       visibilityInput.value = normalizeVisibility(spot.visibility);
+    }
+    if (externalUrlInput) {
+      externalUrlInput.value = spot.externalUrl || "";
     }
     if (issueRefSelect) {
       syncIssueCatalogSelectOptions(spot.issueRefId || "");
@@ -4752,6 +4829,9 @@
       }
       if (elements.spotVisibilitySelect) {
         elements.spotVisibilitySelect.value = VISIBILITY_PUBLIC;
+      }
+      if (elements.spotExternalUrlInput) {
+        elements.spotExternalUrlInput.value = "";
       }
       if (elements.spotIssueRefSelect) {
         syncIssueCatalogSelectOptions("");
@@ -5079,12 +5159,17 @@
     if (!spot) {
       return;
     }
+    // TODO(refactor-hotspot): move popup content assembly into a hotspot UI module.
     const safeTitle = escapeHtml(spot.title);
     const safeMemo = escapeHtml(spot.memo || "-");
     const safeCategory = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
     const safeDong = escapeHtml(formatSpotDongLabel(spot));
     const safeUser = escapeHtml(spot.updatedBy || "-");
     const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
+    const externalUrl = normalizeExternalUrl(spot.externalUrl);
+    const externalLinkHtml = externalUrl
+      ? "<div>외부 링크: <a href='" + escapeHtml(externalUrl) + "' target='_blank' rel='noopener noreferrer'>" + escapeHtml(externalUrl) + "</a></div>"
+      : "";
 
     const editorInfo = isEditMode()
       ? "<div>수정자: " + safeUser + "</div><div>수정시각: " + safeTime + "</div>"
@@ -5095,6 +5180,7 @@
       "<div>분류: " + safeCategory + "</div>" +
       "<div>소속 동: " + safeDong + "</div>" +
       "<div>내용: " + safeMemo + "</div>" +
+      externalLinkHtml +
       editorInfo
     );
   }
