@@ -5,7 +5,7 @@
     "@playwright/test": "^1.50.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "scripts": {
     "serve": "npx serve . -l 5173",

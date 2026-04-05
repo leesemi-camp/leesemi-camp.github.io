@@ -2,15 +2,35 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-function loadAppConfig() {
+function loadAppConfig(options) {
+  const settings = options && typeof options === "object" ? options : {};
+  const includeLocal = settings.includeLocal === true || settings.requireLocal === true;
+  const requireLocal = settings.requireLocal === true;
+
   const filePath = path.resolve(process.cwd(), "config.js");
   const code = fs.readFileSync(filePath, "utf8");
   const context = { window: {} };
   vm.runInNewContext(code, context, { filename: "config.js" });
+
+  if (includeLocal) {
+    const localPath = path.resolve(process.cwd(), "config.local.js");
+    if (fs.existsSync(localPath)) {
+      const localCode = fs.readFileSync(localPath, "utf8");
+      vm.runInNewContext(localCode, context, { filename: "config.local.js" });
+    } else if (requireLocal) {
+      throw new Error("config.local.js not found");
+    }
+  }
+
   if (!context.window || !context.window.APP_CONFIG) {
     throw new Error("APP_CONFIG not found in config.js");
   }
   return context.window.APP_CONFIG;
+}
+
+function hasLocalConfig() {
+  const localPath = path.resolve(process.cwd(), "config.local.js");
+  return fs.existsSync(localPath);
 }
 
 function resolveUrl(baseURL, value) {
@@ -180,6 +200,7 @@ function buildApiRequests(config, baseURL) {
 
 module.exports = {
   loadAppConfig,
+  hasLocalConfig,
   resolveUrl,
   resolveBoundarySources,
   buildApiRequests
