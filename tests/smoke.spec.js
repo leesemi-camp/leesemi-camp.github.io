@@ -1,5 +1,26 @@
 const { test, expect } = require("@playwright/test");
 
+async function waitForSpotListHooks(page) {
+  await page.waitForLoadState("domcontentloaded");
+  try {
+    await page.waitForFunction(() => {
+      return window.__spotListTestHooks && typeof window.__spotListTestHooks.renderHotspotList === "function";
+    }, null, { timeout: 15000 });
+  } catch (error) {
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => {
+      return window.__spotListTestHooks && typeof window.__spotListTestHooks.renderHotspotList === "function";
+    }, null, { timeout: 15000 });
+  }
+}
+
+async function waitForSpotListHook(page, hookName) {
+  await waitForSpotListHooks(page);
+  await page.waitForFunction((name) => {
+    return window.__spotListTestHooks && typeof window.__spotListTestHooks[name] === "function";
+  }, hookName, { timeout: 15000 });
+}
+
 test("Landing page loads", async ({ page }) => {
   // 공개 랜딩 페이지 렌더링 확인
   await page.goto("/");
@@ -14,9 +35,7 @@ test("Map view renders", async ({ page }) => {
   await expect(page.locator("#map")).toBeVisible();
 
   // app.js가 로드되어 테스트 훅이 노출될 때까지 대기
-  await page.waitForFunction(() => {
-    return window.__spotListTestHooks && typeof window.__spotListTestHooks.renderHotspotList === "function";
-  });
+  await waitForSpotListHooks(page);
 
   // CI에서 간헐적으로 #spot-list가 중복되는 케이스가 있어, side-panel 아래로 범위를 제한
   const duplicateCount = await page.evaluate(() => document.querySelectorAll("#spot-list").length);
@@ -34,9 +53,7 @@ test("HS-LIST-001 Map spot memo state", async ({ page }) => {
   const spotList = page.locator("#spot-list").first();
   await expect(spotList).toBeVisible();
 
-  await page.waitForFunction(() => {
-    return window.__spotListTestHooks && typeof window.__spotListTestHooks.renderHotspotList === "function";
-  });
+  await waitForSpotListHooks(page);
 
   const result = await page.evaluate(() => {
     window.__spotListTestHooks.renderHotspotList([
@@ -122,9 +139,7 @@ test("HS-FB-001 Edit page uses local Firebase config", async ({ page }) => {
 
 test("HS-VIS-001 Public view hides internal hotspots", async ({ page }) => {
   await page.goto("/map/");
-  await page.waitForFunction(() => {
-    return window.__spotListTestHooks && typeof window.__spotListTestHooks.renderVisibleHotspotList === "function";
-  });
+  await waitForSpotListHook(page, "renderVisibleHotspotList");
 
   const result = await page.evaluate(() => {
     window.__spotListTestHooks.renderVisibleHotspotList([
@@ -163,9 +178,7 @@ test("HS-VIS-001 Public view hides internal hotspots", async ({ page }) => {
 
 test("HS-LINK-001 Invalid externalUrl is ignored", async ({ page }) => {
   await page.goto("/map/");
-  await page.waitForFunction(() => {
-    return window.__spotListTestHooks && typeof window.__spotListTestHooks.openHotspotPopup === "function";
-  });
+  await waitForSpotListHook(page, "openHotspotPopup");
 
   await page.evaluate(() => {
     window.__spotListTestHooks.openHotspotPopup({
@@ -183,9 +196,7 @@ test("HS-LINK-001 Invalid externalUrl is ignored", async ({ page }) => {
 
 test("HS-LINK-002 Popup renders external link", async ({ page }) => {
   await page.goto("/map/");
-  await page.waitForFunction(() => {
-    return window.__spotListTestHooks && typeof window.__spotListTestHooks.openHotspotPopup === "function";
-  });
+  await waitForSpotListHook(page, "openHotspotPopup");
 
   await page.evaluate(() => {
     window.__spotListTestHooks.openHotspotPopup({
@@ -205,9 +216,7 @@ test("HS-LINK-002 Popup renders external link", async ({ page }) => {
 
 test("HS-LINK-003 External link opens new tab", async ({ page }) => {
   await page.goto("/map/");
-  await page.waitForFunction(() => {
-    return window.__spotListTestHooks && typeof window.__spotListTestHooks.openHotspotPopup === "function";
-  });
+  await waitForSpotListHook(page, "openHotspotPopup");
 
   await page.evaluate(() => {
     window.__spotListTestHooks.openHotspotPopup({

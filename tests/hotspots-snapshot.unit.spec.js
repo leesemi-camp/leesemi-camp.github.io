@@ -2,7 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { test } = require("@playwright/test");
 
-test("Hotspot snapshot schema validation", () => {
+test("HS-LINK-001 Hotspot snapshot schema validation", () => {
   const isCI = Boolean(process.env.GITHUB_ACTIONS);
 
   // 로컬 환경: 항상 skip

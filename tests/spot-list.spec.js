@@ -1,11 +1,23 @@
 const { test, expect } = require("@playwright/test");
 
+async function waitForSpotListHooks(page) {
+  await page.waitForLoadState("domcontentloaded");
+  try {
+    await page.waitForFunction(() => {
+      return window.__spotListTestHooks && typeof window.__spotListTestHooks.renderHotspotList === "function";
+    }, null, { timeout: 15000 });
+  } catch (error) {
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => {
+      return window.__spotListTestHooks && typeof window.__spotListTestHooks.renderHotspotList === "function";
+    }, null, { timeout: 15000 });
+  }
+}
+
 test("HS-LIST-001 Memo presence toggles compact card class", async ({ page }) => {
   // 메모 유무에 따라 카드 클래스/요소가 달라지는지 확인
   await page.goto("/map/");
-  await page.waitForFunction(() => {
-    return window.__spotListTestHooks && typeof window.__spotListTestHooks.renderHotspotList === "function";
-  });
+  await waitForSpotListHooks(page);
 
   const hotspots = [
     {

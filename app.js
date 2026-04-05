@@ -4388,13 +4388,33 @@
     renderHotspotList(filtered);
   }
 
+  function openHotspotPopupForTest(spotOrCoordinate, maybeSpot) {
+    if (maybeSpot) {
+      openHotspotPopup(spotOrCoordinate, maybeSpot);
+      return;
+    }
+
+    const spot = spotOrCoordinate;
+    if (!spot) {
+      return;
+    }
+
+    const mapCenter = state.map && state.map.getView ? state.map.getView().getCenter() : null;
+    if (!mapCenter) {
+      return;
+    }
+
+    openHotspotPopup(mapCenter, spot);
+  }
+
   function exposeSpotListTestHooks() {
     if (typeof window === "undefined") {
       return;
     }
     window.__spotListTestHooks = {
       renderHotspotList,
-      renderVisibleHotspotList: renderVisibleHotspotListForTest
+      renderVisibleHotspotList: renderVisibleHotspotListForTest,
+      openHotspotPopup: openHotspotPopupForTest
     };
   }
 
