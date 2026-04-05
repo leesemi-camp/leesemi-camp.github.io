@@ -241,16 +241,13 @@
       renderCommonPledges();
       initPopulationMonthOptions();
       initPopulationHourOptions();
-      setStatus("인증 초기화 중...");
-      initFirebase(config.firebase.config);
       if (isEditMode()) {
+        setStatus("인증 초기화 중...");
+        initFirebase(config.firebase.config);
         state.auth.onAuthStateChanged((user) => {
           void onAuthStateChanged(user);
         });
       } else {
-        state.auth.onAuthStateChanged((user) => {
-          state.currentUser = user || null;
-        });
         showAppShell();
         await ensureMapReady();
         await loadBoundaries();
@@ -261,7 +258,7 @@
         syncSpotFormLayoutState();
         await applyDefaultOverlayVisibility();
         await applyDefaultPopulationVisibility();
-        subscribeHotspots();
+        await loadHotspotsSnapshot();
       }
     } catch (error) {
       showFatal(error);
@@ -293,7 +290,20 @@
     if (!appConfig) {
       throw new Error("config.js 파일이 없습니다.");
     }
+    if (isEditMode()) {
+      validateEditConfig(appConfig);
+    } else {
+      validateViewConfig(appConfig);
+    }
+  }
 
+  function validateViewConfig(appConfig) {
+    if (!appConfig) {
+      throw new Error("config.js 파일이 없습니다.");
+    }
+  }
+
+  function validateEditConfig(appConfig) {
     if (!appConfig.firebase || appConfig.firebase.enabled !== true) {
       throw new Error("보안 접근제어를 위해 firebase.enabled는 true여야 합니다.");
     }
@@ -3646,91 +3656,158 @@
     );
   }
 
+  async function loadHotspotsSnapshot() {
+    const snapshotPath = resolveHotspotSnapshotPath();
+    if (!snapshotPath) {
+      return;
+    }
+
+    try {
+      await ensureIssueCatalogLoaded();
+      const response = await fetch(snapshotPath, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Snapshot fetch failed with status " + String(response.status));
+      }
+      const payload = await response.json();
+      const rows = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload && payload.hotspots)
+        ? payload.hotspots
+        : [];
+      const hotspots = [];
+
+      rows.forEach((row) => {
+        if (!row || typeof row !== "object") {
+          return;
+        }
+        const recordId = row.id || row.docId || row.key || "";
+        const normalized = normalizeHotspotRecord(recordId, row);
+        if (normalized) {
+          hotspots.push(normalized);
+        }
+      });
+
+      applyHotspotList(hotspots);
+    } catch (error) {
+      clearHotspotFeatures();
+      state.issues = [];
+      renderCommonPledges();
+      renderVisibleIssueList();
+      updateDongFilterUi();
+      console.warn("[hotspot-snapshot]", toMessage(error));
+    }
+  }
+
+  function resolveHotspotSnapshotPath() {
+    const dataConfig = config && typeof config.data === "object" ? config.data : null;
+    const rawPath = dataConfig && typeof dataConfig.hotspotSnapshotPath === "string"
+      ? dataConfig.hotspotSnapshotPath
+      : "";
+    const trimmed = String(rawPath || "").trim();
+    return trimmed || "/data/hotspots.snapshot.json";
+  }
+
   async function processHotspotSnapshot(snapshot) {
     await ensureIssueCatalogLoaded();
     const hotspots = [];
     snapshot.forEach((doc) => {
-      const value = doc.data() || {};
-      const lat = Number(value.lat);
-      const lng = Number(value.lng);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        return;
+      const normalized = normalizeHotspotRecord(doc.id, doc.data() || {});
+      if (normalized) {
+        hotspots.push(normalized);
       }
-
-      const issueRefId = normalizeIssueCatalogId(value.issueRefId || value.issue_id);
-      const catalogIssue = issueRefId && state.issueCatalogMap.has(issueRefId)
-        ? state.issueCatalogMap.get(issueRefId)
-        : null;
-      const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
-      const dongName = String(
-        value.dongName ||
-        value.dong_name ||
-        (catalogIssue ? catalogIssue.dongName : "") ||
-        boundaryMeta.dongName ||
-        ""
-      ).trim();
-      const emdCode = normalizeEmdCode(
-        value.emdCode ||
-        value.emd_cd ||
-        (catalogIssue ? catalogIssue.emdCode : "") ||
-        boundaryMeta.emdCode
-      );
-      const rawDongSelectionMode = String(value.dongSelectionMode || "").trim().toLowerCase();
-      const storedDongKey = String(value.dongKey || "").trim();
-      const computedDongKey = buildDongKey(emdCode, dongName);
-      const categoryId = normalizeCategoryId(
-        (catalogIssue ? catalogIssue.categoryId : "") ||
-        value.categoryId ||
-        value.category_id
-      );
-      const categoryLabel = resolveCategoryLabel(
-        categoryId,
-        (catalogIssue ? catalogIssue.categoryLabel : "") ||
-        value.categoryLabel ||
-        value.category_label
-      );
-      const groupLabel = String(
-        value.groupLabel ||
-        value.group_label ||
-        value.issueGroupLabel ||
-        value.issue_group_label ||
-        ""
-      ).trim();
-
-      hotspots.push({
-        id: doc.id,
-        issueRefId,
-        title: String(
-          (catalogIssue ? catalogIssue.title : "") ||
-          value.title ||
-          "현안 제목 없음"
-        ),
-        memo: String(
-          (catalogIssue ? catalogIssue.memo : "") ||
-          value.memo ||
-          ""
-        ),
-        level: Number(value.level) || 3,
-        categoryId,
-        categoryLabel,
-        lat,
-        lng,
-        dongName,
-        emdCode,
-        dongSelectionMode: rawDongSelectionMode === "common" || rawDongSelectionMode === "manual"
-          ? rawDongSelectionMode
-          : "auto",
-        dongKey: storedDongKey || computedDongKey,
-        groupLabel,
-        updatedBy: value.updatedBy || "",
-        updatedAt: value.updatedAt || null
-      });
     });
 
-    hotspots.sort(compareHotspotByTitle);
-    state.issues = hotspots;
+    applyHotspotList(hotspots);
+  }
+
+  function normalizeHotspotRecord(recordId, value) {
+    const lat = Number(value.lat);
+    const lng = Number(value.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return null;
+    }
+
+    const normalizedId = String(recordId || value.id || "").trim();
+    if (!normalizedId) {
+      return null;
+    }
+
+    const issueRefId = normalizeIssueCatalogId(value.issueRefId || value.issue_id);
+    const catalogIssue = issueRefId && state.issueCatalogMap.has(issueRefId)
+      ? state.issueCatalogMap.get(issueRefId)
+      : null;
+    const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
+    const dongName = String(
+      value.dongName ||
+      value.dong_name ||
+      (catalogIssue ? catalogIssue.dongName : "") ||
+      boundaryMeta.dongName ||
+      ""
+    ).trim();
+    const emdCode = normalizeEmdCode(
+      value.emdCode ||
+      value.emd_cd ||
+      (catalogIssue ? catalogIssue.emdCode : "") ||
+      boundaryMeta.emdCode
+    );
+    const rawDongSelectionMode = String(value.dongSelectionMode || "").trim().toLowerCase();
+    const storedDongKey = String(value.dongKey || "").trim();
+    const computedDongKey = buildDongKey(emdCode, dongName);
+    const categoryId = normalizeCategoryId(
+      (catalogIssue ? catalogIssue.categoryId : "") ||
+      value.categoryId ||
+      value.category_id
+    );
+    const categoryLabel = resolveCategoryLabel(
+      categoryId,
+      (catalogIssue ? catalogIssue.categoryLabel : "") ||
+      value.categoryLabel ||
+      value.category_label
+    );
+    const groupLabel = String(
+      value.groupLabel ||
+      value.group_label ||
+      value.issueGroupLabel ||
+      value.issue_group_label ||
+      ""
+    ).trim();
+
+    return {
+      id: normalizedId,
+      issueRefId,
+      title: String(
+        (catalogIssue ? catalogIssue.title : "") ||
+        value.title ||
+        "현안 제목 없음"
+      ),
+      memo: String(
+        (catalogIssue ? catalogIssue.memo : "") ||
+        value.memo ||
+        ""
+      ),
+      level: Number(value.level) || 3,
+      categoryId,
+      categoryLabel,
+      lat,
+      lng,
+      dongName,
+      emdCode,
+      dongSelectionMode: rawDongSelectionMode === "common" || rawDongSelectionMode === "manual"
+        ? rawDongSelectionMode
+        : "auto",
+      dongKey: storedDongKey || computedDongKey,
+      groupLabel,
+      updatedBy: value.updatedBy || "",
+      updatedAt: value.updatedAt || null
+    };
+  }
+
+  function applyHotspotList(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    list.sort(compareHotspotByTitle);
+    state.issues = list;
     renderCommonPledges();
-    renderHotspots(hotspots);
+    renderHotspots(list);
     renderVisibleIssueList();
     updateDongFilterUi();
   }

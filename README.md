@@ -65,6 +65,7 @@
 1. Firebase Web API key 제한
    - Google Cloud Console > APIs & Services > Credentials > 해당 API key
    - `Application restrictions`: HTTP referrers(웹사이트)로 제한
+   - Firebase Auth redirect helper 도메인(`https://<project-id>.firebaseapp.com/*`)도 referrer 허용 목록에 포함
    - `API restrictions`: 필요한 API만 허용(Identity Toolkit, Firebase Installations 등)
 2. App Check 활성화
    - Firebase Console > Build > App Check > Web 앱 등록(reCAPTCHA v3)
@@ -77,12 +78,12 @@
 
 ## 3) 설정 파일 입력
 
-1. `config.js`에 아래 값 입력
-   - `firebase.config` 값들
-   - `map.defaultCenter`, `map.defaultZoom`(선택)
-   - `data.boundaryStrokeColor`, `data.boundaryStrokeWidth`, `data.boundaryHaloColor`, `data.boundaryHaloWidth`(선택)
-   - `trafficOverlays.vehicle`, `trafficOverlays.pedestrian` URL/필드 설정(선택)
-2. 필요하면 `config.example.js`를 참고해 형식 확인
+1. 저장소 기본 설정 파일은 `config.js`입니다.
+   - 공개되어도 되는 기본값/레이아웃/데이터 경로를 여기에 둡니다.
+   - Firebase 키/외부 토큰 같은 값은 `config.js`에 직접 넣지 않습니다.
+2. 민감 값은 `config.local.js`(gitignore)로 분리합니다.
+   - `config.local.example.js`를 복사해 `config.local.js` 생성
+   - `firebase.config`와 토큰 값을 실제 값으로 입력
 3. 실제 동 경계 데이터로 교체
    - 기본 샘플: `data/dong-boundaries.sample.geojson`
    - 다중 파일: `config.js`의 `data.boundarySources` 배열 사용
@@ -102,7 +103,13 @@
 
 1. 코드를 `main` 브랜치에 푸시
 2. GitHub 저장소 Settings > Pages > Source를 GitHub Actions로 설정
-3. `.github/workflows/deploy-pages.yml`가 자동 배포 수행
+3. GitHub 저장소 Settings > Secrets and variables > Actions에 `APP_CONFIG_LOCAL_JS` secret 추가
+   - 값: `config.local.js` 파일 내용 전체(JavaScript 원문)
+4. `.github/workflows/deploy-pages.yml`가 배포 직전에 secret으로 `config.local.js`를 생성한 뒤 배포
+
+주의:
+- 이 방식은 "Git 저장소/커밋 기록"에서 민감 값을 숨기는 목적입니다.
+- GitHub Pages는 정적 호스팅이므로, 브라우저에서 실행되는 값은 최종 사용자에게 노출될 수 있습니다.
 
 ## 5) View-T 데이터 오버레이 연결
 

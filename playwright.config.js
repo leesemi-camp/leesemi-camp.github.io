@@ -3,6 +3,7 @@ const { defineConfig } = require("@playwright/test");
 const baseURL = process.env.PW_BASE_URL || "http://localhost:5173";
 
 module.exports = defineConfig({
+  globalSetup: "./tests/setup-firestore-snapshot.js",
   testDir: "./tests",
   timeout: 60_000,
   expect: {
