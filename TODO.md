@@ -26,10 +26,7 @@
 - Firebase/Auth: `initFirebase()` `app.js#L1126`, `onAuthStateChanged()` `app.js#L1051`
 - 지도(OL) 생성/이벤트: `ensureMapReady()` `app.js#L1186`
 - 경계 로딩: `loadBoundaries()` `app.js#L1367`
-- hotspot 구독/정규화: `subscribeHotspots()` `app.js#L3623`, `processHotspotSnapshot()` `app.js#L3649`
-- 렌더: 지도 `renderHotspots()` `app.js#L3960`, 리스트 `renderHotspotList()` `app.js#L4159`, 그룹 `renderIssueGroupList()` `app.js#L4222`
-- 편집 CRUD: 저장 `handleHotspotSubmit()` `app.js#L4459`, 삭제 `deleteHotspot()` `app.js#L4648`
-- 테스트 훅: `window.__spotListTestHooks.renderHotspotList` `app.js#L4213`
+- Hotspot 관련 상세는 [docs/spec-hotspot.md](docs/spec-hotspot.md)에서 관리
 
 ### 0.2 시나리오/테스트 매핑
 
@@ -248,9 +245,7 @@ Artifacts:
 **Impact scope**: `app.js`(전역 훅), `tests/`  
 **Deliverables**: 신규/보강 테스트 + 훅 계약 문서(간단)
 
-- [ ] `window.__appTestHooks`(또는 `__spotListTestHooks` 확장)로 순수 로직 노출
-  - 후보: `buildIssueGroups`, `formatSpotDongLabel`, `isCommonSpot`, `resolveIssueGroupKey` 등
-- [ ] Playwright 테스트로 “그룹 보기/공통 태그/동 라벨 규칙” 고정
+- Hotspot 관련 테스트 훅/규칙은 [docs/spec-hotspot.md](docs/spec-hotspot.md)에서 관리
 
 **Verification**
 - `npm test`
@@ -299,7 +294,6 @@ Artifacts:
 **Impact scope**: `app.js` 큰 구조 변경, 테스트 보강 필요  
 **Deliverables**: 책임 분리된 모듈 + 테스트 커버 증가
 
-- [ ] `renderHotspotList`/`renderIssueGroupList`의 HTML 생성 로직을 순수 함수로 추출
 - [ ] issueCatalog/population/overlay의 URL 생성/파싱(순수)과 fetch/상태변경(I/O) 분리
 
 **Verification**
@@ -357,9 +351,7 @@ Artifacts:
 **Impact scope**: `data/`(민감), `tests/`, (선택) `scripts/`  
 **Deliverables**: 익명화된 스냅샷 + 정규화/그룹핑 회귀 테스트
 
-- [ ] export 방식 결정(`firebase-admin` 덤프 vs GCP export)
-- [ ] PII 익명화 규칙 수립 + 커밋 정책 결정(기본: repo에 커밋하지 않고 제외)
-- [ ] snapshot 기반 테스트 추가(순수 함수 분리 포함)
+- Hotspot 관련 스냅샷 계획은 [docs/spec-hotspot.md](docs/spec-hotspot.md)에서 관리
 
 **Verification**
 - `npm test` + 스냅샷 기반 단위 테스트 통과
@@ -372,10 +364,7 @@ Artifacts:
 **Impact scope**: Firestore 모델 + 지도 편집 UI + 렌더/팝업/필터 전반  
 **Deliverables**: 컬렉션/스키마/편집 UI/렌더/테스트
 
-- [ ] 데이터 모델/권한 규칙 확정(점 vs 선 분리 권장)
-- [ ] edit 페이지에 LineString draw/modify UI 추가(OL 기준)
-- [ ] dong 메타 정책(대표 1개 vs 통과 동 집합) 확정
-- [ ] 최소 E2E(열람/선택/줌/팝업) + 시각 캡처(1.1) 추가
+- Hotspot/Route 확장 계획은 [docs/spec-hotspot.md](docs/spec-hotspot.md)에서 관리
 
 **Verification**
 - `npm test` + (스태이징) 실제 Firestore 쓰기/읽기 점검

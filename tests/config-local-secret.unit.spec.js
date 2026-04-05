@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { loadAppConfig, hasLocalConfig } = require("./helpers/config");
 
-test("Local config secret merges when provided", () => {
+test("HS-FB-001 Local config secret merges when provided", () => {
   const isCI = Boolean(process.env.GITHUB_ACTIONS);
 
   // 로컬 환경: 항상 skip (Secret 접근 불가 가정)

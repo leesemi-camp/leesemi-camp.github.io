@@ -4,6 +4,8 @@
 각 시나리오가 어디에서 어떻게 구현되는지(`app.js`/관련 페이지)와
 어떤 테스트가 이를 보호하는지(`tests/`)를 매핑합니다.
 
+Hotspot(현안 지점) 상세 요구사항/명세는 [docs/spec-hotspot.md](spec-hotspot.md)에서 관리합니다.
+
 ## 0) 엔트리 페이지 / 역할
 
 - 공개(누구나)
@@ -52,61 +54,27 @@
 ## PUB-002: 지도(View) 부트스트랩 및 기본 렌더링
 
 - Entry: `/map/` (`map/index.html`)
-- 구현(핵심 흐름)
-  - 모드 판별: `app.js#L271` `resolveMapMode()`
-  - 초기화 시퀀스: `app.js#L232` `init()`의 view 분기
-  - 이벤트 연결: `app.js#L309` `bindUiEvents()`
-  - 지도 준비: `app.js#L1186` `ensureMapReady()`
-  - 경계 로딩: `app.js#L1367` `loadBoundaries()`
-  - Firestore 구독: `app.js#L3623` `subscribeHotspots()` → `app.js#L3649` `processHotspotSnapshot()`
-- 테스트
-  - `tests/smoke.spec.js`: `Map view renders`
+- 상세 요구사항/테스트는 [docs/spec-hotspot.md](spec-hotspot.md)에서 관리합니다.
 
 ## PUB-003: 현안 카드 렌더링(메모 유무)
 
 - Entry: `/map/`
-- 구현(리스트 렌더링)
-  - `app.js#L4159` `renderHotspotList(hotspots)`
-  - 테스트 훅 노출: `app.js#L4213` `exposeSpotListTestHooks()` → `window.__spotListTestHooks.renderHotspotList`
-- 테스트
-  - `tests/spot-list.spec.js`: `Memo presence toggles compact card class`
-  - `tests/smoke.spec.js`: `Map spot memo state`
+- 상세 요구사항/테스트는 [docs/spec-hotspot.md](spec-hotspot.md)에서 관리합니다.
 
 ## PUB-004: 현안 열람(리스트 모드 전환: 개별/그룹)
 
 - Entry: `/map/` (편집 화면에도 동일 버튼/리스트가 존재)
-- 사용자 흐름
-  - “개별 보기/그룹 보기” 버튼으로 리스트 렌더링 모드를 전환합니다.
-- 구현
-  - 버튼 이벤트: `app.js#L309` `bindUiEvents()`에서 `#issue-view-list-btn`, `#issue-view-group-btn`
-  - 모드 전환: `app.js#L2045` `setIssueListMode(mode)` → `syncIssueListModeUi()`
-  - 렌더 분기: `app.js#L4150` `renderVisibleIssueList()`가 `renderHotspotList()` / `renderIssueGroupList()` 선택
-  - 그룹 렌더: `app.js#L4222` `renderIssueGroupList(hotspots)` / `buildIssueGroups(...)`
-- 테스트
-  - 없음(현재)
+- 상세 요구사항/테스트는 [docs/spec-hotspot.md](spec-hotspot.md)에서 관리합니다.
 
 ## PUB-005: 동 선택(경계 클릭) → 동 필터 적용/해제
 
 - Entry: `/map/`
-- 사용자 흐름
-  - 지도에서 동 경계를 클릭하면 해당 동 현안만 보이고, “전체 보기”로 필터를 해제할 수 있습니다.
-- 구현(핵심)
-  - 지도 클릭: `app.js#L1186` `ensureMapReady()`의 `map.on("singleclick", ...)`
-  - 필터 상태: `setActiveDongFilter(dongName)` / `updateDongFilterUi()` / `updateBoundaryHighlightStyles()`
-  - 리스트 반영: `applyIssueFilter(hotspots)` → `renderVisibleIssueList()`
-- 테스트
-  - 없음(현재)
+- 상세 요구사항/테스트는 [docs/spec-hotspot.md](spec-hotspot.md)에서 관리합니다.
 
 ## PUB-006: 리스트 클릭 → 지도 이동/하이라이트/팝업
 
 - Entry: `/map/`
-- 사용자 흐름
-  - 리스트에서 특정 현안을 클릭하면 지도가 해당 위치로 이동하고 팝업이 열립니다.
-- 구현
-  - 리스트 클릭 핸들러: `app.js#L309` `bindUiEvents()` 내 `#spot-list` click
-  - 팝업: `app.js#L4959` `openHotspotPopup(coordinate, spot)`
-- 테스트
-  - 없음(현재)
+- 상세 요구사항/테스트는 [docs/spec-hotspot.md](spec-hotspot.md)에서 관리합니다.
 
 ---
 
@@ -133,41 +101,22 @@
 ## STF-003: 좌표 선택(지도 클릭/현위치) → 폼 반영 (모바일 레이아웃 포함)
 
 - Entry: `/map/edit/`
-- 구현(핵심)
-  - 지도 클릭 좌표: `app.js#L1186` `ensureMapReady()` singleclick에서 `setSelectedCoord(...)` 경로
-  - 현위치: `app.js#L4789` `useCurrentLocationForSpot(triggerButton)` → geolocation → `setSelectedCoord(...)`
-  - 모바일 시트: `openSpotFormSheetForMobile()` / `closeSpotFormSheetForMobile()` / `syncSpotFormLayoutState()`
-- 테스트
-  - 없음(현재)
+- 상세 요구사항/테스트는 [docs/spec-hotspot.md](spec-hotspot.md)에서 관리합니다.
 
 ## STF-004: 현안 추가/수정(저장)
 
 - Entry: `/map/edit/`
-- 구현(핵심)
-  - 폼 submit: `app.js#L309` `bindUiEvents()`에서 `#spot-form` submit → `app.js#L4459` `handleHotspotSubmit(event)`
-  - 편집 모드: `enterHotspotEditMode(spot)` / `exitHotspotEditMode(resetForm)`
-  - Firestore write: `state.db.collection(...).add()/doc(id).update()` 경로
-- 테스트
-  - 없음(현재, 실제 Firestore 권한/데이터 필요)
+- 상세 요구사항/테스트는 [docs/spec-hotspot.md](spec-hotspot.md)에서 관리합니다.
 
 ## STF-005: 현안 삭제
 
 - Entry: `/map/edit/`
-- 구현(핵심)
-  - 리스트의 삭제 버튼: `app.js#L309` `bindUiEvents()`에서 `data-action='delete-spot'` → `app.js#L4648` `deleteHotspot(spotId)`
-- 테스트
-  - 없음(현재)
+- 상세 요구사항/테스트는 [docs/spec-hotspot.md](spec-hotspot.md)에서 관리합니다.
 
 ## STF-006: 외부 현안 카탈로그(issueCatalog) 연동 선택/잠금
 
 - Entry: `/map/edit/`
-- 전제: `config.js`의 `data.issueCatalog.enabled: true` + `apiUrl` 설정
-- 구현(핵심)
-  - 설정: `app.js#L722` `getIssueCatalogConfig()`
-  - 로드: `app.js#L760` `ensureIssueCatalogLoaded()` → `app.js#L828` `buildIssueCatalogRequestUrl(...)`
-  - 선택 반영: `app.js#L1009` `applyIssueCatalogSelection(issueRefId)`
-- 테스트
-  - 없음(현재)
+- 상세 요구사항/테스트는 [docs/spec-hotspot.md](spec-hotspot.md)에서 관리합니다.
 
 ---
 

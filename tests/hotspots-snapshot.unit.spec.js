@@ -2,7 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { test } = require("@playwright/test");
 
-test("Hotspot snapshot schema validation", () => {
+test("HS-LINK-001 Hotspot snapshot schema validation", () => {
   const isCI = Boolean(process.env.GITHUB_ACTIONS);
 
   // 로컬 환경: 항상 skip
@@ -32,6 +32,7 @@ test("Hotspot snapshot schema validation", () => {
           dongName: "판교동",
           emdCode: "41135107",
           categoryId: "traffic_parking",
+          externalUrl: "https://example.com/",
           updatedAt: new Date().toISOString()
         },
         {
@@ -82,6 +83,25 @@ test("Hotspot snapshot schema validation", () => {
       const date = new Date(spot.updatedAt);
       if (!Number.isFinite(date.getTime())) {
         throw new Error("Invalid hotspot updatedAt at index " + String(index));
+      }
+    }
+    if (spot.visibility) {
+      const visibility = String(spot.visibility).trim().toLowerCase();
+      if (visibility !== "public" && visibility !== "internal") {
+        throw new Error("Invalid hotspot visibility at index " + String(index));
+      }
+    }
+    const rawExternalUrl = spot.externalUrl || spot.external_url;
+    if (rawExternalUrl) {
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(String(rawExternalUrl));
+      } catch (error) {
+        throw new Error("Invalid hotspot externalUrl at index " + String(index));
+      }
+      const protocol = String(parsedUrl.protocol || "").toLowerCase();
+      if (protocol !== "http:" && protocol !== "https:") {
+        throw new Error("Invalid hotspot externalUrl protocol at index " + String(index));
       }
     }
   });
