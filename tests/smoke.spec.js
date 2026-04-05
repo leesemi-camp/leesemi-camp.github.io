@@ -20,10 +20,11 @@ test("Map spot memo state", async ({ page }) => {
   await page.goto("/map/");
   await expect(page.locator("#spot-list")).toBeAttached();
 
-  await page.evaluate(() => {
-    if (!window.__spotListTestHooks || typeof window.__spotListTestHooks.renderHotspotList !== "function") {
-      throw new Error("spot list test hooks not available");
-    }
+  await page.waitForFunction(() => {
+    return window.__spotListTestHooks && typeof window.__spotListTestHooks.renderHotspotList === "function";
+  });
+
+  const result = await page.evaluate(() => {
     window.__spotListTestHooks.renderHotspotList([
       {
         id: "spot-no-memo",
@@ -40,20 +41,42 @@ test("Map spot memo state", async ({ page }) => {
         categoryId: "traffic_parking"
       }
     ]);
+
+    const noMemoItem = document.querySelector("#spot-list [data-spot-id='spot-no-memo']");
+    const withMemoItem = document.querySelector("#spot-list [data-spot-id='spot-with-memo']");
+
+    if (!noMemoItem || !withMemoItem) {
+      return {
+        ok: false,
+        debugSpotListHtml: document.querySelector("#spot-list")
+          ? document.querySelector("#spot-list").innerHTML
+          : ""
+      };
+    }
+
+    const noMemoPaddingTop = window.getComputedStyle(noMemoItem).paddingTop;
+    const withMemoPaddingTop = window.getComputedStyle(withMemoItem).paddingTop;
+
+    return {
+      ok: true,
+      noMemoHasNoMemoClass: noMemoItem.classList.contains("spot-item--no-memo"),
+      noMemoMemoCount: noMemoItem.querySelectorAll(".spot-memo").length,
+      noMemoPaddingTop,
+      withMemoHasNoMemoClass: withMemoItem.classList.contains("spot-item--no-memo"),
+      withMemoText: withMemoItem.querySelector(".spot-memo")
+        ? withMemoItem.querySelector(".spot-memo").textContent.trim()
+        : "",
+      withMemoPaddingTop
+    };
   });
 
-  const noMemoItem = page.locator("[data-spot-id='spot-no-memo']");
-  await expect(noMemoItem).toHaveClass(/spot-item--no-memo/);
-  await expect(noMemoItem.locator(".spot-memo")).toHaveCount(0);
-  const noMemoPaddingTop = await noMemoItem.evaluate((el) => window.getComputedStyle(el).paddingTop);
-
-  const withMemoItem = page.locator("[data-spot-id='spot-with-memo']");
-  await expect(withMemoItem).not.toHaveClass(/spot-item--no-memo/);
-  await expect(withMemoItem.locator(".spot-memo")).toHaveText("현안 내용");
-  const withMemoPaddingTop = await withMemoItem.evaluate((el) => window.getComputedStyle(el).paddingTop);
-
-  expect(noMemoPaddingTop).toBe("8px");
-  expect(withMemoPaddingTop).toBe("10px");
+  expect(result.ok).toBe(true);
+  expect(result.noMemoHasNoMemoClass).toBe(true);
+  expect(result.noMemoMemoCount).toBe(0);
+  expect(result.withMemoHasNoMemoClass).toBe(false);
+  expect(result.withMemoText).toBe("현안 내용");
+  expect(result.noMemoPaddingTop).toBe("8px");
+  expect(result.withMemoPaddingTop).toBe("10px");
 });
 
 test("Edit page shows login", async ({ page }) => {
