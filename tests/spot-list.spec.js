@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-test("Memo presence toggles compact card class", async ({ page }) => {
+test("HS-LIST-001 Memo presence toggles compact card class", async ({ page }) => {
   // 메모 유무에 따라 카드 클래스/요소가 달라지는지 확인
   await page.goto("/map/");
   await page.waitForFunction(() => {

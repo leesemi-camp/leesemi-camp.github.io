@@ -84,5 +84,11 @@ test("Hotspot snapshot schema validation", () => {
         throw new Error("Invalid hotspot updatedAt at index " + String(index));
       }
     }
+    if (spot.visibility) {
+      const visibility = String(spot.visibility).trim().toLowerCase();
+      if (visibility !== "public" && visibility !== "internal") {
+        throw new Error("Invalid hotspot visibility at index " + String(index));
+      }
+    }
   });
 });

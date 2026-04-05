@@ -79,6 +79,8 @@
   const DONG_COMMON_KEY = "__common__";
   const DONG_COMMON_NAME = "공통";
   const DONG_COMMON_LABEL = "공통 (전체 동)";
+  const VISIBILITY_PUBLIC = "public";
+  const VISIBILITY_INTERNAL = "internal";
 
   const issueCategories = {
     traffic_parking: "🚌 교통·주차",
@@ -212,6 +214,7 @@
     spotIssueRefField: document.getElementById("spot-issue-ref-field"),
     spotIssueRefSelect: document.getElementById("spot-issue-ref"),
     spotIssueRefHelp: document.getElementById("spot-issue-ref-help"),
+    spotVisibilitySelect: document.getElementById("spot-visibility"),
     spotList: document.getElementById("spot-list"),
     issueViewListButton: document.getElementById("issue-view-list-btn"),
     issueViewGroupButton: document.getElementById("issue-view-group-btn"),
@@ -3720,6 +3723,28 @@
     applyHotspotList(hotspots);
   }
 
+  function normalizeVisibility(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === VISIBILITY_INTERNAL) {
+      return VISIBILITY_INTERNAL;
+    }
+    return VISIBILITY_PUBLIC;
+  }
+
+  function canViewInternalHotspots() {
+    return isEditMode() && Boolean(state.currentUser);
+  }
+
+  function filterVisibleHotspots(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    if (canViewInternalHotspots()) {
+      return list;
+    }
+    return list.filter((spot) => {
+      return normalizeVisibility(spot && spot.visibility) === VISIBILITY_PUBLIC;
+    });
+  }
+
   function normalizeHotspotRecord(recordId, value) {
     const lat = Number(value.lat);
     const lng = Number(value.lng);
@@ -3771,6 +3796,7 @@
       value.issue_group_label ||
       ""
     ).trim();
+    const visibility = normalizeVisibility(value.visibility);
 
     return {
       id: normalizedId,
@@ -3797,6 +3823,7 @@
         : "auto",
       dongKey: storedDongKey || computedDongKey,
       groupLabel,
+      visibility,
       updatedBy: value.updatedBy || "",
       updatedAt: value.updatedAt || null
     };
@@ -4225,7 +4252,7 @@
   }
 
   function renderVisibleIssueList() {
-    const filtered = applyIssueFilter(state.issues);
+    const filtered = filterVisibleHotspots(applyIssueFilter(state.issues));
     if (state.issueListMode === "group") {
       renderIssueGroupList(filtered);
       return;
@@ -4287,12 +4314,18 @@
     elements.spotList.innerHTML = items.join("");
   }
 
+  function renderVisibleHotspotListForTest(hotspots) {
+    const filtered = filterVisibleHotspots(Array.isArray(hotspots) ? hotspots : []);
+    renderHotspotList(filtered);
+  }
+
   function exposeSpotListTestHooks() {
     if (typeof window === "undefined") {
       return;
     }
     window.__spotListTestHooks = {
-      renderHotspotList
+      renderHotspotList,
+      renderVisibleHotspotList: renderVisibleHotspotListForTest
     };
   }
 
@@ -4556,6 +4589,7 @@
     const level = Number(formData.get("level") || 3);
     const categoryId = String(formData.get("categoryId") || "").trim();
     const issueRefId = normalizeIssueCatalogId(formData.get("issueRefId"));
+    const visibility = normalizeVisibility(formData.get("visibility"));
     const issueCatalogConfig = getIssueCatalogConfig();
     const catalogIssue = issueRefId && state.issueCatalogMap.has(issueRefId)
       ? state.issueCatalogMap.get(issueRefId)
@@ -4616,6 +4650,7 @@
       emdCode: finalEmdCode || "",
       dongSelectionMode: isCommonSelection ? "common" : usingManualDong ? "manual" : "auto",
       dongKey: isCommonSelection ? DONG_COMMON_KEY : usingManualDong ? String(selectedDongMeta.key || "") : "",
+      visibility,
       updatedBy: normalizeEmail(state.currentUser.email),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
@@ -4645,6 +4680,7 @@
     const levelInput = elements.form.querySelector("#spot-level");
     const categoryInput = elements.form.querySelector("#spot-category");
     const memoInput = elements.form.querySelector("#spot-memo");
+    const visibilityInput = elements.form.querySelector("#spot-visibility");
     const issueRefSelect = elements.form.querySelector("#spot-issue-ref");
 
     if (titleInput) {
@@ -4663,6 +4699,9 @@
     if (memoInput) {
       memoInput.value = spot.memo || "";
       memoInput.readOnly = false;
+    }
+    if (visibilityInput) {
+      visibilityInput.value = normalizeVisibility(spot.visibility);
     }
     if (issueRefSelect) {
       syncIssueCatalogSelectOptions(spot.issueRefId || "");
@@ -4710,6 +4749,9 @@
     if (resetForm) {
       if (elements.form) {
         elements.form.reset();
+      }
+      if (elements.spotVisibilitySelect) {
+        elements.spotVisibilitySelect.value = VISIBILITY_PUBLIC;
       }
       if (elements.spotIssueRefSelect) {
         syncIssueCatalogSelectOptions("");

@@ -28,7 +28,7 @@ test("Map view renders", async ({ page }) => {
   await expect(spotList).toBeVisible();
 });
 
-test("Map spot memo state", async ({ page }) => {
+test("HS-LIST-001 Map spot memo state", async ({ page }) => {
   // 메모 유무에 따른 카드 렌더링과 패딩 확인
   await page.goto("/map/");
   const spotList = page.locator("#spot-list").first();
@@ -100,6 +100,65 @@ test("Edit page shows login", async ({ page }) => {
   await page.goto("/map/edit/");
   await expect(page.locator("#login-panel")).toBeVisible();
   await expect(page.locator("#login-btn")).toBeVisible();
+});
+
+test("HS-FB-001 Edit page uses local Firebase config", async ({ page }) => {
+  await page.goto("/map/edit/");
+  const result = await page.evaluate(() => {
+    const config = window.APP_CONFIG || {};
+    const firebase = config.firebase || {};
+    const firebaseConfig = firebase.config || {};
+    return {
+      apiKey: firebaseConfig.apiKey || "",
+      projectId: firebaseConfig.projectId || ""
+    };
+  });
+
+  expect(result.projectId).toBeTruthy();
+  expect(result.projectId).not.toBe("YOUR_PROJECT_ID");
+  expect(result.apiKey).toBeTruthy();
+  expect(result.apiKey).not.toBe("YOUR_FIREBASE_API_KEY");
+});
+
+test("HS-VIS-001 Public view hides internal hotspots", async ({ page }) => {
+  await page.goto("/map/");
+  await page.waitForFunction(() => {
+    return window.__spotListTestHooks && typeof window.__spotListTestHooks.renderVisibleHotspotList === "function";
+  });
+
+  const result = await page.evaluate(() => {
+    window.__spotListTestHooks.renderVisibleHotspotList([
+      {
+        id: "spot-public",
+        title: "공개 현안",
+        memo: "",
+        dongName: "판교동",
+        categoryId: "traffic_parking",
+        visibility: "public"
+      },
+      {
+        id: "spot-internal",
+        title: "내부 현안",
+        memo: "",
+        dongName: "판교동",
+        categoryId: "traffic_parking",
+        visibility: "internal"
+      }
+    ]);
+
+    const cards = Array.from(document.querySelectorAll("#spot-list .spot-item"));
+    const internalCard = cards.find((card) => card.dataset.spotId === "spot-internal");
+    const publicCard = cards.find((card) => card.dataset.spotId === "spot-public");
+    return {
+      cardCount: cards.length,
+      hasPublic: Boolean(publicCard),
+      hasInternal: Boolean(internalCard)
+    };
+  });
+
+  expect(result.cardCount).toBe(1);
+  expect(result.hasPublic).toBe(true);
+  expect(result.hasInternal).toBe(false);
 });
 
 test("System launcher loads", async ({ page }) => {

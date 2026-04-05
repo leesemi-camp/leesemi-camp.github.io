@@ -6,8 +6,13 @@ service cloud.firestore {
         && request.auth.token.staff == true;
     }
 
+    function isPublicHotspot() {
+      return resource.data.visibility == null
+        || resource.data.visibility == "public";
+    }
+
     match /crowd_hotspots/{docId} {
-      allow read: if true;
+      allow read: if isStaff() || isPublicHotspot();
       allow create, update, delete: if isStaff();
     }
 

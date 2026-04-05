@@ -131,6 +131,12 @@
               <label for="spot-memo">현안 내용</label>
               <textarea id="spot-memo" name="memo" rows="3" maxlength="200" placeholder="예: 출근 시간 교차로 정체로 민원 다수"></textarea>
 
+              <label for="spot-visibility">공개 범위</label>
+              <select id="spot-visibility" name="visibility">
+                <option value="public" selected>공개 (모든 사용자)</option>
+                <option value="internal">내부 (staff만)</option>
+              </select>
+
               <div class="coord-box">
                 <div id="selected-coord">좌표 미선택</div>
                 <div class="coord-actions">
