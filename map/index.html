@@ -35,47 +35,83 @@
   <script src="../config.js" defer></script>
   <script src="../config.local.js" defer></script>
   <script src="../app.js" defer></script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>우리동네 현안도, 이세미입니다</title>
+    <meta name="description" content="우리동네 현안도, 이세미입니다. 판교·운중·백현·대장 동별 현안을 지도에서 확인하세요.">
+    <meta property="og:locale" content="ko_KR">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="이세미 캠프">
+    <meta property="og:title" content="우리동네 현안도, 이세미입니다">
+    <meta property="og:description" content="판교·운중·백현·대장 동별 현안을 지도에서 확인하세요.">
+    <meta property="og:url" content="https://leesemi-camp.github.io/map/">
+    <meta property="og:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
+    <meta property="og:image:url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
+    <meta property="og:image:secure_url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="2206">
+    <meta property="og:image:height" content="1572">
+    <meta property="og:image:alt" content="이세미 캠프 링크 미리보기 이미지">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="우리동네 현안도, 이세미입니다">
+    <meta name="twitter:description" content="판교·운중·백현·대장 동별 현안을 지도에서 확인하세요.">
+    <meta name="twitter:url" content="https://leesemi-camp.github.io/map/">
+    <meta name="twitter:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="./style.css">
+    <script src="https://cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-check-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js" defer></script>
+    <script src="../config.js" defer></script>
+    <script src="../app.js" defer></script>
 </head>
 <body data-map-mode="view">
-  <main class="layout">
+<main class="layout">
     <section id="app-shell" class="app-shell" aria-live="polite">
-      <header class="topbar">
-        <div class="topbar-texts">
-          <h2 class="topbar-title">우리동네 현안도, 이세미입니다</h2>
-          <p class="topbar-message">
-            이 지도에 담고 싶은 동네의 이야기가 있나요? 사소한 의견이라도 좋으니 제보해 주세요. 귀 기울여 듣겠습니다!
-            <a href="sms:01081901440" class="issue-contact-link topbar-message-link" aria-label="현안 추가 문의 문자 보내기">010-8190-1440</a>
-            <span class="topbar-message-divider" aria-hidden="true">/</span>
-            <a href="mailto:leesemi114@gmail.com" class="issue-contact-link topbar-message-link" aria-label="현안 추가 문의 이메일 보내기">leesemi114@gmail.com</a>
-          </p>
-        </div>
-        <div class="topbar-actions">
-          <a href="../" class="icon-btn" aria-label="메인 랜딩으로 이동" title="메인으로">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M3 11.5 12 4l9 7.5"/>
-              <path d="M6 10.5V20h12v-9.5"/>
-            </svg>
-          </a>
-          <a href="/map/edit/" class="icon-btn" aria-label="현안 수정으로 이동" title="현안 수정">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25z"/>
-              <path d="m14.06 4.19 3.75 3.75"/>
-            </svg>
-          </a>
-        </div>
-      </header>
+        <header class="topbar">
+            <div class="topbar-texts">
+                <h2 class="topbar-title">우리동네 현안도, 이세미입니다</h2>
+                <p class="topbar-message">
+                    이 지도에 담고 싶은 동네의 이야기가 있나요? 사소한 의견이라도 좋으니 제보해 주세요. 귀 기울여 듣겠습니다!
+                    <a href="sms:01081901440" class="issue-contact-link topbar-message-link"
+                       aria-label="현안 추가 문의 문자 보내기">010-8190-1440</a>
+                    <span class="topbar-message-divider" aria-hidden="true">/</span>
+                    <a href="mailto:leesemi114@gmail.com" class="issue-contact-link topbar-message-link"
+                       aria-label="현안 추가 문의 이메일 보내기">leesemi114@gmail.com</a>
+                </p>
+            </div>
+            <div class="topbar-actions">
+                <a href="../" class="icon-btn" aria-label="메인 랜딩으로 이동" title="메인으로">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 11.5 12 4l9 7.5"/>
+                        <path d="M6 10.5V20h12v-9.5"/>
+                    </svg>
+                </a>
+                <a href="/map/edit/" class="icon-btn" aria-label="현안 수정으로 이동" title="현안 수정">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25z"/>
+                        <path d="m14.06 4.19 3.75 3.75"/>
+                    </svg>
+                </a>
+            </div>
+        </header>
 
-      <section class="workspace">
-        <div class="map-wrap map-wrap-initializing">
-          <div id="map" class="map" role="application" aria-label="동별 현안 지도"></div>
-          <div id="map-popup" class="map-popup hidden" aria-hidden="true"></div>
-        </div>
+        <section class="workspace">
+            <div class="map-wrap map-wrap-initializing">
+                <div id="map" class="map" role="application" aria-label="동별 현안 지도"></div>
+                <div id="map-popup" class="map-popup hidden" aria-hidden="true"></div>
+            </div>
 
-        <aside class="side-panel">
-          <section class="pledge-panel">
-            <h3>지역구 공통 현안</h3>
-            <ul id="common-pledge-list" class="pledge-list"></ul>
-          </section>
+            <aside class="side-panel">
+                <section class="pledge-panel">
+                    <h3>지역구 공통 현안</h3>
+                    <ul id="common-pledge-list" class="pledge-list"></ul>
+                </section>
 
           <h3 class="list-title">우리동네 현안</h3>
           <div class="spot-filter-row">
@@ -94,7 +130,23 @@
           <ul id="spot-list" class="spot-list"></ul>
         </aside>
       </section>
+                <h3 class="list-title">우리동네 현안</h3>
+                <div class="spot-filter-row">
+                    <button id="issue-view-list-btn" type="button"
+                            class="btn-secondary btn-small spot-action-btn spot-action-btn-checked">개별 보기
+                    </button>
+                    <button id="issue-view-group-btn" type="button" class="btn-secondary btn-small spot-action-btn">그룹
+                        보기
+                    </button>
+                    <span id="active-dong-filter" class="active-dong-filter hidden"></span>
+                    <button id="clear-dong-filter-btn" type="button" class="btn-secondary btn-small hidden">전체 보기
+                    </button>
+                </div>
+                <p class="muted">지도에서 동 영역을 클릭하면 해당 동 현안만 볼 수 있습니다.</p>
+                <ul id="spot-list" class="spot-list"></ul>
+            </aside>
+        </section>
     </section>
-  </main>
+</main>
 </body>
 </html>
