@@ -241,13 +241,16 @@
       renderCommonPledges();
       initPopulationMonthOptions();
       initPopulationHourOptions();
+      setStatus("인증 초기화 중...");
+      initFirebase(config.firebase.config);
       if (isEditMode()) {
-        setStatus("인증 초기화 중...");
-        initFirebase(config.firebase.config);
         state.auth.onAuthStateChanged((user) => {
           void onAuthStateChanged(user);
         });
       } else {
+        state.auth.onAuthStateChanged((user) => {
+          state.currentUser = user || null;
+        });
         showAppShell();
         await ensureMapReady();
         await loadBoundaries();
@@ -258,7 +261,7 @@
         syncSpotFormLayoutState();
         await applyDefaultOverlayVisibility();
         await applyDefaultPopulationVisibility();
-        await loadHotspotsSnapshot();
+        subscribeHotspots();
       }
     } catch (error) {
       showFatal(error);
@@ -290,20 +293,6 @@
     if (!appConfig) {
       throw new Error("config.js 파일이 없습니다.");
     }
-    if (isEditMode()) {
-      validateEditConfig(appConfig);
-    } else {
-      validateViewConfig(appConfig);
-    }
-  }
-
-  function validateViewConfig(appConfig) {
-    if (!appConfig) {
-      throw new Error("config.js 파일이 없습니다.");
-    }
-  }
-
-  function validateEditConfig(appConfig) {
     if (!appConfig.firebase || appConfig.firebase.enabled !== true) {
       throw new Error("보안 접근제어를 위해 firebase.enabled는 true여야 합니다.");
     }
@@ -3654,57 +3643,6 @@
         console.error("[hotspot-subscribe]", toMessage(error));
       }
     );
-  }
-
-  async function loadHotspotsSnapshot() {
-    const snapshotPath = resolveHotspotSnapshotPath();
-    if (!snapshotPath) {
-      return;
-    }
-
-    try {
-      await ensureIssueCatalogLoaded();
-      const response = await fetch(snapshotPath, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error("Snapshot fetch failed with status " + String(response.status));
-      }
-      const payload = await response.json();
-      const rows = Array.isArray(payload)
-        ? payload
-        : Array.isArray(payload && payload.hotspots)
-        ? payload.hotspots
-        : [];
-      const hotspots = [];
-
-      rows.forEach((row) => {
-        if (!row || typeof row !== "object") {
-          return;
-        }
-        const recordId = row.id || row.docId || row.key || "";
-        const normalized = normalizeHotspotRecord(recordId, row);
-        if (normalized) {
-          hotspots.push(normalized);
-        }
-      });
-
-      applyHotspotList(hotspots);
-    } catch (error) {
-      clearHotspotFeatures();
-      state.issues = [];
-      renderCommonPledges();
-      renderVisibleIssueList();
-      updateDongFilterUi();
-      console.warn("[hotspot-snapshot]", toMessage(error));
-    }
-  }
-
-  function resolveHotspotSnapshotPath() {
-    const dataConfig = config && typeof config.data === "object" ? config.data : null;
-    const rawPath = dataConfig && typeof dataConfig.hotspotSnapshotPath === "string"
-      ? dataConfig.hotspotSnapshotPath
-      : "";
-    const trimmed = String(rawPath || "").trim();
-    return trimmed || "/data/hotspots.snapshot.json";
   }
 
   async function processHotspotSnapshot(snapshot) {

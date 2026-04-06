@@ -9,6 +9,6 @@
   },
   "scripts": {
     "serve": "npx serve . -l 5173",
-    "test": "playwright test"
+    "test": "npx playwright test"
   }
 }
