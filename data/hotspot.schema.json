@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leesemi-camp.github.io/schemas/hotspot.schema.json",
+  "title": "Hotspot Snapshot Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "exportedAt", "collection", "count", "hotspots"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "exportedAt": { "type": "string", "format": "date-time" },
+    "collection": { "type": "string", "minLength": 1 },
+    "count": { "type": "integer", "minimum": 0 },
+    "hotspots": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/hotspot" }
+    }
+  },
+  "$defs": {
+    "hotspot": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "title", "lat", "lng", "dongName"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "memo": { "type": "string" },
+        "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "lng": { "type": "number", "minimum": -180, "maximum": 180 },
+        "dongName": { "type": "string", "minLength": 1 },
+        "emdCode": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "categoryLabel": { "type": "string" },
+        "issueRefId": { "type": "string" },
+        "groupLabel": { "type": "string" },
+        "visibility": { "type": "string", "enum": ["public", "internal"] },
+        "externalUrl": { "type": "string", "pattern": "^https?://.+" },
+        "updatedBy": { "type": "string" },
+        "updatedAt": {
+          "oneOf": [
+            { "type": "string", "format": "date-time" },
+            { "type": "null" }
+          ]
+        }
+      }
+    }
+  }
+}

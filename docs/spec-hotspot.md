@@ -22,6 +22,7 @@
 ### 1.1 컬렉션
 
 - 기본: `crowd_hotspots` (설정: `config.data.issueCollection`)
+- JSON 스키마(스냅샷/테스트 데이터): [data/hotspot.schema.json](../data/hotspot.schema.json)
 
 ### 1.2 필드 스키마
 

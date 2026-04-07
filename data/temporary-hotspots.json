@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "exportedAt": "2026-04-07T00:00:00.000Z",
+  "collection": "crowd_hotspots",
+  "count": 3,
+  "hotspots": [
+    {
+      "id": "tmp-public-1",
+      "title": "Temporary Public Hotspot",
+      "memo": "Local preview data (public).",
+      "lat": 37.394,
+      "lng": 127.111,
+      "dongName": "Pangyo",
+      "emdCode": "41135107",
+      "categoryId": "traffic_parking",
+      "visibility": "public",
+      "externalUrl": "https://example.com/",
+      "updatedBy": "local-preview@example.com",
+      "updatedAt": "2026-04-07T00:00:00.000Z"
+    },
+    {
+      "id": "tmp-public-2",
+      "title": "Temporary Public Hotspot (No Link)",
+      "memo": "",
+      "lat": 37.397,
+      "lng": 127.112,
+      "dongName": "Pangyo",
+      "emdCode": "41135107",
+      "categoryId": "environment_park",
+      "visibility": "public",
+      "updatedBy": "local-preview@example.com",
+      "updatedAt": "2026-04-07T00:00:00.000Z"
+    },
+    {
+      "id": "tmp-internal-1",
+      "title": "Temporary Internal Hotspot",
+      "memo": "Local preview data (internal). Should be hidden on /map/.",
+      "lat": 37.396,
+      "lng": 127.109,
+      "dongName": "Pangyo",
+      "emdCode": "41135107",
+      "categoryId": "safety_security",
+      "visibility": "internal",
+      "externalUrl": "https://example.com/internal",
+      "updatedBy": "local-preview@example.com",
+      "updatedAt": "2026-04-07T00:00:00.000Z"
+    }
+  ]
+}
