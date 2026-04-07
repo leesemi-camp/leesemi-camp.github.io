@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "exportedAt": "2026-04-07T00:00:00.000Z",
+  "collection": "crowd_routes",
+  "count": 2,
+  "routes": [
+    {
+      "id": "tmp-route-public-1",
+      "name": "Temporary Public Route A",
+      "memo": "Local preview data (public).",
+      "categoryId": "traffic_parking",
+      "visibility": "public",
+      "externalUrl": "https://example.com/",
+      "geometryType": "LineString",
+      "coordinates": [
+        [127.1098, 37.3950],
+        [127.1117, 37.3962],
+        [127.1130, 37.3970]
+      ],
+      "bbox": [127.1098, 37.3950, 127.1130, 37.3970],
+      "updatedBy": "local-preview@example.com",
+      "updatedAt": "2026-04-07T00:00:00.000Z"
+    },
+    {
+      "id": "tmp-route-internal-1",
+      "name": "Temporary Internal Route (Hidden on /map/)",
+      "memo": "",
+      "categoryId": "environment_park",
+      "visibility": "internal",
+      "geometryType": "LineString",
+      "coordinates": [
+        [127.1140, 37.3946],
+        [127.1155, 37.3953]
+      ],
+      "bbox": [127.1140, 37.3946, 127.1155, 37.3953],
+      "updatedBy": "local-preview@example.com",
+      "updatedAt": "2026-04-07T00:00:00.000Z"
+    }
+  ]
+}
+

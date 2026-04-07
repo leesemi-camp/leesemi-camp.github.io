@@ -33,6 +33,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-check-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js" defer></script>
   <script src="../../config.js" defer></script>
+  <script src="../../route.js" defer></script>
   <script src="../../app.js" defer></script>
 </head>
 <body data-map-mode="edit">
@@ -86,90 +87,158 @@
         </div>
 
         <aside class="side-panel">
-          <section id="spot-form-sheet" class="spot-form-sheet">
-            <div class="spot-form-head">
-              <h3>지역 현안 등록</h3>
-              <button id="spot-form-close-btn" type="button" class="icon-btn spot-form-close-btn" aria-label="등록 창 닫기" title="닫기">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M6 6l12 12M18 6 6 18"/>
-                </svg>
-              </button>
-            </div>
-            <p class="muted spot-form-hint">지도 클릭 또는 현위치 입력 후 저장</p>
-
-            <form id="spot-form">
-              <label for="spot-title">현안명</label>
-              <input id="spot-title" name="title" type="text" maxlength="40" required>
-
-              <input id="spot-level" name="level" type="hidden" value="3">
-
-            <div id="spot-issue-ref-field" class="spot-issue-ref-field hidden">
-              <label for="spot-issue-ref">연동 현안 선택(시트)</label>
-              <select id="spot-issue-ref" name="issueRefId">
-                <option value="">직접 입력</option>
-              </select>
-              <p id="spot-issue-ref-help" class="field-note">시트에서 현안을 선택하면 제목/분류/내용이 자동 반영됩니다.</p>
-            </div>
-
-            <label for="spot-category">현안 분류</label>
-            <select id="spot-category" name="categoryId" required>
-              <option value="traffic_parking">🚌 교통·주차 (출퇴근과 이동의 편리함)</option>
-                <option value="education_childcare">🏫 교육·보육 (아이 키우기 좋은 동네)</option>
-                <option value="environment_park">🌳 환경·공원 (쾌적하고 여유로운 휴식)</option>
-                <option value="safety_security">🚨 안전·치안 (불안감 없는 안심 귀갓길)</option>
-                <option value="housing_infra">🏘️ 주거·인프라 (오래된 동네의 기분 좋은 변화)</option>
-                <option value="economy_culture">🛒 경제·문화 (지갑이 열리고 사람이 모이는 곳)</option>
-              </select>
-
-              <label for="spot-dong">동 선택</label>
-              <select id="spot-dong" name="dongKey">
-                <option value="__auto__" selected>좌표 기준 자동 판별</option>
-                <option value="__common__">공통 (전체 동)</option>
-              </select>
-
-              <label for="spot-memo">현안 내용</label>
-              <textarea id="spot-memo" name="memo" rows="3" maxlength="200" placeholder="예: 출근 시간 교차로 정체로 민원 다수"></textarea>
-
-              <label for="spot-external-url">외부 링크</label>
-              <input id="spot-external-url" name="externalUrl" type="url" inputmode="url" placeholder="https://example.com">
-              <p class="field-note">http/https만 허용됩니다.</p>
-
-              <label for="spot-visibility">공개 범위</label>
-              <select id="spot-visibility" name="visibility">
-                <option value="public" selected>공개 (모든 사용자)</option>
-                <option value="internal">내부 (staff만)</option>
-              </select>
-
-              <div class="coord-box">
-                <div id="selected-coord">좌표 미선택</div>
-                <div class="coord-actions">
-                  <button id="use-current-location-btn" type="button" class="btn-secondary btn-small">내 위치 불러오기</button>
-                  <button id="clear-coord-btn" type="button" class="btn-secondary btn-small">좌표 해제</button>
-                </div>
-              </div>
-              <input id="spot-lat" name="lat" type="hidden">
-              <input id="spot-lng" name="lng" type="hidden">
-
-              <div class="form-actions">
-                <button id="spot-submit-btn" type="submit" class="btn-primary">현안 저장</button>
-                <button id="spot-cancel-edit-btn" type="button" class="btn-secondary hidden">수정 취소</button>
-              </div>
-            </form>
-          </section>
-
-          <section class="pledge-panel">
-            <h3>지역구 공통 현안</h3>
-            <ul id="common-pledge-list" class="pledge-list"></ul>
-          </section>
-
-          <h3 class="list-title">등록된 지역 현안</h3>
           <div class="spot-filter-row">
-            <button id="issue-view-list-btn" type="button" class="btn-secondary btn-small spot-action-btn spot-action-btn-checked">개별 보기</button>
-            <button id="issue-view-group-btn" type="button" class="btn-secondary btn-small spot-action-btn">그룹 보기</button>
-            <span id="active-dong-filter" class="active-dong-filter hidden"></span>
-            <button id="clear-dong-filter-btn" type="button" class="btn-secondary btn-small hidden">전체 보기</button>
+            <button id="panel-tab-hotspots" type="button" class="btn-secondary btn-small spot-action-btn spot-action-btn-checked">현안</button>
+            <button id="panel-tab-routes" type="button" class="btn-secondary btn-small spot-action-btn">경로</button>
           </div>
-          <ul id="spot-list" class="spot-list"></ul>
+
+          <section id="panel-hotspots">
+            <section id="spot-form-sheet" class="spot-form-sheet">
+              <div class="spot-form-head">
+                <h3>지역 현안 등록</h3>
+                <button id="spot-form-close-btn" type="button" class="icon-btn spot-form-close-btn" aria-label="등록 창 닫기" title="닫기">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6 6 18"/>
+                  </svg>
+                </button>
+              </div>
+              <p class="muted spot-form-hint">지도 클릭 또는 현위치 입력 후 저장</p>
+
+              <form id="spot-form">
+                <label for="spot-title">현안명</label>
+                <input id="spot-title" name="title" type="text" maxlength="40" required>
+
+                <input id="spot-level" name="level" type="hidden" value="3">
+
+              <div id="spot-issue-ref-field" class="spot-issue-ref-field hidden">
+                <label for="spot-issue-ref">연동 현안 선택(시트)</label>
+                <select id="spot-issue-ref" name="issueRefId">
+                  <option value="">직접 입력</option>
+                </select>
+                <p id="spot-issue-ref-help" class="field-note">시트에서 현안을 선택하면 제목/분류/내용이 자동 반영됩니다.</p>
+              </div>
+
+              <label for="spot-category">현안 분류</label>
+              <select id="spot-category" name="categoryId" required>
+                <option value="traffic_parking">🚌 교통·주차 (출퇴근과 이동의 편리함)</option>
+                  <option value="education_childcare">🏫 교육·보육 (아이 키우기 좋은 동네)</option>
+                  <option value="environment_park">🌳 환경·공원 (쾌적하고 여유로운 휴식)</option>
+                  <option value="safety_security">🚨 안전·치안 (불안감 없는 안심 귀갓길)</option>
+                  <option value="housing_infra">🏘️ 주거·인프라 (오래된 동네의 기분 좋은 변화)</option>
+                  <option value="economy_culture">🛒 경제·문화 (지갑이 열리고 사람이 모이는 곳)</option>
+                </select>
+
+                <label for="spot-dong">동 선택</label>
+                <select id="spot-dong" name="dongKey">
+                  <option value="__auto__" selected>좌표 기준 자동 판별</option>
+                  <option value="__common__">공통 (전체 동)</option>
+                </select>
+
+                <label for="spot-memo">현안 내용</label>
+                <textarea id="spot-memo" name="memo" rows="3" maxlength="200" placeholder="예: 출근 시간 교차로 정체로 민원 다수"></textarea>
+
+                <label for="spot-external-url">외부 링크</label>
+                <input id="spot-external-url" name="externalUrl" type="url" inputmode="url" placeholder="https://example.com">
+                <p class="field-note">http/https만 허용됩니다.</p>
+
+                <label for="spot-visibility">공개 범위</label>
+                <select id="spot-visibility" name="visibility">
+                  <option value="public" selected>공개 (모든 사용자)</option>
+                  <option value="internal">내부 (staff만)</option>
+                </select>
+
+                <div class="coord-box">
+                  <div id="selected-coord">좌표 미선택</div>
+                  <div class="coord-actions">
+                    <button id="use-current-location-btn" type="button" class="btn-secondary btn-small">내 위치 불러오기</button>
+                    <button id="clear-coord-btn" type="button" class="btn-secondary btn-small">좌표 해제</button>
+                  </div>
+                </div>
+                <input id="spot-lat" name="lat" type="hidden">
+                <input id="spot-lng" name="lng" type="hidden">
+
+                <div class="form-actions">
+                  <button id="spot-submit-btn" type="submit" class="btn-primary">현안 저장</button>
+                  <button id="spot-cancel-edit-btn" type="button" class="btn-secondary hidden">수정 취소</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="pledge-panel">
+              <h3>지역구 공통 현안</h3>
+              <ul id="common-pledge-list" class="pledge-list"></ul>
+            </section>
+
+            <h3 class="list-title">등록된 지역 현안</h3>
+            <div class="spot-filter-row">
+              <button id="issue-view-list-btn" type="button" class="btn-secondary btn-small spot-action-btn spot-action-btn-checked">개별 보기</button>
+              <button id="issue-view-group-btn" type="button" class="btn-secondary btn-small spot-action-btn">그룹 보기</button>
+              <span id="active-dong-filter" class="active-dong-filter hidden"></span>
+              <button id="clear-dong-filter-btn" type="button" class="btn-secondary btn-small hidden">전체 보기</button>
+            </div>
+            <ul id="spot-list" class="spot-list"></ul>
+          </section>
+
+          <section id="panel-routes" class="hidden">
+            <section id="route-form-sheet" class="spot-form-sheet">
+              <div class="spot-form-head">
+                <h3>이동 경로 등록</h3>
+                <button id="route-form-close-btn" type="button" class="icon-btn spot-form-close-btn" aria-label="경로 등록 창 닫기" title="닫기">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6 6 18"/>
+                  </svg>
+                </button>
+              </div>
+              <p class="muted spot-form-hint">경로 탭에서 '그리기 시작'을 눌러 지도 위에 선을 그린 뒤 저장</p>
+
+              <form id="route-form">
+                <label for="route-name">경로명</label>
+                <input id="route-name" name="name" type="text" maxlength="60" required>
+
+                <label for="route-category">분류</label>
+                <select id="route-category" name="categoryId">
+                  <option value="">(선택) 분류 없음</option>
+                  <option value="traffic_parking">🚌 교통·주차</option>
+                  <option value="education_childcare">🏫 교육·보육</option>
+                  <option value="environment_park">🌳 환경·공원</option>
+                  <option value="safety_security">🚨 안전·치안</option>
+                  <option value="housing_infra">🏘️ 주거·인프라</option>
+                  <option value="economy_culture">🛒 경제·문화</option>
+                </select>
+
+                <label for="route-memo">메모</label>
+                <textarea id="route-memo" name="memo" rows="3" maxlength="200" placeholder="예: 출퇴근 정체 구간"></textarea>
+
+                <label for="route-external-url">외부 링크</label>
+                <input id="route-external-url" name="externalUrl" type="url" inputmode="url" placeholder="https://example.com">
+                <p class="field-note">http/https만 허용됩니다.</p>
+
+                <label for="route-visibility">공개 범위</label>
+                <select id="route-visibility" name="visibility">
+                  <option value="public" selected>공개 (모든 사용자)</option>
+                  <option value="internal">내부 (staff만)</option>
+                </select>
+
+                <div class="coord-box">
+                  <div id="route-geometry-status">경로 미선택</div>
+                  <div class="coord-actions">
+                    <button id="route-draw-btn" type="button" class="btn-secondary btn-small">그리기 시작</button>
+                    <button id="route-clear-geometry-btn" type="button" class="btn-secondary btn-small">경로 지우기</button>
+                  </div>
+                </div>
+                <input id="route-coordinates" name="coordinates" type="hidden">
+                <input id="route-bbox" name="bbox" type="hidden">
+
+                <div class="form-actions">
+                  <button id="route-submit-btn" type="submit" class="btn-primary">경로 저장</button>
+                  <button id="route-cancel-edit-btn" type="button" class="btn-secondary hidden">수정 취소</button>
+                </div>
+              </form>
+            </section>
+
+            <h3 class="list-title">등록된 이동 경로</h3>
+            <ul id="route-list" class="spot-list"></ul>
+          </section>
         </aside>
       </section>
       <div id="mobile-form-backdrop" class="mobile-form-backdrop hidden" aria-hidden="true"></div>

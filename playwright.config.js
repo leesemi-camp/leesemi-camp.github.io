@@ -1,6 +1,15 @@
 const { defineConfig } = require("@playwright/test");
 
 const baseURL = process.env.PW_BASE_URL || "http://localhost:5173";
+const chromeChannel = process.env.PW_CHROME_CHANNEL ? String(process.env.PW_CHROME_CHANNEL) : "";
+const edgeChannel = process.env.PW_EDGE_CHANNEL ? String(process.env.PW_EDGE_CHANNEL) : "";
+
+function buildChromiumUse(channel) {
+  if (channel) {
+    return { browserName: "chromium", channel };
+  }
+  return { browserName: "chromium" };
+}
 
 module.exports = defineConfig({
   testDir: "./tests",
@@ -15,11 +24,11 @@ module.exports = defineConfig({
   projects: [
     {
       name: "Chromium-Chrome",
-      use: { browserName: "chromium", channel: "chrome" }
+      use: buildChromiumUse(chromeChannel)
     },
     {
       name: "Chromium-Edge",
-      use: { browserName: "chromium", channel: "msedge" }
+      use: buildChromiumUse(edgeChannel)
     },
     {
       name: "WebKit-Safari",

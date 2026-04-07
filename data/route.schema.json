@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leesemi-camp.github.io/schemas/route.schema.json",
+  "title": "Route Snapshot Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "exportedAt", "collection", "count", "routes"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "exportedAt": { "type": "string", "format": "date-time" },
+    "collection": { "type": "string", "minLength": 1 },
+    "count": { "type": "integer", "minimum": 0 },
+    "routes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/route" }
+    }
+  },
+  "$defs": {
+    "route": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "name", "geometryType", "coordinates", "bbox"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "memo": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "categoryLabel": { "type": "string" },
+        "visibility": { "type": "string", "enum": ["public", "internal"] },
+        "externalUrl": { "type": "string", "pattern": "^https?://.+" },
+        "geometryType": { "type": "string", "enum": ["LineString"] },
+        "coordinates": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": [
+              { "type": "number", "minimum": -180, "maximum": 180 },
+              { "type": "number", "minimum": -90, "maximum": 90 }
+            ]
+          }
+        },
+        "bbox": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": { "type": "number" }
+        },
+        "updatedBy": { "type": "string" },
+        "updatedAt": {
+          "oneOf": [
+            { "type": "string", "format": "date-time" },
+            { "type": "null" }
+          ]
+        }
+      }
+    }
+  }
+}
+

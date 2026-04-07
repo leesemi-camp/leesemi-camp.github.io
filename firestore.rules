@@ -16,6 +16,11 @@ service cloud.firestore {
       allow create, update, delete: if isStaff();
     }
 
+    match /crowd_routes/{docId} {
+      allow read: if isStaff() || (resource.data.visibility == null || resource.data.visibility == "public");
+      allow create, update, delete: if isStaff();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

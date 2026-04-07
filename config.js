@@ -103,7 +103,8 @@ window.APP_CONFIG = {
       lockFormFields: true,
       requireSelection: false
     },
-    issueCollection: "crowd_hotspots"
+    issueCollection: "crowd_hotspots",
+    routeCollection: "crowd_routes"
   },
   trafficOverlays: {
     enabled: true,

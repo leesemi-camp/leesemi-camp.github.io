@@ -2,6 +2,9 @@
 
 (function bootstrap() {
   const config = window.APP_CONFIG;
+  const routeModule = window.RouteModule && typeof window.RouteModule === "object"
+    ? window.RouteModule
+    : null;
   const state = {
     mode: resolveMapMode(),
     auth: null,
@@ -17,6 +20,10 @@
     boundaryDefaultStyle: null,
     boundarySelectedStyle: null,
     hotspotSource: null,
+    routeSource: null,
+    routeLayer: null,
+    routeDraftSource: null,
+    routeDraftLayer: null,
     selectedCoordSource: null,
     populationSource: null,
     selectedCoordLayer: null,
@@ -51,9 +58,15 @@
     hotspotData: new Map(),
     hotspotStyleCache: new Map(),
     highlightedHotspotIds: new Set(),
+    routeData: new Map(),
+    routeStyleCache: new Map(),
+    highlightedRouteIds: new Set(),
     googleEditUrlWarned: false,
     temporaryHotspots: [],
     firestoreHotspots: [],
+    temporaryRoutes: [],
+    firestoreRoutes: [],
+    routes: [],
     availableDongs: [],
     availableDongMap: new Map(),
     issueCatalogLoaded: false,
@@ -66,16 +79,23 @@
     issueGroupMap: new Map(),
     issueListMode: "spot",
     activeDongName: "",
+    activePanelTab: "hotspots",
     overlayStyleCache: {
       vehicle: new Map(),
       pedestrian: new Map()
     },
     unsubscribeHotspots: null,
+    unsubscribeRoutes: null,
     editingHotspotId: null,
+    editingRouteId: null,
     resolvingCurrentLocation: false,
     selectedCoordFeature: null,
     autoCenteredToCurrentLocation: false,
-    suppressPopupCloseOnNextMoveStart: false
+    suppressPopupCloseOnNextMoveStart: false,
+    routeDrawInteraction: null,
+    routeModifyInteraction: null,
+    routeSnapInteraction: null,
+    isRouteDrawing: false
   };
 
   const DONG_AUTO_KEY = "__auto__";
@@ -199,11 +219,18 @@
     mapWrap: document.querySelector(".map-wrap"),
     map: document.getElementById("map"),
     mapPopup: document.getElementById("map-popup"),
+    panelTabHotspots: document.getElementById("panel-tab-hotspots"),
+    panelTabRoutes: document.getElementById("panel-tab-routes"),
+    panelHotspots: document.getElementById("panel-hotspots"),
+    panelRoutes: document.getElementById("panel-routes"),
     spotFormSheet: document.getElementById("spot-form-sheet"),
     spotFormCloseButton: document.getElementById("spot-form-close-btn"),
+    routeFormSheet: document.getElementById("route-form-sheet"),
+    routeFormCloseButton: document.getElementById("route-form-close-btn"),
     mobileFormBackdrop: document.getElementById("mobile-form-backdrop"),
     mobileCurrentLocationButton: document.getElementById("mobile-current-location-btn"),
     form: document.getElementById("spot-form"),
+    routeForm: document.getElementById("route-form"),
     selectedCoord: document.getElementById("selected-coord"),
     latInput: document.getElementById("spot-lat"),
     lngInput: document.getElementById("spot-lng"),
@@ -218,6 +245,13 @@
     spotExternalUrlInput: document.getElementById("spot-external-url"),
     spotVisibilitySelect: document.getElementById("spot-visibility"),
     spotList: document.getElementById("spot-list"),
+    routeList: document.getElementById("route-list"),
+    routeGeometryStatus: document.getElementById("route-geometry-status"),
+    routeCoordinatesInput: document.getElementById("route-coordinates"),
+    routeBboxInput: document.getElementById("route-bbox"),
+    routeDrawButton: document.getElementById("route-draw-btn"),
+    routeClearGeometryButton: document.getElementById("route-clear-geometry-btn"),
+    routeCancelEditButton: document.getElementById("route-cancel-edit-btn"),
     issueViewListButton: document.getElementById("issue-view-list-btn"),
     issueViewGroupButton: document.getElementById("issue-view-group-btn"),
     clearDongFilterButton: document.getElementById("clear-dong-filter-btn"),
@@ -242,6 +276,7 @@
         throw new Error("OpenLayers 스크립트 로드에 실패했습니다.");
       }
       bindUiEvents();
+      setActivePanelTab(state.activePanelTab, true);
       syncIssueReferenceFieldVisibility();
       renderCommonPledges();
       initPopulationMonthOptions();
@@ -267,7 +302,9 @@
         await applyDefaultOverlayVisibility();
         await applyDefaultPopulationVisibility();
         await tryLoadTemporaryHotspots();
+        await tryLoadTemporaryRoutes();
         subscribeHotspots();
+        subscribeRoutes();
       }
     } catch (error) {
       showFatal(error);
@@ -325,9 +362,27 @@
       });
     }
 
+    if (elements.panelTabHotspots) {
+      elements.panelTabHotspots.addEventListener("click", () => {
+        setActivePanelTab("hotspots");
+      });
+    }
+
+    if (elements.panelTabRoutes) {
+      elements.panelTabRoutes.addEventListener("click", () => {
+        setActivePanelTab("routes");
+      });
+    }
+
     if (elements.form) {
       elements.form.addEventListener("submit", (event) => {
         void handleHotspotSubmit(event);
+      });
+    }
+
+    if (elements.routeForm) {
+      elements.routeForm.addEventListener("submit", (event) => {
+        void handleRouteSubmit(event);
       });
     }
 
@@ -366,10 +421,28 @@
       });
     }
 
+    if (elements.routeCancelEditButton) {
+      elements.routeCancelEditButton.addEventListener("click", () => {
+        exitRouteEditMode(true);
+      });
+    }
+
     if (elements.spotIssueRefSelect) {
       elements.spotIssueRefSelect.addEventListener("change", () => {
         const issueRefId = String(elements.spotIssueRefSelect.value || "").trim();
         applyIssueCatalogSelection(issueRefId);
+      });
+    }
+
+    if (elements.routeDrawButton) {
+      elements.routeDrawButton.addEventListener("click", () => {
+        toggleRouteDrawing();
+      });
+    }
+
+    if (elements.routeClearGeometryButton) {
+      elements.routeClearGeometryButton.addEventListener("click", () => {
+        clearRouteDraftGeometry();
       });
     }
 
@@ -506,6 +579,45 @@
       });
     }
 
+    if (elements.routeList) {
+      elements.routeList.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const actionButton = target.closest("[data-action]");
+        if (actionButton) {
+          const action = String(actionButton.getAttribute("data-action") || "");
+          if (action === "edit-route" || action === "delete-route") {
+            const routeId = String(actionButton.getAttribute("data-route-id") || "");
+            if (!routeId) {
+              return;
+            }
+            if (action === "edit-route") {
+              const route = state.routeData.get(routeId);
+              if (route) {
+                enterRouteEditMode(route);
+              }
+              return;
+            }
+            void deleteRoute(routeId);
+            return;
+          }
+        }
+
+        const item = target.closest("[data-route-id]");
+        if (!item) {
+          return;
+        }
+        const routeId = String(item.getAttribute("data-route-id") || "").trim();
+        if (!routeId) {
+          return;
+        }
+        focusRoute(routeId);
+      });
+    }
+
     if (elements.commonPledgeList) {
       elements.commonPledgeList.addEventListener("click", (event) => {
         const target = event.target;
@@ -551,13 +663,19 @@
 
     if (elements.spotFormCloseButton) {
       elements.spotFormCloseButton.addEventListener("click", () => {
-        closeSpotFormSheetForMobile();
+        closeActiveFormSheetForMobile();
+      });
+    }
+
+    if (elements.routeFormCloseButton) {
+      elements.routeFormCloseButton.addEventListener("click", () => {
+        closeActiveFormSheetForMobile();
       });
     }
 
     if (elements.mobileFormBackdrop) {
       elements.mobileFormBackdrop.addEventListener("click", () => {
-        closeSpotFormSheetForMobile();
+        closeActiveFormSheetForMobile();
       });
     }
 
@@ -1083,9 +1201,15 @@
     if (!user) {
       state.currentUser = null;
       exitHotspotEditMode(true);
+      exitRouteEditMode(true);
+      stopRouteDrawing();
+      disableRouteDraftInteractions();
       stopHotspotSubscription();
+      stopRouteSubscription();
       clearHotspotFeatures();
+      clearRouteFeatures();
       state.issues = [];
+      state.routes = [];
       resetOverlayState();
       resetPopulationState();
       const loginMessage = isEditMode()
@@ -1128,6 +1252,7 @@
     await applyDefaultOverlayVisibility();
     await applyDefaultPopulationVisibility();
     subscribeHotspots();
+    subscribeRoutes();
   }
 
   function showLoginPanel(message, isError) {
@@ -1138,6 +1263,7 @@
       elements.appShell.classList.add("hidden");
     }
     closeSpotFormSheetForMobile();
+    closeRouteFormSheetForMobile();
     closePopup();
     setStatus(message || "", isError === true);
   }
@@ -1229,6 +1355,8 @@
     state.boundarySource = new ol.source.Vector();
     state.boundaryMaskSource = new ol.source.Vector();
     state.hotspotSource = new ol.source.Vector();
+    state.routeSource = new ol.source.Vector();
+    state.routeDraftSource = new ol.source.Vector();
     state.selectedCoordSource = new ol.source.Vector();
     state.populationSource = new ol.source.Vector();
     state.overlaySources.vehicle = new ol.source.Vector();
@@ -1273,6 +1401,13 @@
       source: state.hotspotSource
     });
 
+    state.routeLayer = new ol.layer.Vector({
+      source: state.routeSource
+    });
+    state.routeDraftLayer = new ol.layer.Vector({
+      source: state.routeDraftSource
+    });
+
     state.map = new ol.Map({
       target: elements.map,
       layers: [
@@ -1284,7 +1419,9 @@
         state.overlayLayers.pedestrian,
         state.boundaryMaskLayer,
         boundaryLayer,
+        state.routeLayer,
         hotspotLayer,
+        state.routeDraftLayer,
         state.currentLocationLayer,
         state.selectedCoordLayer
       ],
@@ -1307,7 +1444,7 @@
 
     state.map.on("singleclick", (event) => {
       const lonLat = ol.proj.toLonLat(event.coordinate);
-      if (isEditMode() && state.currentUser) {
+      if (isEditMode() && state.currentUser && state.activePanelTab === "hotspots") {
         setSelectedCoord(Number(lonLat[1]), Number(lonLat[0]));
       }
 
@@ -1327,6 +1464,7 @@
       if (!hitFeature) {
         closePopup();
         clearHighlightedHotspots();
+        clearHighlightedRoutes();
         if (!isEditMode() && state.activeDongName) {
           setActiveDongFilter("");
         }
@@ -1335,6 +1473,7 @@
 
       const kind = hitFeature.get("kind");
       if (kind === "hotspot") {
+        clearHighlightedRoutes();
         const spot = hitFeature.get("spot");
         if (spot && spot.id) {
           setHighlightedHotspots([spot.id]);
@@ -1345,8 +1484,21 @@
         return;
       }
 
+      if (kind === "route") {
+        clearHighlightedHotspots();
+        const route = hitFeature.get("route");
+        if (route && route.id) {
+          setHighlightedRoutes([route.id]);
+        } else {
+          clearHighlightedRoutes();
+        }
+        openRoutePopup(event.coordinate, route);
+        return;
+      }
+
       if (kind === "boundary") {
         clearHighlightedHotspots();
+        clearHighlightedRoutes();
         if (!isEditMode()) {
           const dongName = String(hitFeature.get("dongName") || "").trim();
           setActiveDongFilter(dongName);
@@ -1357,6 +1509,7 @@
 
       if (kind === "traffic_overlay") {
         clearHighlightedHotspots();
+        clearHighlightedRoutes();
         openTrafficOverlayPopup(
           event.coordinate,
           hitFeature.get("overlayType"),
@@ -1367,6 +1520,7 @@
 
       if (kind === "population_grid") {
         clearHighlightedHotspots();
+        clearHighlightedRoutes();
         openPopulationGridPopup(
           event.coordinate,
           hitFeature.get("populationMonth"),
@@ -2094,6 +2248,56 @@
     }
   }
 
+  function setActivePanelTab(tab, forceSync) {
+    const normalized = tab === "routes" ? "routes" : "hotspots";
+    if (!forceSync && state.activePanelTab === normalized) {
+      return;
+    }
+
+    const previous = state.activePanelTab;
+    state.activePanelTab = normalized;
+    syncPanelTabUi();
+
+    if (previous === "routes" && normalized !== "routes") {
+      stopRouteDrawing();
+      disableRouteDraftInteractions();
+      exitRouteEditMode(false);
+      clearRouteDraftGeometry();
+    }
+
+    if (normalized === "routes") {
+      clearHighlightedHotspots();
+      closeSpotFormSheetForMobile();
+      stopRouteDrawing();
+    } else {
+      clearHighlightedRoutes();
+      closeRouteFormSheetForMobile();
+    }
+  }
+
+  function syncPanelTabUi() {
+    if (elements.panelTabHotspots) {
+      elements.panelTabHotspots.classList.toggle("spot-action-btn-checked", state.activePanelTab === "hotspots");
+    }
+    if (elements.panelTabRoutes) {
+      elements.panelTabRoutes.classList.toggle("spot-action-btn-checked", state.activePanelTab === "routes");
+    }
+    if (elements.panelHotspots) {
+      elements.panelHotspots.classList.toggle("hidden", state.activePanelTab !== "hotspots");
+    }
+    if (elements.panelRoutes) {
+      elements.panelRoutes.classList.toggle("hidden", state.activePanelTab !== "routes");
+    }
+  }
+
+  function closeActiveFormSheetForMobile() {
+    if (state.activePanelTab === "routes") {
+      closeRouteFormSheetForMobile();
+      return;
+    }
+    closeSpotFormSheetForMobile();
+  }
+
   function compareKoreanText(a, b) {
     return String(a || "").localeCompare(String(b || ""), "ko", { sensitivity: "base" });
   }
@@ -2119,6 +2323,18 @@
     const dongOrder = compareKoreanText(formatSpotDongLabel(a), formatSpotDongLabel(b));
     if (dongOrder !== 0) {
       return dongOrder;
+    }
+    return compareKoreanText(a && a.id, b && b.id);
+  }
+
+  function compareRouteByName(a, b) {
+    const nameOrder = compareIssueTitleForList(a && a.name, b && b.name);
+    if (nameOrder !== 0) {
+      return nameOrder;
+    }
+    const categoryOrder = compareKoreanText(resolveCategoryLabel(a && a.categoryId, a && a.categoryLabel), resolveCategoryLabel(b && b.categoryId, b && b.categoryLabel));
+    if (categoryOrder !== 0) {
+      return categoryOrder;
     }
     return compareKoreanText(a && a.id, b && b.id);
   }
@@ -3678,6 +3894,31 @@
     );
   }
 
+  function subscribeRoutes() {
+    if (!state.db) {
+      return;
+    }
+
+    stopRouteSubscription();
+    const collectionName = getRouteCollectionName();
+
+    state.unsubscribeRoutes = state.db.collection(collectionName).onSnapshot(
+      (snapshot) => {
+        void processRouteSnapshot(snapshot);
+      },
+      (error) => {
+        clearRouteFeatures();
+        state.firestoreRoutes = [];
+        renderMergedRoutes();
+        if (isFirestorePermissionError(error)) {
+          console.warn("[route-subscribe] insufficient permissions");
+          return;
+        }
+        console.error("[route-subscribe]", toMessage(error));
+      }
+    );
+  }
+
   async function processHotspotSnapshot(snapshot) {
     await ensureIssueCatalogLoaded();
     const hotspots = [];
@@ -3768,6 +4009,31 @@
     renderMergedHotspots();
   }
 
+  async function processRouteSnapshot(snapshot) {
+    const routes = [];
+    snapshot.forEach((doc) => {
+      const value = doc.data() || {};
+      const normalized = normalizeRouteRecord({
+        ...value,
+        id: doc.id
+      });
+      if (!normalized || !normalized.id) {
+        return;
+      }
+      if (normalized.geometryType !== "LineString") {
+        return;
+      }
+      if (!Array.isArray(normalized.coordinates) || normalized.coordinates.length < 2) {
+        return;
+      }
+      routes.push(normalized);
+    });
+
+    routes.sort(compareRouteByName);
+    state.firestoreRoutes = routes;
+    renderMergedRoutes();
+  }
+
   async function tryLoadTemporaryHotspots() {
     if (isEditMode()) {
       return false;
@@ -3827,6 +4093,49 @@
     return true;
   }
 
+  async function tryLoadTemporaryRoutes() {
+    if (isEditMode()) {
+      return false;
+    }
+
+    if (!isLocalPreviewHost()) {
+      return false;
+    }
+
+    const url = "/data/temporary-routes.json";
+    let response;
+    try {
+      response = await fetch(url, { cache: "no-store" });
+    } catch (error) {
+      return false;
+    }
+
+    if (!response || !response.ok) {
+      return false;
+    }
+
+    let payload;
+    try {
+      payload = await response.json();
+    } catch (error) {
+      console.warn("[route-temporary] invalid json");
+      return false;
+    }
+
+    const rawList = payload && Array.isArray(payload.routes) ? payload.routes : [];
+    const routes = rawList
+      .map((route) => normalizeRouteRecord(route))
+      .filter((route) => {
+        return route && route.id && route.geometryType === "LineString" && Array.isArray(route.coordinates) && route.coordinates.length >= 2;
+      });
+
+    routes.sort(compareRouteByName);
+    state.temporaryRoutes = routes;
+    renderMergedRoutes();
+    console.info("[route-temporary] loaded " + String(routes.length) + " routes from " + url);
+    return true;
+  }
+
   function renderMergedHotspots() {
     const temporary = Array.isArray(state.temporaryHotspots) ? state.temporaryHotspots : [];
     const firestore = Array.isArray(state.firestoreHotspots) ? state.firestoreHotspots : [];
@@ -3839,6 +4148,18 @@
     renderHotspots(visibleHotspots);
     renderVisibleIssueList();
     updateDongFilterUi();
+  }
+
+  function renderMergedRoutes() {
+    const temporary = Array.isArray(state.temporaryRoutes) ? state.temporaryRoutes : [];
+    const firestore = Array.isArray(state.firestoreRoutes) ? state.firestoreRoutes : [];
+    const merged = mergeRouteLists(temporary, firestore);
+    merged.sort(compareRouteByName);
+
+    const visibleRoutes = filterRoutesForCurrentMode(merged);
+    state.routes = visibleRoutes;
+    renderRoutes(visibleRoutes);
+    renderRouteList(visibleRoutes);
   }
 
   function mergeHotspotLists(temporary, firestore) {
@@ -3862,6 +4183,31 @@
         return;
       }
       map.set(id, spot);
+    });
+    return Array.from(map.values());
+  }
+
+  function mergeRouteLists(temporary, firestore) {
+    const map = new Map();
+    (Array.isArray(temporary) ? temporary : []).forEach((route) => {
+      if (!route || typeof route !== "object") {
+        return;
+      }
+      const id = String(route.id || "").trim();
+      if (!id) {
+        return;
+      }
+      map.set(id, route);
+    });
+    (Array.isArray(firestore) ? firestore : []).forEach((route) => {
+      if (!route || typeof route !== "object") {
+        return;
+      }
+      const id = String(route.id || "").trim();
+      if (!id) {
+        return;
+      }
+      map.set(id, route);
     });
     return Array.from(map.values());
   }
@@ -3890,6 +4236,13 @@
     }
   }
 
+  function stopRouteSubscription() {
+    if (state.unsubscribeRoutes) {
+      state.unsubscribeRoutes();
+      state.unsubscribeRoutes = null;
+    }
+  }
+
   function getIssueCollectionName() {
     if (config.data && typeof config.data.issueCollection === "string" && config.data.issueCollection.trim()) {
       return config.data.issueCollection.trim();
@@ -3898,6 +4251,13 @@
       return config.data.hotspotCollection.trim();
     }
     return "crowd_hotspots";
+  }
+
+  function getRouteCollectionName() {
+    if (config.data && typeof config.data.routeCollection === "string" && config.data.routeCollection.trim()) {
+      return config.data.routeCollection.trim();
+    }
+    return "crowd_routes";
   }
 
   function applyIssueFilter(hotspots) {
@@ -3920,12 +4280,109 @@
     return list.filter((spot) => normalizeHotspotVisibility(spot && spot.visibility) !== "internal");
   }
 
+  function filterRoutesForCurrentMode(routes) {
+    const list = Array.isArray(routes) ? routes : [];
+    if (isEditMode()) {
+      return list;
+    }
+    return list.filter((route) => normalizeRouteVisibility(route && route.visibility) !== "internal");
+  }
+
   function normalizeHotspotVisibility(value) {
     const normalized = String(value || "").trim().toLowerCase();
     if (normalized === "internal") {
       return "internal";
     }
     return "public";
+  }
+
+  function normalizeRouteVisibility(value) {
+    if (routeModule && typeof routeModule.normalizeRouteVisibility === "function") {
+      return routeModule.normalizeRouteVisibility(value);
+    }
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "internal") {
+      return "internal";
+    }
+    return "public";
+  }
+
+  function sanitizeRouteCoordinates(coords) {
+    if (routeModule && typeof routeModule.sanitizeLineStringCoordinates === "function") {
+      return routeModule.sanitizeLineStringCoordinates(coords);
+    }
+    const list = Array.isArray(coords) ? coords : [];
+    const sanitized = [];
+    list.forEach((item) => {
+      if (!Array.isArray(item) || item.length < 2) {
+        return;
+      }
+      const lng = Number(item[0]);
+      const lat = Number(item[1]);
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+        return;
+      }
+      if (lng < -180 || lng > 180 || lat < -90 || lat > 90) {
+        return;
+      }
+      sanitized.push([lng, lat]);
+    });
+    return sanitized;
+  }
+
+  function computeRouteBbox(coords) {
+    if (routeModule && typeof routeModule.computeLngLatBbox === "function") {
+      return routeModule.computeLngLatBbox(coords);
+    }
+    const list = sanitizeRouteCoordinates(coords);
+    if (list.length === 0) {
+      return [0, 0, 0, 0];
+    }
+    let minLng = list[0][0];
+    let minLat = list[0][1];
+    let maxLng = list[0][0];
+    let maxLat = list[0][1];
+    for (let i = 1; i < list.length; i += 1) {
+      const lng = list[i][0];
+      const lat = list[i][1];
+      if (lng < minLng) minLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lng > maxLng) maxLng = lng;
+      if (lat > maxLat) maxLat = lat;
+    }
+    return [minLng, minLat, maxLng, maxLat];
+  }
+
+  function normalizeRouteRecord(input) {
+    if (routeModule && typeof routeModule.normalizeRouteRecord === "function") {
+      return routeModule.normalizeRouteRecord(input);
+    }
+    const record = input && typeof input === "object" ? input : {};
+    const id = String(record.id || "").trim();
+    const name = String(record.name || record.title || "").trim();
+    const memo = String(record.memo || "");
+    const categoryId = String(record.categoryId || record.category_id || "").trim();
+    const categoryLabel = String(record.categoryLabel || record.category_label || "").trim();
+    const visibility = normalizeRouteVisibility(record.visibility || record.visibility_level);
+    const externalUrl = normalizeExternalUrl(record.externalUrl || record.external_url);
+    const geometryType = "LineString";
+    const coordinates = sanitizeRouteCoordinates(record.coordinates);
+    const bbox = computeRouteBbox(coordinates);
+
+    return {
+      id,
+      name: name || "경로 이름 없음",
+      memo,
+      categoryId,
+      categoryLabel,
+      externalUrl,
+      visibility,
+      geometryType,
+      coordinates,
+      bbox,
+      updatedBy: String(record.updatedBy || ""),
+      updatedAt: record.updatedAt || null
+    };
   }
 
   function normalizeExternalUrl(value) {
@@ -4176,11 +4633,61 @@
     }
   }
 
+  function renderRoutes(routes) {
+    if (!state.routeSource) {
+      return;
+    }
+
+    clearRouteFeatures();
+
+    const list = Array.isArray(routes) ? routes : [];
+    list.forEach((route) => {
+      const coords = Array.isArray(route && route.coordinates) ? route.coordinates : [];
+      if (coords.length < 2) {
+        return;
+      }
+      const projected = coords.map((coord) => {
+        const lng = Number(coord && coord[0]);
+        const lat = Number(coord && coord[1]);
+        if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+          return null;
+        }
+        return ol.proj.fromLonLat([lng, lat]);
+      }).filter(Boolean);
+      if (projected.length < 2) {
+        return;
+      }
+
+      const feature = new ol.Feature({
+        geometry: new ol.geom.LineString(projected)
+      });
+      feature.setId(route.id);
+      feature.set("kind", "route");
+      feature.set("route", route);
+      feature.setStyle(getRouteStyle(route, "normal"));
+      state.routeSource.addFeature(feature);
+      state.routeData.set(route.id, route);
+    });
+
+    applyRouteHighlightStyles();
+
+    if (state.editingRouteId && state.editingRouteId !== "__draft__" && !state.routeData.has(state.editingRouteId)) {
+      exitRouteEditMode(true);
+    }
+  }
+
   function clearHotspotFeatures() {
     if (state.hotspotSource) {
       state.hotspotSource.clear();
     }
     state.hotspotData.clear();
+  }
+
+  function clearRouteFeatures() {
+    if (state.routeSource) {
+      state.routeSource.clear();
+    }
+    state.routeData.clear();
   }
 
   function setHighlightedHotspots(spotIds) {
@@ -4197,6 +4704,14 @@
     }
     state.highlightedHotspotIds = new Set();
     applyHotspotHighlightStyles();
+  }
+
+  function setHighlightedRoutes(routeIds) {
+    const ids = Array.isArray(routeIds)
+      ? routeIds.map((id) => String(id || "").trim()).filter(Boolean)
+      : [];
+    state.highlightedRouteIds = new Set(ids);
+    applyRouteHighlightStyles();
   }
 
   function applyHotspotHighlightStyles() {
@@ -4230,6 +4745,78 @@
         : "normal";
       feature.setStyle(getHotspotStyle(spot, emphasisMode));
     });
+  }
+
+  function clearHighlightedRoutes() {
+    if (!state.highlightedRouteIds || state.highlightedRouteIds.size === 0) {
+      return;
+    }
+    state.highlightedRouteIds = new Set();
+    applyRouteHighlightStyles();
+  }
+
+  function applyRouteHighlightStyles() {
+    if (!state.routeSource) {
+      return;
+    }
+
+    const features = state.routeSource.getFeatures();
+    let highlightSet = state.highlightedRouteIds instanceof Set
+      ? state.highlightedRouteIds
+      : new Set();
+
+    if (highlightSet.size > 0) {
+      const presentIds = new Set();
+      features.forEach((feature) => {
+        const route = feature.get("route");
+        const routeId = String(feature.getId() || (route && route.id) || "").trim();
+        if (routeId) {
+          presentIds.add(routeId);
+        }
+      });
+      highlightSet = new Set(Array.from(highlightSet).filter((id) => presentIds.has(id)));
+    }
+
+    state.highlightedRouteIds = highlightSet;
+    const hasHighlight = highlightSet.size > 0;
+
+    features.forEach((feature) => {
+      const route = feature.get("route");
+      const routeId = String(feature.getId() || (route && route.id) || "").trim();
+      const emphasisMode = hasHighlight
+        ? (highlightSet.has(routeId) ? "focus" : "dim")
+        : "normal";
+      feature.setStyle(getRouteStyle(route, emphasisMode));
+    });
+  }
+
+  function getRouteStyle(route, emphasisMode) {
+    const categoryMeta = resolveIssueCategoryMeta(route && route.categoryId, route && route.categoryLabel);
+    const baseColor = categoryMeta.color || defaultIssueCategoryColor;
+    const mode = emphasisMode === "focus" || emphasisMode === "dim"
+      ? emphasisMode
+      : "normal";
+    const cacheKey = String(categoryMeta.id || "") + "|" + baseColor + "|" + mode;
+
+    if (state.routeStyleCache.has(cacheKey)) {
+      return state.routeStyleCache.get(cacheKey);
+    }
+
+    const isDim = mode === "dim";
+    const isFocus = mode === "focus";
+    const width = isFocus ? 7 : isDim ? 3.5 : 5;
+    const alpha = isDim ? 0.28 : isFocus ? 0.92 : 0.70;
+    const style = new ol.style.Style({
+      stroke: new ol.style.Stroke({
+        color: toRgba(baseColor, alpha),
+        width,
+        lineCap: "round",
+        lineJoin: "round"
+      })
+    });
+
+    state.routeStyleCache.set(cacheKey, style);
+    return style;
   }
 
   function getHotspotStyle(spot, emphasisMode) {
@@ -4400,6 +4987,55 @@
     elements.spotList.innerHTML = items.join("");
   }
 
+  function renderRouteList(routes) {
+    if (!elements.routeList) {
+      return;
+    }
+
+    const list = Array.isArray(routes) ? routes : [];
+    if (list.length === 0) {
+      elements.routeList.innerHTML = "<li class='empty'>등록된 이동 경로가 없습니다.</li>";
+      return;
+    }
+
+    const showEditorActions = isEditMode();
+    const items = list.map((route) => {
+      const name = escapeHtml(route && route.name ? route.name : "이동 경로");
+      const memoRaw = typeof route.memo === "string" ? route.memo.trim() : "";
+      const memo = memoRaw ? escapeHtml(memoRaw) : "";
+      const itemClassName = "spot-item" + (memo ? "" : " spot-item--no-memo");
+      const categoryLabel = escapeHtml(resolveCategoryLabel(route && route.categoryId, route && route.categoryLabel));
+      const categoryMeta = resolveIssueCategoryMeta(route && route.categoryId, route && route.categoryLabel);
+      const categoryStyle = buildCategoryBadgeStyle(categoryMeta.color);
+      const safeId = escapeHtml(route && route.id ? route.id : "");
+      const pointCount = Array.isArray(route && route.coordinates) ? route.coordinates.length : 0;
+
+      let actionsHtml = "";
+      if (showEditorActions) {
+        actionsHtml = (
+          "<div class='spot-item-actions'>" +
+            "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='edit-route' data-route-id='" + safeId + "'>수정</button>" +
+            "<button type='button' class='btn-secondary btn-small spot-action-btn danger' data-action='delete-route' data-route-id='" + safeId + "'>삭제</button>" +
+          "</div>"
+        );
+      }
+
+      return (
+        "<li class='" + itemClassName + "' data-route-id='" + safeId + "'>" +
+          "<div class='spot-item-top'>" +
+            "<strong>" + name + "</strong>" +
+            "<span class='spot-group-count'>" + String(pointCount) + "점</span>" +
+          "</div>" +
+          "<div class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</div>" +
+          (memo ? "<div class='spot-memo'>" + memo + "</div>" : "") +
+          actionsHtml +
+        "</li>"
+      );
+    });
+
+    elements.routeList.innerHTML = items.join("");
+  }
+
     function exposeSpotListTestHooks() {
       if (typeof window === "undefined") {
         return;
@@ -4410,6 +5046,18 @@
         renderHotspotList,
         renderVisibleHotspotList,
         openHotspotPopup: openHotspotPopupForTest
+      };
+    }
+
+    function exposeRouteListTestHooks() {
+      if (typeof window === "undefined") {
+        return;
+      }
+      window.__routeListTestHooks = {
+        renderRouteList,
+        renderVisibleRouteList,
+        openRoutePopup: openRoutePopupForTest,
+        setActivePanelTab
       };
     }
 
@@ -4426,6 +5074,13 @@
 
       const filtered = filterHotspotsForCurrentMode(normalized);
       renderHotspotList(filtered);
+    }
+
+    function renderVisibleRouteList(routes) {
+      const list = Array.isArray(routes) ? routes : [];
+      const normalized = list.map((route) => normalizeRouteRecord(route));
+      const filtered = filterRoutesForCurrentMode(normalized);
+      renderRouteList(filtered);
     }
 
       async function openHotspotPopupForTest(spot) {
@@ -4455,6 +5110,27 @@
         externalUrl: normalizeExternalUrl(record.externalUrl || record.external_url)
       });
     }
+
+      async function openRoutePopupForTest(route) {
+        const record = route && typeof route === "object" ? route : null;
+        if (!record) {
+          return;
+        }
+
+        if (!state.map || !state.popupOverlay) {
+          await ensureMapReady();
+        }
+        await loadBoundaries();
+
+        const view = state.map && typeof state.map.getView === "function"
+          ? state.map.getView()
+          : null;
+        const coordinate = view && typeof view.getCenter === "function"
+          ? view.getCenter()
+          : [0, 0];
+
+        openRoutePopup(coordinate, normalizeRouteRecord(record));
+      }
   
     function renderIssueGroupList(hotspots) {
       if (!elements.spotList) {
@@ -4663,6 +5339,67 @@
       dongNames: Array.from(new Set(spots.map((spot) => formatSpotDongLabel(spot)))).sort(compareKoreanText)
     };
     openIssueGroupPopup(extentMeta.center, group);
+  }
+
+  function focusRoute(routeId) {
+    const id = String(routeId || "").trim();
+    if (!id || !state.map) {
+      return;
+    }
+
+    const route = state.routeData.get(id);
+    const feature = state.routeSource ? state.routeSource.getFeatureById(id) : null;
+    if (!route || !feature) {
+      return;
+    }
+
+    clearHighlightedHotspots();
+    setHighlightedRoutes([id]);
+
+    const geometry = feature.getGeometry();
+    const extent = geometry && typeof geometry.getExtent === "function"
+      ? geometry.getExtent()
+      : buildExtentFromLngLatBbox(route && route.bbox);
+    if (!extent || extent.length !== 4 || !extent.every((value) => Number.isFinite(value))) {
+      return;
+    }
+
+    const view = state.map.getView();
+    if (view && typeof view.fit === "function") {
+      state.suppressPopupCloseOnNextMoveStart = true;
+      view.fit(extent, {
+        padding: [26, 22, 26, 22],
+        duration: 240,
+        maxZoom: 16
+      });
+      window.setTimeout(() => {
+        state.suppressPopupCloseOnNextMoveStart = false;
+      }, 260);
+    }
+
+    openRoutePopup(ol.extent.getCenter(extent), route);
+  }
+
+  function buildExtentFromLngLatBbox(bbox) {
+    const list = Array.isArray(bbox) ? bbox : [];
+    if (list.length !== 4) {
+      return null;
+    }
+    const minLng = Number(list[0]);
+    const minLat = Number(list[1]);
+    const maxLng = Number(list[2]);
+    const maxLat = Number(list[3]);
+    if (!Number.isFinite(minLng) || !Number.isFinite(minLat) || !Number.isFinite(maxLng) || !Number.isFinite(maxLat)) {
+      return null;
+    }
+    const a = ol.proj.fromLonLat([minLng, minLat]);
+    const b = ol.proj.fromLonLat([maxLng, maxLat]);
+    return [
+      Math.min(a[0], b[0]),
+      Math.min(a[1], b[1]),
+      Math.max(a[0], b[0]),
+      Math.max(a[1], b[1])
+    ];
   }
 
   function resolveHotspotExtentMeta(spots) {
@@ -4913,6 +5650,384 @@
     }
   }
 
+  async function handleRouteSubmit(event) {
+    event.preventDefault();
+    if (!isEditMode()) {
+      return;
+    }
+    if (!state.currentUser) {
+      window.alert("로그인 상태가 아닙니다.");
+      return;
+    }
+    if (!elements.routeForm) {
+      return;
+    }
+
+    const formData = new FormData(elements.routeForm);
+    const name = String(formData.get("name") || "").trim();
+    const memo = String(formData.get("memo") || "").trim();
+    const categoryId = normalizeCategoryId(String(formData.get("categoryId") || "").trim());
+    const categoryLabel = resolveCategoryLabel(categoryId, String(formData.get("categoryLabel") || "").trim());
+    const visibility = normalizeRouteVisibility(String(formData.get("visibility") || "").trim());
+    const externalUrl = normalizeExternalUrl(String(formData.get("externalUrl") || "").trim());
+
+    if (!name) {
+      window.alert("경로명을 입력하세요.");
+      return;
+    }
+
+    const geometryMeta = readRouteDraftGeometryMetaFromInputs();
+    if (!geometryMeta) {
+      window.alert("경로를 먼저 그리세요.");
+      return;
+    }
+
+    const payload = {
+      name,
+      memo,
+      categoryId: issueCategories[categoryId] ? categoryId : "",
+      categoryLabel,
+      visibility,
+      externalUrl,
+      geometryType: "LineString",
+      coordinates: geometryMeta.coordinates,
+      bbox: geometryMeta.bbox,
+      updatedBy: normalizeEmail(state.currentUser.email),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    const collectionName = getRouteCollectionName();
+    const editingRouteId = state.editingRouteId;
+
+    try {
+      if (editingRouteId) {
+        await state.db.collection(collectionName).doc(editingRouteId).update(payload);
+      } else {
+        await state.db.collection(collectionName).add(payload);
+      }
+      exitRouteEditMode(true);
+      clearRouteDraftGeometry();
+    } catch (error) {
+      window.alert("경로 저장 실패: " + toMessage(error));
+    }
+  }
+
+  function enterRouteEditMode(route) {
+    if (!isEditMode() || !route || !elements.routeForm) {
+      return;
+    }
+
+    state.editingRouteId = route.id || null;
+    setActivePanelTab("routes");
+    stopRouteDrawing();
+    ensureRouteDraftInteractions();
+
+    const nameInput = elements.routeForm.querySelector("#route-name");
+    const memoInput = elements.routeForm.querySelector("#route-memo");
+    const categoryInput = elements.routeForm.querySelector("#route-category");
+    const externalUrlInput = elements.routeForm.querySelector("#route-external-url");
+    const visibilityInput = elements.routeForm.querySelector("#route-visibility");
+    const submitButton = elements.routeForm.querySelector("#route-submit-btn");
+
+    if (nameInput) {
+      nameInput.value = route.name || "";
+    }
+    if (memoInput) {
+      memoInput.value = route.memo || "";
+    }
+    if (categoryInput) {
+      const normalizedCategoryId = normalizeCategoryId(route.categoryId);
+      categoryInput.value = issueCategories[normalizedCategoryId] ? normalizedCategoryId : "";
+    }
+    if (externalUrlInput) {
+      externalUrlInput.value = normalizeExternalUrl(route.externalUrl || route.external_url) || "";
+    }
+    if (visibilityInput) {
+      visibilityInput.value = normalizeRouteVisibility(route.visibility);
+    }
+    if (submitButton) {
+      submitButton.textContent = "수정 저장";
+    }
+    if (elements.routeCancelEditButton) {
+      elements.routeCancelEditButton.classList.remove("hidden");
+    }
+
+    const coords = Array.isArray(route.coordinates) ? route.coordinates : [];
+    writeRouteDraftGeometryMetaToDraftSource(coords);
+    openRouteFormSheetForMobile();
+  }
+
+  function exitRouteEditMode(resetForm) {
+    state.editingRouteId = null;
+    if (elements.routeCancelEditButton) {
+      elements.routeCancelEditButton.classList.add("hidden");
+    }
+    if (elements.routeForm) {
+      const submitButton = elements.routeForm.querySelector("#route-submit-btn");
+      if (submitButton) {
+        submitButton.textContent = "경로 저장";
+      }
+    }
+    if (resetForm && elements.routeForm) {
+      elements.routeForm.reset();
+      clearRouteDraftGeometry();
+      closeRouteFormSheetForMobile();
+    }
+    if (resetForm) {
+      stopRouteDrawing();
+      disableRouteDraftInteractions();
+    }
+  }
+
+  async function deleteRoute(routeId) {
+    if (!isEditMode()) {
+      return;
+    }
+    if (!state.currentUser) {
+      window.alert("로그인 상태가 아닙니다.");
+      return;
+    }
+    const targetId = String(routeId || "").trim();
+    if (!targetId) {
+      return;
+    }
+
+    const route = state.routeData.get(targetId);
+    const title = route && route.name ? String(route.name) : "이 경로";
+    const confirmed = window.confirm("'" + title + "' 경로를 삭제할까요?");
+    if (!confirmed) {
+      return;
+    }
+
+    const collectionName = getRouteCollectionName();
+    try {
+      await state.db.collection(collectionName).doc(targetId).delete();
+      if (state.editingRouteId === targetId) {
+        exitRouteEditMode(true);
+      }
+    } catch (error) {
+      window.alert("경로 삭제 실패: " + toMessage(error));
+    }
+  }
+
+  function toggleRouteDrawing() {
+    if (!isEditMode()) {
+      return;
+    }
+    if (!state.currentUser) {
+      window.alert("로그인 상태가 아닙니다.");
+      return;
+    }
+    setActivePanelTab("routes");
+    if (state.isRouteDrawing) {
+      stopRouteDrawing();
+      return;
+    }
+    startRouteDrawing();
+  }
+
+  function startRouteDrawing() {
+    if (!state.map || !state.routeDraftSource) {
+      return;
+    }
+    stopRouteDrawing();
+    clearRouteDraftGeometry();
+    ensureRouteDraftInteractions();
+
+    state.isRouteDrawing = true;
+    if (elements.routeDrawButton) {
+      elements.routeDrawButton.textContent = "그리기 종료";
+    }
+
+    state.routeDrawInteraction = new ol.interaction.Draw({
+      type: "LineString",
+      source: state.routeDraftSource
+    });
+
+    state.routeDrawInteraction.on("drawend", (evt) => {
+      state.isRouteDrawing = false;
+      if (elements.routeDrawButton) {
+        elements.routeDrawButton.textContent = "그리기 시작";
+      }
+      if (evt && evt.feature) {
+        syncRouteDraftGeometryInputsFromFeature(evt.feature);
+      }
+      if (state.map && state.routeDrawInteraction) {
+        state.map.removeInteraction(state.routeDrawInteraction);
+        state.routeDrawInteraction = null;
+      }
+      openRouteFormSheetForMobile();
+    });
+
+    state.map.addInteraction(state.routeDrawInteraction);
+  }
+
+  function stopRouteDrawing() {
+    if (!state.isRouteDrawing && !state.routeDrawInteraction) {
+      return;
+    }
+    state.isRouteDrawing = false;
+    if (elements.routeDrawButton) {
+      elements.routeDrawButton.textContent = "그리기 시작";
+    }
+    if (state.map && state.routeDrawInteraction) {
+      state.map.removeInteraction(state.routeDrawInteraction);
+    }
+    state.routeDrawInteraction = null;
+  }
+
+  function ensureRouteDraftInteractions() {
+    if (!state.map || !state.routeDraftSource) {
+      return;
+    }
+
+    if (!state.routeModifyInteraction) {
+      state.routeModifyInteraction = new ol.interaction.Modify({
+        source: state.routeDraftSource
+      });
+      state.routeModifyInteraction.on("modifyend", () => {
+        const features = state.routeDraftSource.getFeatures();
+        const feature = features && features[0] ? features[0] : null;
+        if (feature) {
+          syncRouteDraftGeometryInputsFromFeature(feature);
+        }
+      });
+    }
+
+    if (!state.routeSnapInteraction) {
+      state.routeSnapInteraction = new ol.interaction.Snap({
+        source: state.routeDraftSource
+      });
+    }
+
+    if (state.map && state.routeModifyInteraction) {
+      state.map.removeInteraction(state.routeModifyInteraction);
+      state.map.addInteraction(state.routeModifyInteraction);
+    }
+    if (state.map && state.routeSnapInteraction) {
+      state.map.removeInteraction(state.routeSnapInteraction);
+      state.map.addInteraction(state.routeSnapInteraction);
+    }
+  }
+
+  function disableRouteDraftInteractions() {
+    if (!state.map) {
+      return;
+    }
+    if (state.routeModifyInteraction) {
+      state.map.removeInteraction(state.routeModifyInteraction);
+    }
+    if (state.routeSnapInteraction) {
+      state.map.removeInteraction(state.routeSnapInteraction);
+    }
+  }
+
+  function clearRouteDraftGeometry() {
+    if (state.routeDraftSource) {
+      state.routeDraftSource.clear();
+    }
+    if (elements.routeCoordinatesInput) {
+      elements.routeCoordinatesInput.value = "";
+    }
+    if (elements.routeBboxInput) {
+      elements.routeBboxInput.value = "";
+    }
+    if (elements.routeGeometryStatus) {
+      elements.routeGeometryStatus.textContent = "경로 미선택";
+    }
+  }
+
+  function writeRouteDraftGeometryMetaToDraftSource(coords) {
+    if (!state.routeDraftSource) {
+      return;
+    }
+    const sanitized = sanitizeRouteCoordinates(coords);
+    if (sanitized.length < 2) {
+      clearRouteDraftGeometry();
+      return;
+    }
+    state.routeDraftSource.clear();
+    const projected = sanitized.map((coord) => ol.proj.fromLonLat([coord[0], coord[1]]));
+    const feature = new ol.Feature({
+      geometry: new ol.geom.LineString(projected)
+    });
+    feature.set("kind", "route_draft");
+    feature.setStyle(new ol.style.Style({
+      stroke: new ol.style.Stroke({
+        color: "rgba(15,23,42,0.72)",
+        width: 6,
+        lineCap: "round",
+        lineJoin: "round"
+      })
+    }));
+    state.routeDraftSource.addFeature(feature);
+    syncRouteDraftGeometryInputsFromLonLat(sanitized);
+  }
+
+  function syncRouteDraftGeometryInputsFromFeature(feature) {
+    if (!feature || !feature.getGeometry || typeof feature.getGeometry !== "function") {
+      return;
+    }
+    const geometry = feature.getGeometry();
+    if (!geometry || typeof geometry.getCoordinates !== "function") {
+      return;
+    }
+    const raw = geometry.getCoordinates();
+    const lonLatCoords = Array.isArray(raw)
+      ? raw.map((coord) => {
+        const converted = ol.proj.toLonLat(coord);
+        return [
+          Number(Number(converted[0]).toFixed(6)),
+          Number(Number(converted[1]).toFixed(6))
+        ];
+      })
+      : [];
+    const sanitized = sanitizeRouteCoordinates(lonLatCoords);
+    syncRouteDraftGeometryInputsFromLonLat(sanitized);
+  }
+
+  function syncRouteDraftGeometryInputsFromLonLat(coords) {
+    const sanitized = sanitizeRouteCoordinates(coords);
+    if (sanitized.length < 2) {
+      clearRouteDraftGeometry();
+      return;
+    }
+    const bbox = computeRouteBbox(sanitized);
+    if (elements.routeCoordinatesInput) {
+      elements.routeCoordinatesInput.value = JSON.stringify(sanitized);
+    }
+    if (elements.routeBboxInput) {
+      elements.routeBboxInput.value = JSON.stringify(bbox);
+    }
+    if (elements.routeGeometryStatus) {
+      elements.routeGeometryStatus.textContent = "포인트 " + String(sanitized.length) + "개";
+    }
+  }
+
+  function readRouteDraftGeometryMetaFromInputs() {
+    if (!elements.routeCoordinatesInput) {
+      return null;
+    }
+    const raw = String(elements.routeCoordinatesInput.value || "").trim();
+    if (!raw) {
+      return null;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      return null;
+    }
+    const coords = sanitizeRouteCoordinates(parsed);
+    if (coords.length < 2) {
+      return null;
+    }
+    return {
+      coordinates: coords,
+      bbox: computeRouteBbox(coords)
+    };
+  }
+
   function setSelectedCoord(lat, lng) {
     if (!elements.latInput || !elements.lngInput || !elements.selectedCoord) {
       return;
@@ -4980,6 +6095,9 @@
       if (elements.spotFormSheet) {
         elements.spotFormSheet.classList.remove("open");
       }
+      if (elements.routeFormSheet) {
+        elements.routeFormSheet.classList.remove("open");
+      }
       if (elements.mobileFormBackdrop) {
         elements.mobileFormBackdrop.classList.add("hidden");
       }
@@ -5006,6 +6124,32 @@
     }
     if (elements.spotFormSheet) {
       elements.spotFormSheet.classList.remove("open");
+    }
+    if (elements.mobileFormBackdrop) {
+      elements.mobileFormBackdrop.classList.add("hidden");
+    }
+    document.body.classList.remove("modal-open");
+  }
+
+  function openRouteFormSheetForMobile() {
+    if (!isMobileLayout()) {
+      return;
+    }
+    if (elements.routeFormSheet) {
+      elements.routeFormSheet.classList.add("open");
+    }
+    if (elements.mobileFormBackdrop) {
+      elements.mobileFormBackdrop.classList.remove("hidden");
+    }
+    document.body.classList.add("modal-open");
+  }
+
+  function closeRouteFormSheetForMobile() {
+    if (!isMobileLayout()) {
+      return;
+    }
+    if (elements.routeFormSheet) {
+      elements.routeFormSheet.classList.remove("open");
     }
     if (elements.mobileFormBackdrop) {
       elements.mobileFormBackdrop.classList.add("hidden");
@@ -5218,6 +6362,36 @@
         "<strong>" + safeTitle + "</strong>" +
         "<div>분류: " + safeCategory + "</div>" +
         "<div>소속 동: " + safeDong + "</div>" +
+        "<div>내용: " + safeMemo + "</div>" +
+        externalLinkHtml +
+        editorInfo
+      );
+    }
+
+    function openRoutePopup(coordinate, route) {
+      if (!route) {
+        return;
+      }
+      const safeName = escapeHtml(route.name || "이동 경로");
+      const safeMemo = escapeHtml(route.memo || "-");
+      const safeCategory = escapeHtml(resolveCategoryLabel(route.categoryId, route.categoryLabel));
+      const safeUser = escapeHtml(route.updatedBy || "-");
+      const safeTime = escapeHtml(formatTimestamp(route.updatedAt));
+      const externalUrl = normalizeExternalUrl(route.externalUrl || route.external_url);
+      const externalLinkHtml = externalUrl
+        ? "<div>외부 링크: <a href='" +
+          escapeHtml(externalUrl) +
+          "' target='_blank' rel='noopener noreferrer'>새 탭으로 열기</a></div>"
+        : "";
+
+      const editorInfo = isEditMode()
+        ? "<div>수정자: " + safeUser + "</div><div>수정시각: " + safeTime + "</div>"
+        : "";
+
+      openPopup(
+        coordinate,
+        "<strong>" + safeName + "</strong>" +
+        "<div>분류: " + safeCategory + "</div>" +
         "<div>내용: " + safeMemo + "</div>" +
         externalLinkHtml +
         editorInfo
@@ -5442,4 +6616,5 @@
   }
 
   exposeSpotListTestHooks();
+  exposeRouteListTestHooks();
 })();

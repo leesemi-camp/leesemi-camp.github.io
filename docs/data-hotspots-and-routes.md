@@ -6,6 +6,7 @@
 2) Hotspot(점) 외에 Route/Trajectory(선/궤적) 데이터를 지원하려면 **무엇을 준비해야 하는지**
 
 Hotspot(현안 지점) 데이터의 요구사항/명세는 [docs/spec-hotspot.md](spec-hotspot.md)로 이동했습니다.
+Route(경로/궤적) 기능의 요구사항/데이터 계약/테스트는 [docs/spec-route.md](spec-route.md)에서 관리합니다.
 
 ---
 
