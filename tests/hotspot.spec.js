@@ -38,21 +38,15 @@ async function waitForSpotListHook(page, hookName) {
 }
 
 test("HS-SNAPSHOT-001 Hotspot snapshot schema validation", () => {
-  const isCI = Boolean(process.env.GITHUB_ACTIONS);
-
-  // 로컬 환경: 항상 skip
-  if (!isCI) {
-    test.skip(true, "Local environment: Firestore snapshot not required, skipping");
-  }
-
-  // GitHub Actions 환경: 스냅샷 파일 생성/검증
+  // 스냅샷 파일이 없으면 최소 fixture를 생성한 뒤 스키마를 검증합니다.
+  // (로컬/CI 모두 동일하게 실행해, 스키마 변경이 즉시 감지되도록 합니다.)
   const filePath = path.resolve(process.cwd(), "test-results", "firestore", "hotspots.snapshot.json");
   const outputDir = path.dirname(filePath);
   fs.mkdirSync(outputDir, { recursive: true });
 
-  // 스냅샷 파일이 없으면 mock 데이터로 생성 (GitHub Actions에서는 실제 Firestore export로 대체)
+  // 스냅샷 파일이 없으면 최소 fixture로 생성 (실제 운영에서는 Firestore export로 대체)
   if (!fs.existsSync(filePath)) {
-    const mockSnapshot = {
+    const fixtureSnapshot = {
       schemaVersion: 1,
       exportedAt: new Date().toISOString(),
       collection: "crowd_hotspots",
@@ -83,8 +77,8 @@ test("HS-SNAPSHOT-001 Hotspot snapshot schema validation", () => {
         }
       ]
     };
-    fs.writeFileSync(filePath, JSON.stringify(mockSnapshot, null, 2));
-    console.log(`[hotspots-snapshot] Mock snapshot created at ${filePath}`);
+    fs.writeFileSync(filePath, JSON.stringify(fixtureSnapshot, null, 2));
+    console.log(`[hotspots-snapshot] Fixture snapshot created at ${filePath}`);
   }
 
   let payload;
@@ -142,51 +136,9 @@ test("HS-SNAPSHOT-001 Hotspot snapshot schema validation", () => {
   });
 });
 
-test("HS-LIST-001 Map spot memo state", async ({ page }) => {
-  // 메모 유무에 따른 카드 렌더링과 패딩 확인
-  await page.goto("/map/");
-  // CI에서 HTML 중복 병합 실수 등으로 #spot-list가 중복될 수 있어 first()로 고정한다.
-  await expect(page.locator("#spot-list").first()).toBeAttached();
-
-  await page.evaluate(() => {
-    if (!window.__spotListTestHooks || typeof window.__spotListTestHooks.renderHotspotList !== "function") {
-      throw new Error("spot list test hooks not available");
-    }
-    window.__spotListTestHooks.renderHotspotList([
-      {
-        id: "spot-no-memo",
-        title: "메모 없는 현안",
-        memo: "",
-        dongName: "판교동",
-        categoryId: "traffic_parking"
-      },
-      {
-        id: "spot-with-memo",
-        title: "메모 있는 현안",
-        memo: "현안 내용",
-        dongName: "판교동",
-        categoryId: "traffic_parking"
-      }
-    ]);
-  });
-
-  const noMemoItem = page.locator("[data-spot-id='spot-no-memo']");
-  await expect(noMemoItem).toHaveClass(/spot-item--no-memo/);
-  await expect(noMemoItem.locator(".spot-memo")).toHaveCount(0);
-  const noMemoPaddingTop = await noMemoItem.evaluate((el) => window.getComputedStyle(el).paddingTop);
-
-  const withMemoItem = page.locator("[data-spot-id='spot-with-memo']");
-  await expect(withMemoItem).not.toHaveClass(/spot-item--no-memo/);
-  await expect(withMemoItem.locator(".spot-memo")).toHaveText("현안 내용");
-  const withMemoPaddingTop = await withMemoItem.evaluate((el) => window.getComputedStyle(el).paddingTop);
-
-  expect(noMemoPaddingTop).toBe("8px");
-  expect(withMemoPaddingTop).toBe("10px");
-});
-
 test("HS-LIST-001 Memo presence toggles compact card class", async ({ page }) => {
   // 메모 유무에 따라 카드 클래스/요소가 달라지는지 확인
-  await page.goto("/map/");
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHooks(page);
 
   const hotspots = [
@@ -230,7 +182,7 @@ test("HS-LIST-001 Memo presence toggles compact card class", async ({ page }) =>
 });
 
 test("HS-FB-001 Edit page uses local Firebase config", async ({ page }) => {
-  await page.goto("/map/edit/");
+  await page.goto("/map/edit/", { waitUntil: "domcontentloaded" });
   const result = await page.evaluate(() => {
     const config = window.APP_CONFIG || {};
     const firebase = config.firebase || {};
@@ -248,7 +200,7 @@ test("HS-FB-001 Edit page uses local Firebase config", async ({ page }) => {
 });
 
 test("HS-VIS-001 Public view hides internal hotspots", async ({ page }) => {
-  await page.goto("/map/");
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page, "renderVisibleHotspotList");
 
   // 구현(app.js) 메모:
@@ -291,7 +243,7 @@ test("HS-VIS-001 Public view hides internal hotspots", async ({ page }) => {
 });
 
 test("HS-DATA-001 Missing/invalid visibility treated as public", async ({ page }) => {
-  await page.goto("/map/");
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page, "renderVisibleHotspotList");
 
   // 구현(app.js) 메모:
@@ -332,7 +284,7 @@ test("HS-DATA-001 Missing/invalid visibility treated as public", async ({ page }
 });
 
 test("HS-LINK-001 Invalid externalUrl is ignored", async ({ page }) => {
-  await page.goto("/map/");
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page, "openHotspotPopup");
 
   // 구현(app.js) 메모:
@@ -354,7 +306,7 @@ test("HS-LINK-001 Invalid externalUrl is ignored", async ({ page }) => {
 });
 
 test("HS-LINK-002 Popup renders external link", async ({ page }) => {
-  await page.goto("/map/");
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page, "openHotspotPopup");
 
   // 구현(app.js) 메모:
@@ -377,7 +329,7 @@ test("HS-LINK-002 Popup renders external link", async ({ page }) => {
 });
 
 test("HS-LINK-003 External link opens new tab", async ({ page }) => {
-  await page.goto("/map/");
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page, "openHotspotPopup");
 
   // 구현(app.js) 메모:
@@ -400,7 +352,7 @@ test("HS-LINK-003 External link opens new tab", async ({ page }) => {
 });
 
 test("HS-LINK-004 Google edit URL warns once on change", async ({ page }) => {
-  await page.goto("/map/edit/");
+  await page.goto("/map/edit/", { waitUntil: "domcontentloaded" });
   let dialogCount = 0;
   page.on("dialog", async (dialog) => {
     dialogCount += 1;
@@ -435,4 +387,3 @@ test("HS-LINK-004 Google edit URL warns once on change", async ({ page }) => {
   await page.waitForTimeout(100);
   expect(dialogCount).toBe(1);
 });
-

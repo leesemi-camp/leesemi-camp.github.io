@@ -51,6 +51,7 @@
     hotspotData: new Map(),
     hotspotStyleCache: new Map(),
     highlightedHotspotIds: new Set(),
+    googleEditUrlWarned: false,
     availableDongs: [],
     availableDongMap: new Map(),
     issueCatalogLoaded: false,
@@ -212,6 +213,8 @@
     spotIssueRefField: document.getElementById("spot-issue-ref-field"),
     spotIssueRefSelect: document.getElementById("spot-issue-ref"),
     spotIssueRefHelp: document.getElementById("spot-issue-ref-help"),
+    spotExternalUrlInput: document.getElementById("spot-external-url"),
+    spotVisibilitySelect: document.getElementById("spot-visibility"),
     spotList: document.getElementById("spot-list"),
     issueViewListButton: document.getElementById("issue-view-list-btn"),
     issueViewGroupButton: document.getElementById("issue-view-group-btn"),
@@ -322,6 +325,23 @@
     if (elements.form) {
       elements.form.addEventListener("submit", (event) => {
         void handleHotspotSubmit(event);
+      });
+    }
+
+    if (elements.spotExternalUrlInput) {
+      elements.spotExternalUrlInput.addEventListener("change", () => {
+        if (state.googleEditUrlWarned) {
+          return;
+        }
+        const normalizedUrl = normalizeExternalUrl(elements.spotExternalUrlInput.value);
+        if (!normalizedUrl) {
+          return;
+        }
+        if (!isGoogleEditUrl(normalizedUrl)) {
+          return;
+        }
+        state.googleEditUrlWarned = true;
+        window.alert("Google Docs/Drive 편집 URL은 공개 공유 링크로 바꿔서 붙여넣는 것을 권장합니다.");
       });
     }
 
@@ -3696,6 +3716,8 @@
         value.issue_group_label ||
         ""
       ).trim();
+      const visibility = normalizeHotspotVisibility(value.visibility || value.visibility_level);
+      const externalUrl = normalizeExternalUrl(value.externalUrl || value.external_url);
 
       hotspots.push({
         id: doc.id,
@@ -3722,15 +3744,18 @@
           : "auto",
         dongKey: storedDongKey || computedDongKey,
         groupLabel,
+        visibility,
+        externalUrl,
         updatedBy: value.updatedBy || "",
         updatedAt: value.updatedAt || null
       });
     });
 
     hotspots.sort(compareHotspotByTitle);
-    state.issues = hotspots;
+    const visibleHotspots = filterHotspotsForCurrentMode(hotspots);
+    state.issues = visibleHotspots;
     renderCommonPledges();
-    renderHotspots(hotspots);
+    renderHotspots(visibleHotspots);
     renderVisibleIssueList();
     updateDongFilterUi();
   }
@@ -3766,13 +3791,67 @@
 
   function applyIssueFilter(hotspots) {
     const list = Array.isArray(hotspots) ? hotspots : [];
+    const visibleList = filterHotspotsForCurrentMode(list);
     const activeDong = String(state.activeDongName || "").trim();
     if (!activeDong) {
-      return list;
+      return visibleList;
     }
-    return list.filter((spot) => {
+    return visibleList.filter((spot) => {
       return String(spot.dongName || "").trim() === activeDong || isCommonSpot(spot);
     });
+  }
+
+  function filterHotspotsForCurrentMode(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    if (isEditMode()) {
+      return list;
+    }
+    return list.filter((spot) => normalizeHotspotVisibility(spot && spot.visibility) !== "internal");
+  }
+
+  function normalizeHotspotVisibility(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "internal") {
+      return "internal";
+    }
+    return "public";
+  }
+
+  function normalizeExternalUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return "";
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(raw);
+    } catch (error) {
+      return "";
+    }
+
+    const protocol = String(parsed.protocol || "").toLowerCase();
+    if (protocol !== "http:" && protocol !== "https:") {
+      return "";
+    }
+    return raw;
+  }
+
+  function isGoogleEditUrl(urlString) {
+    let parsed;
+    try {
+      parsed = new URL(String(urlString));
+    } catch (error) {
+      return false;
+    }
+
+    const host = String(parsed.hostname || "").toLowerCase();
+    if (host !== "docs.google.com" && host !== "drive.google.com") {
+      return false;
+    }
+
+    const pathName = String(parsed.pathname || "").toLowerCase();
+    return pathName.includes("/edit");
   }
 
   function setActiveDongFilter(dongName) {
@@ -4210,19 +4289,62 @@
     elements.spotList.innerHTML = items.join("");
   }
 
-  function exposeSpotListTestHooks() {
-    if (typeof window === "undefined") {
-      return;
+    function exposeSpotListTestHooks() {
+      if (typeof window === "undefined") {
+        return;
+      }
+      // TODO(refactor): Hotspot 정규화/필터링/팝업 링크 렌더링은 hotspot 모듈로 분리하고,
+      // 테스트 훅은 __appTestHooks로 정리합니다. (docs/spec-hotspot.md 기준)
+      window.__spotListTestHooks = {
+        renderHotspotList,
+        renderVisibleHotspotList,
+        openHotspotPopup: openHotspotPopupForTest
+      };
     }
-    window.__spotListTestHooks = {
-      renderHotspotList
-    };
-  }
 
-  function renderIssueGroupList(hotspots) {
-    if (!elements.spotList) {
-      return;
+    function renderVisibleHotspotList(hotspots) {
+      const list = Array.isArray(hotspots) ? hotspots : [];
+      const normalized = list.map((spot) => {
+        const record = spot && typeof spot === "object" ? spot : {};
+        return {
+          ...record,
+          visibility: normalizeHotspotVisibility(record.visibility),
+          externalUrl: normalizeExternalUrl(record.externalUrl || record.external_url)
+        };
+      });
+
+      const filtered = filterHotspotsForCurrentMode(normalized);
+      renderHotspotList(filtered);
     }
+
+    async function openHotspotPopupForTest(spot) {
+      const record = spot && typeof spot === "object" ? spot : null;
+      if (!record) {
+        return;
+      }
+
+      if (!state.map || !state.popupOverlay) {
+        await ensureMapReady();
+      }
+
+      const view = state.map && typeof state.map.getView === "function"
+        ? state.map.getView()
+        : null;
+      const coordinate = view && typeof view.getCenter === "function"
+        ? view.getCenter()
+        : [0, 0];
+
+      openHotspotPopup(coordinate, {
+        ...record,
+        visibility: normalizeHotspotVisibility(record.visibility),
+        externalUrl: normalizeExternalUrl(record.externalUrl || record.external_url)
+      });
+    }
+  
+    function renderIssueGroupList(hotspots) {
+      if (!elements.spotList) {
+        return;
+      }
 
     if (hotspots.length === 0) {
       state.issueGroupMap = new Map();
@@ -4956,29 +5078,36 @@
     );
   }
 
-  function openHotspotPopup(coordinate, spot) {
-    if (!spot) {
-      return;
-    }
-    const safeTitle = escapeHtml(spot.title);
-    const safeMemo = escapeHtml(spot.memo || "-");
-    const safeCategory = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
-    const safeDong = escapeHtml(formatSpotDongLabel(spot));
-    const safeUser = escapeHtml(spot.updatedBy || "-");
-    const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
+    function openHotspotPopup(coordinate, spot) {
+      if (!spot) {
+        return;
+      }
+      const safeTitle = escapeHtml(spot.title);
+      const safeMemo = escapeHtml(spot.memo || "-");
+      const safeCategory = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
+      const safeDong = escapeHtml(formatSpotDongLabel(spot));
+      const safeUser = escapeHtml(spot.updatedBy || "-");
+      const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
+      const externalUrl = normalizeExternalUrl(spot.externalUrl || spot.external_url);
+      const externalLinkHtml = externalUrl
+        ? "<div>외부 링크: <a href='" +
+          escapeHtml(externalUrl) +
+          "' target='_blank' rel='noopener noreferrer'>새 탭으로 열기</a></div>"
+        : "";
 
-    const editorInfo = isEditMode()
-      ? "<div>수정자: " + safeUser + "</div><div>수정시각: " + safeTime + "</div>"
-      : "";
-    openPopup(
-      coordinate,
-      "<strong>" + safeTitle + "</strong>" +
-      "<div>분류: " + safeCategory + "</div>" +
-      "<div>소속 동: " + safeDong + "</div>" +
-      "<div>내용: " + safeMemo + "</div>" +
-      editorInfo
-    );
-  }
+      const editorInfo = isEditMode()
+        ? "<div>수정자: " + safeUser + "</div><div>수정시각: " + safeTime + "</div>"
+        : "";
+      openPopup(
+        coordinate,
+        "<strong>" + safeTitle + "</strong>" +
+        "<div>분류: " + safeCategory + "</div>" +
+        "<div>소속 동: " + safeDong + "</div>" +
+        "<div>내용: " + safeMemo + "</div>" +
+        externalLinkHtml +
+        editorInfo
+      );
+    }
 
   function openIssueGroupPopup(coordinate, group) {
     if (!group) {
