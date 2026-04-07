@@ -23,9 +23,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: "Remove temporary files"
+      - name: "Remove temporary data files"
         run: |
-          rm data/temporary-hotspots.json
+          rm data/temporary-*.json
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
