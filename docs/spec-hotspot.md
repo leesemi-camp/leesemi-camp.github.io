@@ -60,6 +60,7 @@
 
 - **HS-DATA-001**: `visibility`가 없거나 잘못된 값이면 `public`으로 처리한다.
 - **HS-DATA-002**: 기존 `snake_case` 필드를 읽어 기존 데이터가 깨지지 않는다.
+- **HS-SNAPSHOT-001**: (CI) hotspot 스냅샷(JSON) 파일이 스키마를 만족한다.
 
 ### 2.2 공개/편집 노출
 
@@ -102,13 +103,14 @@
 
 | Spec ID | 테스트 | 상태 |
 |---|---|---|
-| HS-LIST-001 | [tests/spot-list.spec.js](../tests/spot-list.spec.js) | 자동 |
-| HS-VIS-001 | [tests/smoke.spec.js](../tests/smoke.spec.js) | 자동 |
-| HS-FB-001 | [tests/smoke.spec.js](../tests/smoke.spec.js), [tests/config-local-secret.unit.spec.js](../tests/config-local-secret.unit.spec.js) | 자동 |
-| HS-LINK-001 | [tests/smoke.spec.js](../tests/smoke.spec.js) | 자동 |
-| HS-LINK-002 | [tests/smoke.spec.js](../tests/smoke.spec.js) | 자동 |
-| HS-LINK-003 | [tests/smoke.spec.js](../tests/smoke.spec.js) | 자동 |
-| HS-LINK-004 | [tests/smoke.spec.js](../tests/smoke.spec.js) | 자동 |
+| HS-SNAPSHOT-001 | [tests/hotspot.spec.js](../tests/hotspot.spec.js) | 자동 |
+| HS-LIST-001 | [tests/hotspot.spec.js](../tests/hotspot.spec.js) | 자동 |
+| HS-VIS-001 | [tests/hotspot.spec.js](../tests/hotspot.spec.js) | 자동 |
+| HS-FB-001 | [tests/hotspot.spec.js](../tests/hotspot.spec.js), [tests/config-local-secret.unit.spec.js](../tests/config-local-secret.unit.spec.js) | 자동 |
+| HS-LINK-001 | [tests/hotspot.spec.js](../tests/hotspot.spec.js) | 자동 |
+| HS-LINK-002 | [tests/hotspot.spec.js](../tests/hotspot.spec.js) | 자동 |
+| HS-LINK-003 | [tests/hotspot.spec.js](../tests/hotspot.spec.js) | 자동 |
+| HS-LINK-004 | [tests/hotspot.spec.js](../tests/hotspot.spec.js) | 자동 |
 | HS-EDIT-001 | (수동) edit 폼 UI 확인 | 수동 |
 | HS-EDIT-002 | (수동) Firestore payload 확인 | 수동 |
 | HS-RULE-001 | (수동) 비인증 읽기 제한 확인 | 수동 |
