@@ -212,6 +212,11 @@
     spotIssueRefField: document.getElementById("spot-issue-ref-field"),
     spotIssueRefSelect: document.getElementById("spot-issue-ref"),
     spotIssueRefHelp: document.getElementById("spot-issue-ref-help"),
+    spotPhotoFileInput: document.getElementById("spot-photo-file"),
+    spotPhotoDataInput: document.getElementById("spot-photo-data-url"),
+    spotPhotoPreviewWrap: document.getElementById("spot-photo-preview-wrap"),
+    spotPhotoPreviewImage: document.getElementById("spot-photo-preview"),
+    spotPhotoRemoveButton: document.getElementById("spot-photo-remove-btn"),
     spotList: document.getElementById("spot-list"),
     issueViewListButton: document.getElementById("issue-view-list-btn"),
     issueViewGroupButton: document.getElementById("issue-view-group-btn"),
@@ -225,6 +230,13 @@
     populationMonth: document.getElementById("population-month"),
     populationHour: document.getElementById("population-hour"),
     populationStatus: document.getElementById("population-status")
+  };
+
+  const hotspotPhotoConfig = {
+    maxFileBytes: 5 * 1024 * 1024,
+    maxStoredChars: 700000,
+    maxLongEdge: 1400,
+    jpegQuality: 0.82
   };
 
   void init();
@@ -347,6 +359,18 @@
       elements.spotIssueRefSelect.addEventListener("change", () => {
         const issueRefId = String(elements.spotIssueRefSelect.value || "").trim();
         applyIssueCatalogSelection(issueRefId);
+      });
+    }
+
+    if (elements.spotPhotoFileInput) {
+      elements.spotPhotoFileInput.addEventListener("change", () => {
+        void handleSpotPhotoFileSelection();
+      });
+    }
+
+    if (elements.spotPhotoRemoveButton) {
+      elements.spotPhotoRemoveButton.addEventListener("click", () => {
+        clearSpotPhotoSelection();
       });
     }
 
@@ -3696,6 +3720,10 @@
         value.issue_group_label ||
         ""
       ).trim();
+      const photoDataUrl = normalizeHotspotPhotoDataUrl(
+        value.photoDataUrl ||
+        value.photo_data_url
+      );
 
       hotspots.push({
         id: doc.id,
@@ -3722,6 +3750,7 @@
           : "auto",
         dongKey: storedDongKey || computedDongKey,
         groupLabel,
+        photoDataUrl,
         updatedBy: value.updatedBy || "",
         updatedAt: value.updatedAt || null
       });
@@ -4178,6 +4207,15 @@
       const title = escapeHtml(spot.title);
       const memoRaw = typeof spot.memo === "string" ? spot.memo.trim() : "";
       const memo = memoRaw ? escapeHtml(memoRaw) : "";
+      const photoDataUrl = normalizeHotspotPhotoDataUrl(spot.photoDataUrl);
+      const photoAlt = title + " 사진";
+      const photoPreviewHtml = photoDataUrl
+        ? (
+          "<div class='spot-photo-thumb-wrap'>" +
+            "<img class='spot-photo-thumb' src='" + escapeHtml(photoDataUrl) + "' alt='" + photoAlt + "' loading='lazy'>" +
+          "</div>"
+        )
+        : "";
       const spotItemClassName = "spot-item" + (memo ? "" : " spot-item--no-memo");
       const dongName = escapeHtml(formatSpotDongLabel(spot));
       const categoryLabel = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
@@ -4202,6 +4240,7 @@
           "<div class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</div>" +
           "<div class='spot-dong'>" + dongName + "</div>" +
           (memo ? "<div class='spot-memo'>" + memo + "</div>" : "") +
+          photoPreviewHtml +
           actionsHtml +
         "</li>"
       );
@@ -4456,6 +4495,143 @@
     };
   }
 
+  async function handleSpotPhotoFileSelection() {
+    if (!elements.spotPhotoFileInput) {
+      return;
+    }
+    const file = elements.spotPhotoFileInput.files && elements.spotPhotoFileInput.files[0]
+      ? elements.spotPhotoFileInput.files[0]
+      : null;
+    if (!file) {
+      return;
+    }
+    try {
+      const optimizedDataUrl = await optimizeHotspotPhotoFile(file);
+      setSpotPhotoDataUrl(optimizedDataUrl);
+    } catch (error) {
+      clearSpotPhotoFileInput();
+      window.alert("사진 처리 실패: " + toMessage(error));
+    }
+  }
+
+  function clearSpotPhotoSelection() {
+    setSpotPhotoDataUrl("");
+    clearSpotPhotoFileInput();
+  }
+
+  function clearSpotPhotoFileInput() {
+    if (elements.spotPhotoFileInput) {
+      elements.spotPhotoFileInput.value = "";
+    }
+  }
+
+  function setSpotPhotoDataUrl(dataUrl) {
+    const normalized = normalizeHotspotPhotoDataUrl(dataUrl);
+    if (elements.spotPhotoDataInput) {
+      elements.spotPhotoDataInput.value = normalized;
+    }
+    renderSpotPhotoPreview(normalized);
+  }
+
+  function renderSpotPhotoPreview(dataUrl) {
+    if (!elements.spotPhotoPreviewWrap || !elements.spotPhotoPreviewImage) {
+      return;
+    }
+    if (dataUrl) {
+      elements.spotPhotoPreviewImage.src = dataUrl;
+      elements.spotPhotoPreviewWrap.classList.remove("hidden");
+      return;
+    }
+    elements.spotPhotoPreviewImage.removeAttribute("src");
+    elements.spotPhotoPreviewWrap.classList.add("hidden");
+  }
+
+  function normalizeHotspotPhotoDataUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return "";
+    }
+    if (raw.length > hotspotPhotoConfig.maxStoredChars) {
+      return "";
+    }
+    const pattern = /^data:image\/(?:jpeg|jpg|png|webp);base64,[a-zA-Z0-9+/=]+$/i;
+    if (!pattern.test(raw)) {
+      return "";
+    }
+    return raw;
+  }
+
+  async function optimizeHotspotPhotoFile(file) {
+    const fileType = String(file && file.type ? file.type : "").toLowerCase();
+    if (!fileType.startsWith("image/")) {
+      throw new Error("이미지 파일만 첨부할 수 있습니다.");
+    }
+    if (!Number.isFinite(file.size) || file.size <= 0) {
+      throw new Error("파일을 읽을 수 없습니다.");
+    }
+    if (file.size > hotspotPhotoConfig.maxFileBytes) {
+      throw new Error("이미지 용량은 5MB 이하만 지원합니다.");
+    }
+
+    const imageDataUrl = await readFileAsDataUrl(file);
+    const image = await loadImageElement(imageDataUrl);
+    const width = image.naturalWidth || image.width || 0;
+    const height = image.naturalHeight || image.height || 0;
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      throw new Error("이미지 크기를 확인할 수 없습니다.");
+    }
+
+    const longEdge = Math.max(width, height);
+    const ratio = longEdge > hotspotPhotoConfig.maxLongEdge
+      ? hotspotPhotoConfig.maxLongEdge / longEdge
+      : 1;
+    const targetWidth = Math.max(1, Math.round(width * ratio));
+    const targetHeight = Math.max(1, Math.round(height * ratio));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("브라우저에서 이미지 변환을 지원하지 않습니다.");
+    }
+    context.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+    let quality = hotspotPhotoConfig.jpegQuality;
+    let encoded = canvas.toDataURL("image/jpeg", quality);
+    while (encoded.length > hotspotPhotoConfig.maxStoredChars && quality > 0.45) {
+      quality -= 0.1;
+      encoded = canvas.toDataURL("image/jpeg", quality);
+    }
+    const normalized = normalizeHotspotPhotoDataUrl(encoded);
+    if (!normalized) {
+      throw new Error("이미지가 너무 커서 저장할 수 없습니다.");
+    }
+    return normalized;
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve(String(reader.result || ""));
+      };
+      reader.onerror = () => {
+        reject(new Error("이미지 파일을 읽지 못했습니다."));
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function loadImageElement(src) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("이미지 디코딩에 실패했습니다."));
+      image.src = src;
+    });
+  }
+
   async function handleHotspotSubmit(event) {
     event.preventDefault();
     if (!isEditMode()) {
@@ -4491,6 +4667,7 @@
 
     const resolvedTitle = String(catalogIssue && catalogIssue.title ? catalogIssue.title : title).trim();
     const resolvedMemo = String(catalogIssue && catalogIssue.memo ? catalogIssue.memo : memo).trim();
+    const photoDataUrl = normalizeHotspotPhotoDataUrl(formData.get("photoDataUrl"));
     const resolvedCategoryId = normalizeCategoryId(
       categoryId ||
       (catalogIssue ? catalogIssue.categoryId : "")
@@ -4539,6 +4716,7 @@
       emdCode: finalEmdCode || "",
       dongSelectionMode: isCommonSelection ? "common" : usingManualDong ? "manual" : "auto",
       dongKey: isCommonSelection ? DONG_COMMON_KEY : usingManualDong ? String(selectedDongMeta.key || "") : "",
+      photoDataUrl,
       updatedBy: normalizeEmail(state.currentUser.email),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
@@ -4587,6 +4765,8 @@
       memoInput.value = spot.memo || "";
       memoInput.readOnly = false;
     }
+    setSpotPhotoDataUrl(spot.photoDataUrl || "");
+    clearSpotPhotoFileInput();
     if (issueRefSelect) {
       syncIssueCatalogSelectOptions(spot.issueRefId || "");
     }
@@ -4634,6 +4814,8 @@
       if (elements.form) {
         elements.form.reset();
       }
+      setSpotPhotoDataUrl("");
+      clearSpotPhotoFileInput();
       if (elements.spotIssueRefSelect) {
         syncIssueCatalogSelectOptions("");
       } else {
@@ -4966,6 +5148,14 @@
     const safeDong = escapeHtml(formatSpotDongLabel(spot));
     const safeUser = escapeHtml(spot.updatedBy || "-");
     const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
+    const safePhotoDataUrl = escapeHtml(normalizeHotspotPhotoDataUrl(spot.photoDataUrl));
+    const photoHtml = safePhotoDataUrl
+      ? (
+        "<div class='map-popup-photo-wrap'>" +
+          "<img class='map-popup-photo' src='" + safePhotoDataUrl + "' alt='" + safeTitle + " 사진'>" +
+        "</div>"
+      )
+      : "";
 
     const editorInfo = isEditMode()
       ? "<div>수정자: " + safeUser + "</div><div>수정시각: " + safeTime + "</div>"
@@ -4973,6 +5163,7 @@
     openPopup(
       coordinate,
       "<strong>" + safeTitle + "</strong>" +
+      photoHtml +
       "<div>분류: " + safeCategory + "</div>" +
       "<div>소속 동: " + safeDong + "</div>" +
       "<div>내용: " + safeMemo + "</div>" +
