@@ -2,6 +2,54 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { test, expect } = require("@playwright/test");
 
+function validateHotspotSnapshotPayload(payload, label) {
+  if (!payload || payload.schemaVersion !== 1) {
+    throw new Error(`${label}: invalid schemaVersion (expected 1)`);
+  }
+
+  const hotspots = Array.isArray(payload.hotspots) ? payload.hotspots : [];
+  if (hotspots.length === 0) {
+    throw new Error(`${label}: must contain at least one hotspot`);
+  }
+
+  hotspots.forEach((spot, index) => {
+    if (!spot || typeof spot !== "object") {
+      throw new Error(`${label}: invalid hotspot record at index ` + String(index));
+    }
+    if (!spot.id) {
+      throw new Error(`${label}: missing hotspot id at index ` + String(index));
+    }
+    if (!Number.isFinite(Number(spot.lat)) || !Number.isFinite(Number(spot.lng))) {
+      throw new Error(`${label}: missing/invalid hotspot coordinates at index ` + String(index));
+    }
+    if (spot.updatedAt) {
+      const date = new Date(spot.updatedAt);
+      if (!Number.isFinite(date.getTime())) {
+        throw new Error(`${label}: invalid hotspot updatedAt at index ` + String(index));
+      }
+    }
+    if (spot.visibility) {
+      const visibility = String(spot.visibility).trim().toLowerCase();
+      if (visibility !== "public" && visibility !== "internal") {
+        throw new Error(`${label}: invalid hotspot visibility at index ` + String(index));
+      }
+    }
+    const rawExternalUrl = spot.externalUrl || spot.external_url;
+    if (rawExternalUrl) {
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(String(rawExternalUrl));
+      } catch (error) {
+        throw new Error(`${label}: invalid hotspot externalUrl at index ` + String(index));
+      }
+      const protocol = String(parsedUrl.protocol || "").toLowerCase();
+      if (protocol !== "http:" && protocol !== "https:") {
+        throw new Error(`${label}: invalid hotspot externalUrl protocol at index ` + String(index));
+      }
+    }
+  });
+}
+
 async function waitForSpotListHooks(page) {
   await page.waitForLoadState("domcontentloaded");
   try {
@@ -44,96 +92,99 @@ test("HS-SNAPSHOT-001 Hotspot snapshot schema validation", () => {
   const outputDir = path.dirname(filePath);
   fs.mkdirSync(outputDir, { recursive: true });
 
-  // 스냅샷 파일이 없으면 최소 fixture로 생성 (실제 운영에서는 Firestore export로 대체)
-  if (!fs.existsSync(filePath)) {
-    const fixtureSnapshot = {
-      schemaVersion: 1,
-      exportedAt: new Date().toISOString(),
-      collection: "crowd_hotspots",
-      count: 2,
-      hotspots: [
-        {
-          id: "test-1",
-          title: "테스트 현안 A",
-          memo: "테스트 메모",
-          lat: 37.3970,
-          lng: 127.1121,
-          dongName: "판교동",
-          emdCode: "41135107",
-          categoryId: "traffic_parking",
-          externalUrl: "https://example.com/",
-          updatedAt: new Date().toISOString()
-        },
-        {
-          id: "test-2",
-          title: "테스트 현안 B",
-          memo: "",
-          lat: 37.4014,
-          lng: 127.1177,
-          dongName: "운중동",
-          emdCode: "41135111",
-          categoryId: "education_childcare",
-          updatedAt: new Date().toISOString()
-        }
-      ]
-    };
-    fs.writeFileSync(filePath, JSON.stringify(fixtureSnapshot, null, 2));
-    console.log(`[hotspots-snapshot] Fixture snapshot created at ${filePath}`);
+  const fixtureSnapshot = {
+    schemaVersion: 1,
+    exportedAt: new Date().toISOString(),
+    collection: "crowd_hotspots",
+    count: 2,
+    hotspots: [
+      {
+        id: "test-1",
+        title: "테스트 현안 A",
+        memo: "테스트 메모",
+        lat: 37.3970,
+        lng: 127.1121,
+        dongName: "판교동",
+        emdCode: "41135107",
+        categoryId: "traffic_parking",
+        externalUrl: "https://example.com/",
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: "test-2",
+        title: "테스트 현안 B",
+        memo: "",
+        lat: 37.4014,
+        lng: 127.1177,
+        dongName: "운중동",
+        emdCode: "41135111",
+        categoryId: "education_childcare",
+        updatedAt: new Date().toISOString()
+      }
+    ]
+  };
+
+  function writeSnapshotFixtureAtomically() {
+    const tempPath = filePath +
+      ".tmp-" +
+      String(process.pid) +
+      "-" +
+      String(Date.now()) +
+      "-" +
+      Math.random().toString(16).slice(2);
+    fs.writeFileSync(tempPath, JSON.stringify(fixtureSnapshot, null, 2));
+
+    try {
+      fs.renameSync(tempPath, filePath);
+      console.log(`[hotspots-snapshot] Fixture snapshot created at ${filePath}`);
+    } catch (error) {
+      // 다른 worker가 먼저 파일을 만든 경우를 허용합니다.
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(tempPath);
+        return;
+      }
+      throw error;
+    }
   }
 
   let payload;
-  try {
-    payload = JSON.parse(fs.readFileSync(filePath, "utf8"));
-  } catch (err) {
-    throw new Error(`Failed to parse snapshot at ${filePath}: ${err.message}`);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (!fs.existsSync(filePath)) {
+      writeSnapshotFixtureAtomically();
+    }
+
+    try {
+      payload = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      break;
+    } catch (err) {
+      // 병렬 실행 중 잘린 JSON이 남아있는 경우 재생성 후 재시도합니다.
+      if (attempt === 0) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (unlinkError) {
+          // ignore
+        }
+        continue;
+      }
+      throw new Error(`Failed to parse snapshot at ${filePath}: ${err.message}`);
+    }
   }
 
-  // 스키마 검증
-  if (!payload || payload.schemaVersion !== 1) {
-    throw new Error("Invalid snapshot schemaVersion (expected 1)");
-  }
+  validateHotspotSnapshotPayload(payload, "snapshot");
+});
 
-  const hotspots = Array.isArray(payload.hotspots) ? payload.hotspots : [];
-  if (hotspots.length === 0) {
-    throw new Error("Snapshot must contain at least one hotspot");
-  }
+test("HS-SCHEMA-001 Temporary hotspots dataset matches schema", () => {
+  // 로컬 미리보기용 데이터(`data/temporary-hotspots.json`)가 스키마 형태를 만족하는지 검증합니다.
+  const schemaPath = path.resolve(process.cwd(), "data", "hotspot.schema.json");
+  const dataPath = path.resolve(process.cwd(), "data", "temporary-hotspots.json");
 
-  hotspots.forEach((spot, index) => {
-    if (!spot || typeof spot !== "object") {
-      throw new Error("Invalid hotspot record at index " + String(index));
-    }
-    if (!spot.id) {
-      throw new Error("Missing hotspot id at index " + String(index));
-    }
-    if (!Number.isFinite(Number(spot.lat)) || !Number.isFinite(Number(spot.lng))) {
-      throw new Error("Missing/invalid hotspot coordinates at index " + String(index));
-    }
-    if (spot.updatedAt) {
-      const date = new Date(spot.updatedAt);
-      if (!Number.isFinite(date.getTime())) {
-        throw new Error("Invalid hotspot updatedAt at index " + String(index));
-      }
-    }
-    if (spot.visibility) {
-      const visibility = String(spot.visibility).trim().toLowerCase();
-      if (visibility !== "public" && visibility !== "internal") {
-        throw new Error("Invalid hotspot visibility at index " + String(index));
-      }
-    }
-    const rawExternalUrl = spot.externalUrl || spot.external_url;
-    if (rawExternalUrl) {
-      let parsedUrl;
-      try {
-        parsedUrl = new URL(String(rawExternalUrl));
-      } catch (error) {
-        throw new Error("Invalid hotspot externalUrl at index " + String(index));
-      }
-      const protocol = String(parsedUrl.protocol || "").toLowerCase();
-      if (protocol !== "http:" && protocol !== "https:") {
-        throw new Error("Invalid hotspot externalUrl protocol at index " + String(index));
-      }
-    }
-  });
+  const schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
+  expect(schema && schema.type).toBe("object");
+  expect(schema && schema.title).toBeTruthy();
+
+  const payload = JSON.parse(fs.readFileSync(dataPath, "utf8"));
+  validateHotspotSnapshotPayload(payload, "temporary-hotspots");
+  expect(payload.count).toBe(payload.hotspots.length);
 });
 
 test("HS-LIST-001 Memo presence toggles compact card class", async ({ page }) => {
@@ -349,6 +400,14 @@ test("HS-LINK-003 External link opens new tab", async ({ page }) => {
   const link = page.locator("#map-popup a");
   await expect(link).toHaveAttribute("target", "_blank");
   await expect(link).toHaveAttribute("rel", /noopener/);
+
+  // 링크 클릭이 지도 클릭으로 흡수되지 않고 실제로 새 탭으로 열리는지 확인합니다.
+  const [popup] = await Promise.all([
+    page.context().waitForEvent("page"),
+    link.click()
+  ]);
+  await popup.waitForLoadState("domcontentloaded");
+  expect(popup.url()).toContain("example.com");
 });
 
 test("HS-LINK-004 Google edit URL warns once on change", async ({ page }) => {

@@ -52,6 +52,8 @@
     hotspotStyleCache: new Map(),
     highlightedHotspotIds: new Set(),
     googleEditUrlWarned: false,
+    temporaryHotspots: [],
+    firestoreHotspots: [],
     availableDongs: [],
     availableDongMap: new Map(),
     issueCatalogLoaded: false,
@@ -264,6 +266,7 @@
         syncSpotFormLayoutState();
         await applyDefaultOverlayVisibility();
         await applyDefaultPopulationVisibility();
+        await tryLoadTemporaryHotspots();
         subscribeHotspots();
       }
     } catch (error) {
@@ -368,6 +371,14 @@
         const issueRefId = String(elements.spotIssueRefSelect.value || "").trim();
         applyIssueCatalogSelection(issueRefId);
       });
+    }
+
+    if (elements.mapPopup) {
+      const stopPropagation = (event) => {
+        event.stopPropagation();
+      };
+      elements.mapPopup.addEventListener("pointerdown", stopPropagation, true);
+      elements.mapPopup.addEventListener("click", stopPropagation, true);
     }
 
     if (elements.toggleVehicleFlow) {
@@ -1288,7 +1299,9 @@
       element: elements.mapPopup,
       offset: [0, -16],
       positioning: "bottom-center",
-      stopEvent: false
+      // 팝업 내부 링크 클릭이 지도(singleclick)로 흡수되지 않도록 이벤트를 차단합니다.
+      // (stopEvent=false이면 팝업을 클릭해도 지도 배경/인접 현안이 선택되는 문제가 발생할 수 있습니다.)
+      stopEvent: true
     });
     state.map.addOverlay(state.popupOverlay);
 
@@ -3654,9 +3667,8 @@
       },
       (error) => {
         clearHotspotFeatures();
-        state.issues = [];
-        renderCommonPledges();
-        renderVisibleIssueList();
+        state.firestoreHotspots = [];
+        renderMergedHotspots();
         if (isFirestorePermissionError(error)) {
           console.warn("[hotspot-subscribe] insufficient permissions");
           return;
@@ -3752,12 +3764,111 @@
     });
 
     hotspots.sort(compareHotspotByTitle);
-    const visibleHotspots = filterHotspotsForCurrentMode(hotspots);
+    state.firestoreHotspots = hotspots;
+    renderMergedHotspots();
+  }
+
+  async function tryLoadTemporaryHotspots() {
+    if (isEditMode()) {
+      return false;
+    }
+
+    if (!isLocalPreviewHost()) {
+      return false;
+    }
+
+    const url = "/data/temporary-hotspots.json";
+    let response;
+    try {
+      response = await fetch(url, { cache: "no-store" });
+    } catch (error) {
+      return false;
+    }
+
+    if (!response || !response.ok) {
+      return false;
+    }
+
+    let payload;
+    try {
+      payload = await response.json();
+    } catch (error) {
+      console.warn("[hotspot-temporary] invalid json");
+      return false;
+    }
+
+    const rawList = payload && Array.isArray(payload.hotspots) ? payload.hotspots : [];
+    const hotspots = rawList
+      .map((spot) => {
+        const record = spot && typeof spot === "object" ? spot : {};
+        return {
+          ...record,
+          id: String(record.id || "").trim(),
+          title: String(record.title || "").trim() || "현안 제목 없음",
+          memo: String(record.memo || ""),
+          lat: Number(record.lat),
+          lng: Number(record.lng),
+          dongName: String(record.dongName || record.dong_name || "").trim(),
+          emdCode: normalizeEmdCode(record.emdCode || record.emd_cd),
+          visibility: normalizeHotspotVisibility(record.visibility),
+          externalUrl: normalizeExternalUrl(record.externalUrl || record.external_url),
+          updatedBy: String(record.updatedBy || ""),
+          updatedAt: record.updatedAt || null
+        };
+      })
+      .filter((spot) => {
+        return spot.id && Number.isFinite(spot.lat) && Number.isFinite(spot.lng);
+      });
+
+    hotspots.sort(compareHotspotByTitle);
+    state.temporaryHotspots = hotspots;
+    renderMergedHotspots();
+    console.info("[hotspot-temporary] loaded " + String(hotspots.length) + " hotspots from " + url);
+    return true;
+  }
+
+  function renderMergedHotspots() {
+    const temporary = Array.isArray(state.temporaryHotspots) ? state.temporaryHotspots : [];
+    const firestore = Array.isArray(state.firestoreHotspots) ? state.firestoreHotspots : [];
+    const merged = mergeHotspotLists(temporary, firestore);
+    merged.sort(compareHotspotByTitle);
+
+    const visibleHotspots = filterHotspotsForCurrentMode(merged);
     state.issues = visibleHotspots;
     renderCommonPledges();
     renderHotspots(visibleHotspots);
     renderVisibleIssueList();
     updateDongFilterUi();
+  }
+
+  function mergeHotspotLists(temporary, firestore) {
+    const map = new Map();
+    (Array.isArray(temporary) ? temporary : []).forEach((spot) => {
+      if (!spot || typeof spot !== "object") {
+        return;
+      }
+      const id = String(spot.id || "").trim();
+      if (!id) {
+        return;
+      }
+      map.set(id, spot);
+    });
+    (Array.isArray(firestore) ? firestore : []).forEach((spot) => {
+      if (!spot || typeof spot !== "object") {
+        return;
+      }
+      const id = String(spot.id || "").trim();
+      if (!id) {
+        return;
+      }
+      map.set(id, spot);
+    });
+    return Array.from(map.values());
+  }
+
+  function isLocalPreviewHost() {
+    const host = window.location && window.location.hostname ? String(window.location.hostname) : "";
+    return host === "localhost" || host === "127.0.0.1" || host === "::1";
   }
 
   function isFirestorePermissionError(error) {
@@ -4317,20 +4428,24 @@
       renderHotspotList(filtered);
     }
 
-    async function openHotspotPopupForTest(spot) {
-      const record = spot && typeof spot === "object" ? spot : null;
-      if (!record) {
-        return;
-      }
+      async function openHotspotPopupForTest(spot) {
+        const record = spot && typeof spot === "object" ? spot : null;
+        if (!record) {
+          return;
+        }
 
-      if (!state.map || !state.popupOverlay) {
-        await ensureMapReady();
-      }
+        if (!state.map || !state.popupOverlay) {
+          await ensureMapReady();
+        }
 
-      const view = state.map && typeof state.map.getView === "function"
-        ? state.map.getView()
-        : null;
-      const coordinate = view && typeof view.getCenter === "function"
+        // 테스트 훅에서는 "동 경계 fit"이 뒤늦게 실행되며 팝업이 닫히는(race) 상황을 피하기 위해
+        // 먼저 경계 로딩을 완료한 뒤 팝업을 엽니다.
+        await loadBoundaries();
+
+        const view = state.map && typeof state.map.getView === "function"
+          ? state.map.getView()
+          : null;
+        const coordinate = view && typeof view.getCenter === "function"
         ? view.getCenter()
         : [0, 0];
 
@@ -5137,6 +5252,7 @@
     }
     elements.mapPopup.innerHTML = html;
     elements.mapPopup.classList.remove("hidden");
+    elements.mapPopup.setAttribute("aria-hidden", "false");
     state.popupOverlay.setPosition(coordinate);
   }
 
@@ -5145,6 +5261,7 @@
       return;
     }
     elements.mapPopup.classList.add("hidden");
+    elements.mapPopup.setAttribute("aria-hidden", "true");
     state.popupOverlay.setPosition(undefined);
   }
 
