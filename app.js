@@ -2,9 +2,26 @@
 
 (function bootstrap() {
   const config = window.APP_CONFIG;
+  const hotspotModule = window.HotspotModule && typeof window.HotspotModule === "object"
+    ? window.HotspotModule
+    : null;
   const routeModule = window.RouteModule && typeof window.RouteModule === "object"
     ? window.RouteModule
     : null;
+  if (!hotspotModule || !routeModule) {
+    throw new Error("hotspot.js/route.js not loaded");
+  }
+
+  const normalizeHotspotVisibility = hotspotModule.normalizeHotspotVisibility;
+  const normalizeExternalUrl = hotspotModule.normalizeExternalUrl;
+  const isGoogleEditUrl = hotspotModule.isGoogleEditUrl;
+  const normalizeHotspotRecord = hotspotModule.normalizeHotspotRecord;
+  const mergeHotspotLists = hotspotModule.mergeHotspotLists;
+
+  const normalizeRouteVisibility = routeModule.normalizeRouteVisibility;
+  const sanitizeRouteCoordinates = routeModule.sanitizeLineStringCoordinates;
+  const computeRouteBbox = routeModule.computeLngLatBbox;
+  const normalizeRouteRecord = routeModule.normalizeRouteRecord;
   const state = {
     mode: resolveMapMode(),
     auth: null,
@@ -3920,6 +3937,7 @@
   }
 
   async function processHotspotSnapshot(snapshot) {
+    // TODO(refactor-hotspot): Firestore snapshot -> hotspot 정규화 로직을 hotspot.js로 이동 (issueCatalog/boundary 의존성 정리 필요)
     await ensureIssueCatalogLoaded();
     const hotspots = [];
     snapshot.forEach((doc) => {
@@ -4010,6 +4028,7 @@
   }
 
   async function processRouteSnapshot(snapshot) {
+    // TODO(refactor-route): Firestore snapshot -> route 정규화 로직을 route.js로 이동 (Firestore Timestamp/FieldValue 처리 경계 정리 필요)
     const routes = [];
     snapshot.forEach((doc) => {
       const value = doc.data() || {};
@@ -4065,26 +4084,14 @@
 
     const rawList = payload && Array.isArray(payload.hotspots) ? payload.hotspots : [];
     const hotspots = rawList
+      .map((spot) => normalizeHotspotRecord(spot))
       .map((spot) => {
-        const record = spot && typeof spot === "object" ? spot : {};
         return {
-          ...record,
-          id: String(record.id || "").trim(),
-          title: String(record.title || "").trim() || "현안 제목 없음",
-          memo: String(record.memo || ""),
-          lat: Number(record.lat),
-          lng: Number(record.lng),
-          dongName: String(record.dongName || record.dong_name || "").trim(),
-          emdCode: normalizeEmdCode(record.emdCode || record.emd_cd),
-          visibility: normalizeHotspotVisibility(record.visibility),
-          externalUrl: normalizeExternalUrl(record.externalUrl || record.external_url),
-          updatedBy: String(record.updatedBy || ""),
-          updatedAt: record.updatedAt || null
+          ...spot,
+          emdCode: normalizeEmdCode(spot.emdCode || spot.emd_cd)
         };
       })
-      .filter((spot) => {
-        return spot.id && Number.isFinite(spot.lat) && Number.isFinite(spot.lng);
-      });
+      .filter((spot) => spot && spot.id && Number.isFinite(spot.lat) && Number.isFinite(spot.lng));
 
     hotspots.sort(compareHotspotByTitle);
     state.temporaryHotspots = hotspots;
@@ -4162,30 +4169,7 @@
     renderRouteList(visibleRoutes);
   }
 
-  function mergeHotspotLists(temporary, firestore) {
-    const map = new Map();
-    (Array.isArray(temporary) ? temporary : []).forEach((spot) => {
-      if (!spot || typeof spot !== "object") {
-        return;
-      }
-      const id = String(spot.id || "").trim();
-      if (!id) {
-        return;
-      }
-      map.set(id, spot);
-    });
-    (Array.isArray(firestore) ? firestore : []).forEach((spot) => {
-      if (!spot || typeof spot !== "object") {
-        return;
-      }
-      const id = String(spot.id || "").trim();
-      if (!id) {
-        return;
-      }
-      map.set(id, spot);
-    });
-    return Array.from(map.values());
-  }
+  // TODO(refactor-hotspot): mergeHotspotLists는 hotspot.js로 이동 완료 (app.js에서는 모듈 함수를 직접 사용)
 
   function mergeRouteLists(temporary, firestore) {
     const map = new Map();
@@ -4288,139 +4272,7 @@
     return list.filter((route) => normalizeRouteVisibility(route && route.visibility) !== "internal");
   }
 
-  function normalizeHotspotVisibility(value) {
-    const normalized = String(value || "").trim().toLowerCase();
-    if (normalized === "internal") {
-      return "internal";
-    }
-    return "public";
-  }
-
-  function normalizeRouteVisibility(value) {
-    if (routeModule && typeof routeModule.normalizeRouteVisibility === "function") {
-      return routeModule.normalizeRouteVisibility(value);
-    }
-    const normalized = String(value || "").trim().toLowerCase();
-    if (normalized === "internal") {
-      return "internal";
-    }
-    return "public";
-  }
-
-  function sanitizeRouteCoordinates(coords) {
-    if (routeModule && typeof routeModule.sanitizeLineStringCoordinates === "function") {
-      return routeModule.sanitizeLineStringCoordinates(coords);
-    }
-    const list = Array.isArray(coords) ? coords : [];
-    const sanitized = [];
-    list.forEach((item) => {
-      if (!Array.isArray(item) || item.length < 2) {
-        return;
-      }
-      const lng = Number(item[0]);
-      const lat = Number(item[1]);
-      if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
-        return;
-      }
-      if (lng < -180 || lng > 180 || lat < -90 || lat > 90) {
-        return;
-      }
-      sanitized.push([lng, lat]);
-    });
-    return sanitized;
-  }
-
-  function computeRouteBbox(coords) {
-    if (routeModule && typeof routeModule.computeLngLatBbox === "function") {
-      return routeModule.computeLngLatBbox(coords);
-    }
-    const list = sanitizeRouteCoordinates(coords);
-    if (list.length === 0) {
-      return [0, 0, 0, 0];
-    }
-    let minLng = list[0][0];
-    let minLat = list[0][1];
-    let maxLng = list[0][0];
-    let maxLat = list[0][1];
-    for (let i = 1; i < list.length; i += 1) {
-      const lng = list[i][0];
-      const lat = list[i][1];
-      if (lng < minLng) minLng = lng;
-      if (lat < minLat) minLat = lat;
-      if (lng > maxLng) maxLng = lng;
-      if (lat > maxLat) maxLat = lat;
-    }
-    return [minLng, minLat, maxLng, maxLat];
-  }
-
-  function normalizeRouteRecord(input) {
-    if (routeModule && typeof routeModule.normalizeRouteRecord === "function") {
-      return routeModule.normalizeRouteRecord(input);
-    }
-    const record = input && typeof input === "object" ? input : {};
-    const id = String(record.id || "").trim();
-    const name = String(record.name || record.title || "").trim();
-    const memo = String(record.memo || "");
-    const categoryId = String(record.categoryId || record.category_id || "").trim();
-    const categoryLabel = String(record.categoryLabel || record.category_label || "").trim();
-    const visibility = normalizeRouteVisibility(record.visibility || record.visibility_level);
-    const externalUrl = normalizeExternalUrl(record.externalUrl || record.external_url);
-    const geometryType = "LineString";
-    const coordinates = sanitizeRouteCoordinates(record.coordinates);
-    const bbox = computeRouteBbox(coordinates);
-
-    return {
-      id,
-      name: name || "경로 이름 없음",
-      memo,
-      categoryId,
-      categoryLabel,
-      externalUrl,
-      visibility,
-      geometryType,
-      coordinates,
-      bbox,
-      updatedBy: String(record.updatedBy || ""),
-      updatedAt: record.updatedAt || null
-    };
-  }
-
-  function normalizeExternalUrl(value) {
-    const raw = String(value || "").trim();
-    if (!raw) {
-      return "";
-    }
-
-    let parsed;
-    try {
-      parsed = new URL(raw);
-    } catch (error) {
-      return "";
-    }
-
-    const protocol = String(parsed.protocol || "").toLowerCase();
-    if (protocol !== "http:" && protocol !== "https:") {
-      return "";
-    }
-    return raw;
-  }
-
-  function isGoogleEditUrl(urlString) {
-    let parsed;
-    try {
-      parsed = new URL(String(urlString));
-    } catch (error) {
-      return false;
-    }
-
-    const host = String(parsed.hostname || "").toLowerCase();
-    if (host !== "docs.google.com" && host !== "drive.google.com") {
-      return false;
-    }
-
-    const pathName = String(parsed.pathname || "").toLowerCase();
-    return pathName.includes("/edit");
-  }
+  // TODO(refactor-hotspot/route): hotspot/route 유틸은 hotspot.js/route.js로 이동 완료 (app.js는 모듈 API만 사용)
 
   function setActiveDongFilter(dongName) {
     const normalized = String(dongName || "").trim();
@@ -5063,14 +4915,7 @@
 
     function renderVisibleHotspotList(hotspots) {
       const list = Array.isArray(hotspots) ? hotspots : [];
-      const normalized = list.map((spot) => {
-        const record = spot && typeof spot === "object" ? spot : {};
-        return {
-          ...record,
-          visibility: normalizeHotspotVisibility(record.visibility),
-          externalUrl: normalizeExternalUrl(record.externalUrl || record.external_url)
-        };
-      });
+      const normalized = list.map((spot) => normalizeHotspotRecord(spot));
 
       const filtered = filterHotspotsForCurrentMode(normalized);
       renderHotspotList(filtered);
@@ -6347,7 +6192,7 @@
       const safeDong = escapeHtml(formatSpotDongLabel(spot));
       const safeUser = escapeHtml(spot.updatedBy || "-");
       const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
-      const externalUrl = normalizeExternalUrl(spot.externalUrl || spot.external_url);
+    const externalUrl = normalizeExternalUrl(spot.externalUrl || spot.external_url);
       const externalLinkHtml = externalUrl
         ? "<div>외부 링크: <a href='" +
           escapeHtml(externalUrl) +
