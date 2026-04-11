@@ -484,6 +484,12 @@ textarea {
   gap: 8px;
 }
 
+.spot-title-photo-badge {
+  margin-left: 4px;
+  font-size: 0.95em;
+  vertical-align: -1px;
+}
+
 .spot-group-item {
   background: #f9fbff;
 }

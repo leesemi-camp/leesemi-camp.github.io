@@ -4208,6 +4208,9 @@
       const memoRaw = typeof spot.memo === "string" ? spot.memo.trim() : "";
       const memo = memoRaw ? escapeHtml(memoRaw) : "";
       const photoDataUrl = normalizeHotspotPhotoDataUrl(spot.photoDataUrl);
+      const titleWithPhotoBadge = photoDataUrl
+        ? title + " <span class='spot-title-photo-badge' aria-label='사진 첨부'>🖼️</span>"
+        : title;
       const photoAlt = title + " 사진";
       const photoPreviewHtml = photoDataUrl
         ? (
@@ -4235,7 +4238,7 @@
       return (
         "<li class='" + spotItemClassName + "' data-spot-id='" + safeId + "'>" +
           "<div class='spot-item-top'>" +
-            "<strong>" + title + "</strong>" +
+            "<strong>" + titleWithPhotoBadge + "</strong>" +
           "</div>" +
           "<div class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</div>" +
           "<div class='spot-dong'>" + dongName + "</div>" +
@@ -5149,6 +5152,9 @@
     const safeUser = escapeHtml(spot.updatedBy || "-");
     const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
     const safePhotoDataUrl = escapeHtml(normalizeHotspotPhotoDataUrl(spot.photoDataUrl));
+    const titleWithPhotoBadge = safePhotoDataUrl
+      ? safeTitle + " <span class='spot-title-photo-badge' aria-label='사진 첨부'>🖼️</span>"
+      : safeTitle;
     const photoHtml = safePhotoDataUrl
       ? (
         "<div class='map-popup-photo-wrap'>" +
@@ -5162,7 +5168,7 @@
       : "";
     openPopup(
       coordinate,
-      "<strong>" + safeTitle + "</strong>" +
+      "<strong>" + titleWithPhotoBadge + "</strong>" +
       photoHtml +
       "<div>분류: " + safeCategory + "</div>" +
       "<div>소속 동: " + safeDong + "</div>" +
