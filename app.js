@@ -625,9 +625,9 @@
       const tagsHtml = renderCommonIssueTagsHtml(tags, commonIssueTagMap);
       return (
         "<li class='pledge-item'>" +
-          "<strong>" + title + "</strong>" +
-          "<p>" + description + "</p>" +
-          tagsHtml +
+        "<strong>" + title + "</strong>" +
+        "<p>" + description + "</p>" +
+        tagsHtml +
         "</li>"
       );
     });
@@ -646,9 +646,9 @@
         : resolveCategoryLabel(categoryId, "") + " 현안";
       html.push(
         "<li class='pledge-item'>" +
-          "<strong>" + escapeHtml(categoryTitle) + "</strong>" +
-          "<p>공통으로 제보된 현안입니다.</p>" +
-          renderCommonIssueTagsHtml(tags, commonIssueTagMap) +
+        "<strong>" + escapeHtml(categoryTitle) + "</strong>" +
+        "<p>공통으로 제보된 현안입니다.</p>" +
+        renderCommonIssueTagsHtml(tags, commonIssueTagMap) +
         "</li>"
       );
     });
@@ -751,25 +751,25 @@
     }
     return (
       "<div class='pledge-common-tags'>" +
-        list.map((tag) => {
-          const normalizedTag = String(tag || "").trim();
-          if (!normalizedTag) {
-            return "";
-          }
-          const safeTag = escapeHtml(normalizedTag);
-          const spotCount = commonIssueTagMap && commonIssueTagMap.has(normalizedTag)
-            ? commonIssueTagMap.get(normalizedTag).length
-            : 0;
-          const countLabel = spotCount > 0
-            ? "<span class='pledge-common-tag-count'>" + String(spotCount) + "</span>"
-            : "";
-          return (
-            "<button type='button' class='pledge-common-tag' data-action='focus-common-tag' data-common-tag='" + safeTag + "'>" +
-              "<span>[" + safeTag + "]</span>" +
-              countLabel +
-            "</button>"
-          );
-        }).join("") +
+      list.map((tag) => {
+        const normalizedTag = String(tag || "").trim();
+        if (!normalizedTag) {
+          return "";
+        }
+        const safeTag = escapeHtml(normalizedTag);
+        const spotCount = commonIssueTagMap && commonIssueTagMap.has(normalizedTag)
+          ? commonIssueTagMap.get(normalizedTag).length
+          : 0;
+        const countLabel = spotCount > 0
+          ? "<span class='pledge-common-tag-count'>" + String(spotCount) + "</span>"
+          : "";
+        return (
+          "<button type='button' class='pledge-common-tag' data-action='focus-common-tag' data-common-tag='" + safeTag + "'>" +
+          "<span>[" + safeTag + "]</span>" +
+          countLabel +
+          "</button>"
+        );
+      }).join("") +
       "</div>"
     );
   }
@@ -4288,13 +4288,13 @@
     const haloFillColor = isDim
       ? "rgba(255,255,255,0.44)"
       : isFocus
-      ? "rgba(255,255,255,0.98)"
-      : "rgba(255,255,255,0.90)";
+        ? "rgba(255,255,255,0.98)"
+        : "rgba(255,255,255,0.90)";
     const haloStrokeColor = isDim
       ? "rgba(15,23,42,0.14)"
       : isFocus
-      ? toRgba(baseColor, 0.58)
-      : "rgba(15,23,42,0.22)";
+        ? toRgba(baseColor, 0.58)
+        : "rgba(15,23,42,0.22)";
     const coreFillColor = isDim ? toRgba(markerColor, 0.30) : markerColor;
     const coreStrokeColor = isDim ? toRgba(markerBorderColor, 0.56) : markerBorderColor;
     const textFillColor = isDim ? "rgba(15,23,42,0.52)" : "#0f172a";
@@ -4405,7 +4405,7 @@
       const photoPreviewHtml = photoDataUrl
         ? (
           "<div class='spot-photo-thumb-wrap'>" +
-            "<img class='spot-photo-thumb' src='" + escapeHtml(photoDataUrl) + "' alt='" + photoAlt + "' loading='lazy'>" +
+          "<img class='spot-photo-thumb' src='" + escapeHtml(photoDataUrl) + "' alt='" + photoAlt + "' loading='lazy'>" +
           "</div>"
         )
         : "";
@@ -4419,22 +4419,22 @@
       if (showEditorActions) {
         actionsHtml = (
           "<div class='spot-item-actions'>" +
-            "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='edit-spot' data-spot-id='" + safeId + "'>수정</button>" +
-            "<button type='button' class='btn-secondary btn-small spot-action-btn danger' data-action='delete-spot' data-spot-id='" + safeId + "'>삭제</button>" +
+          "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='edit-spot' data-spot-id='" + safeId + "'>수정</button>" +
+          "<button type='button' class='btn-secondary btn-small spot-action-btn danger' data-action='delete-spot' data-spot-id='" + safeId + "'>삭제</button>" +
           "</div>"
         );
       }
 
       return (
         "<li class='" + spotItemClassName + "' data-spot-id='" + safeId + "'>" +
-          "<div class='spot-item-top'>" +
-            "<strong>" + titleWithPhotoBadge + "</strong>" +
-          "</div>" +
-          "<div class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</div>" +
-          "<div class='spot-dong'>" + dongName + "</div>" +
-          (memo ? "<div class='spot-memo'>" + memo + "</div>" : "") +
-          photoPreviewHtml +
-          actionsHtml +
+        "<div class='spot-item-top'>" +
+        "<strong>" + titleWithPhotoBadge + "</strong>" +
+        "</div>" +
+        "<div class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</div>" +
+        "<div class='spot-dong'>" + dongName + "</div>" +
+        (memo ? "<div class='spot-memo'>" + memo + "</div>" : "") +
+        photoPreviewHtml +
+        actionsHtml +
         "</li>"
       );
     });
@@ -4442,66 +4442,66 @@
     elements.spotList.innerHTML = items.join("");
   }
 
-    function exposeSpotListTestHooks() {
-      if (typeof window === "undefined") {
-        return;
-      }
-      // TODO(refactor): Hotspot 정규화/필터링/팝업 링크 렌더링은 hotspot 모듈로 분리하고,
-      // 테스트 훅은 __appTestHooks로 정리합니다. (docs/spec-hotspot.md 기준)
-      window.__spotListTestHooks = {
-        renderHotspotList,
-        renderVisibleHotspotList,
-        openHotspotPopup: openHotspotPopupForTest
-      };
+  function exposeSpotListTestHooks() {
+    if (typeof window === "undefined") {
+      return;
     }
+    // TODO(refactor): Hotspot 정규화/필터링/팝업 링크 렌더링은 hotspot 모듈로 분리하고,
+    // 테스트 훅은 __appTestHooks로 정리합니다. (docs/spec-hotspot.md 기준)
+    window.__spotListTestHooks = {
+      renderHotspotList,
+      renderVisibleHotspotList,
+      openHotspotPopup: openHotspotPopupForTest
+    };
+  }
 
-    function renderVisibleHotspotList(hotspots) {
-      const list = Array.isArray(hotspots) ? hotspots : [];
-      const normalized = list.map((spot) => {
-        const record = spot && typeof spot === "object" ? spot : {};
-        return {
-          ...record,
-          visibility: normalizeHotspotVisibility(record.visibility),
-          externalUrl: normalizeExternalUrl(record.externalUrl || record.external_url)
-        };
-      });
-
-      const filtered = filterHotspotsForCurrentMode(normalized);
-      renderHotspotList(filtered);
-    }
-
-      async function openHotspotPopupForTest(spot) {
-        const record = spot && typeof spot === "object" ? spot : null;
-        if (!record) {
-          return;
-        }
-
-        if (!state.map || !state.popupOverlay) {
-          await ensureMapReady();
-        }
-
-        // 테스트 훅에서는 "동 경계 fit"이 뒤늦게 실행되며 팝업이 닫히는(race) 상황을 피하기 위해
-        // 먼저 경계 로딩을 완료한 뒤 팝업을 엽니다.
-        await loadBoundaries();
-
-        const view = state.map && typeof state.map.getView === "function"
-          ? state.map.getView()
-          : null;
-        const coordinate = view && typeof view.getCenter === "function"
-        ? view.getCenter()
-        : [0, 0];
-
-      openHotspotPopup(coordinate, {
+  function renderVisibleHotspotList(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    const normalized = list.map((spot) => {
+      const record = spot && typeof spot === "object" ? spot : {};
+      return {
         ...record,
         visibility: normalizeHotspotVisibility(record.visibility),
         externalUrl: normalizeExternalUrl(record.externalUrl || record.external_url)
-      });
+      };
+    });
+
+    const filtered = filterHotspotsForCurrentMode(normalized);
+    renderHotspotList(filtered);
+  }
+
+  async function openHotspotPopupForTest(spot) {
+    const record = spot && typeof spot === "object" ? spot : null;
+    if (!record) {
+      return;
     }
-  
-    function renderIssueGroupList(hotspots) {
-      if (!elements.spotList) {
-        return;
-      }
+
+    if (!state.map || !state.popupOverlay) {
+      await ensureMapReady();
+    }
+
+    // 테스트 훅에서는 "동 경계 fit"이 뒤늦게 실행되며 팝업이 닫히는(race) 상황을 피하기 위해
+    // 먼저 경계 로딩을 완료한 뒤 팝업을 엽니다.
+    await loadBoundaries();
+
+    const view = state.map && typeof state.map.getView === "function"
+      ? state.map.getView()
+      : null;
+    const coordinate = view && typeof view.getCenter === "function"
+      ? view.getCenter()
+      : [0, 0];
+
+    openHotspotPopup(coordinate, {
+      ...record,
+      visibility: normalizeHotspotVisibility(record.visibility),
+      externalUrl: normalizeExternalUrl(record.externalUrl || record.external_url)
+    });
+  }
+
+  function renderIssueGroupList(hotspots) {
+    if (!elements.spotList) {
+      return;
+    }
 
     if (hotspots.length === 0) {
       state.issueGroupMap = new Map();
@@ -4537,17 +4537,17 @@
         : "";
       return (
         "<li class='spot-item spot-group-item' data-group-key='" + safeKey + "'>" +
-          "<div class='spot-item-top'>" +
-            "<strong>" + safeTitle + "</strong>" +
-            "<span class='spot-group-count'>" + countLabel + "</span>" +
-          "</div>" +
-          "<div class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</div>" +
-          "<div class='spot-dong'>대상 동: " + escapeHtml(dongLabel) + "</div>" +
-          "<div class='spot-memo'>분포: " + escapeHtml(previewText || dongLabel) + "</div>" +
-          "<div class='spot-item-actions'>" +
-            "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='focus-group' data-group-key='" + safeKey + "'>지도에서 한 번에 보기</button>" +
-          "</div>" +
-          editorHintHtml +
+        "<div class='spot-item-top'>" +
+        "<strong>" + safeTitle + "</strong>" +
+        "<span class='spot-group-count'>" + countLabel + "</span>" +
+        "</div>" +
+        "<div class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</div>" +
+        "<div class='spot-dong'>대상 동: " + escapeHtml(dongLabel) + "</div>" +
+        "<div class='spot-memo'>분포: " + escapeHtml(previewText || dongLabel) + "</div>" +
+        "<div class='spot-item-actions'>" +
+        "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='focus-group' data-group-key='" + safeKey + "'>지도에서 한 번에 보기</button>" +
+        "</div>" +
+        editorHintHtml +
         "</li>"
       );
     });
@@ -4930,13 +4930,13 @@
     const finalDongName = isCommonSelection
       ? DONG_COMMON_NAME
       : usingManualDong
-      ? String(selectedDongMeta.dongName || "").trim()
-      : String(boundaryMeta.dongName || "").trim();
+        ? String(selectedDongMeta.dongName || "").trim()
+        : String(boundaryMeta.dongName || "").trim();
     const finalEmdCode = isCommonSelection
       ? ""
       : usingManualDong
-      ? normalizeEmdCode(selectedDongMeta.emdCode)
-      : normalizeEmdCode(boundaryMeta.emdCode);
+        ? normalizeEmdCode(selectedDongMeta.emdCode)
+        : normalizeEmdCode(boundaryMeta.emdCode);
 
     if (!finalDongName) {
       window.alert("동을 판별하지 못했습니다. '동 선택'에서 직접 지정하세요.");
@@ -5378,49 +5378,50 @@
     );
   }
 
-    function openHotspotPopup(coordinate, spot) {
-      if (!spot) {
-        return;
-      }
-      const safeTitle = escapeHtml(spot.title);
-      const safeMemo = escapeHtml(spot.memo || "-");
-      const safeCategory = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
-      const safeDong = escapeHtml(formatSpotDongLabel(spot));
-      const safeUser = escapeHtml(spot.updatedBy || "-");
-      const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
-      const safePhotoDataUrl = escapeHtml(normalizeHotspotPhotoDataUrl(spot.photoDataUrl));
-      const titleWithPhotoBadge = safePhotoDataUrl
-        ? safeTitle + " <span class='spot-title-photo-badge' aria-label='사진 첨부'>🖼️</span>"
-        : safeTitle;
-      const photoHtml = safePhotoDataUrl
-        ? (
-          "<div class='map-popup-photo-wrap'>" +
-            "<img class='map-popup-photo' src='" + safePhotoDataUrl + "' alt='" + safeTitle + " 사진'>" +
-          "</div>"
-        )
-        : "";
-      const externalUrl = normalizeExternalUrl(spot.externalUrl || spot.external_url);
-      const externalLinkHtml = externalUrl
-        ? "<div>외부 링크: <a href='" +
-          escapeHtml(externalUrl) +
-          "' target='_blank' rel='noopener noreferrer'>새 탭으로 열기</a></div>"
-        : "";
-
-      const editorInfo = isEditMode()
-        ? "<div>수정자: " + safeUser + "</div><div>수정시각: " + safeTime + "</div>"
-        : "";
-      openPopup(
-        coordinate,
-        "<strong>" + titleWithPhotoBadge + "</strong>" +
-        photoHtml +
-        "<strong>" + safeTitle + "</strong>" +
-        "<div>분류: " + safeCategory + "</div>" +
-        "<div>소속 동: " + safeDong + "</div>" +
-        "<div>내용: " + safeMemo + "</div>" +
-        externalLinkHtml +
-        editorInfo
-      );
+  function openHotspotPopup(coordinate, spot) {
+    if (!spot) {
+      return;
     }
+    const safeTitle = escapeHtml(spot.title);
+    const safeMemo = escapeHtml(spot.memo || "-");
+    const safeCategory = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
+    const safeDong = escapeHtml(formatSpotDongLabel(spot));
+    const safeUser = escapeHtml(spot.updatedBy || "-");
+    const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
+    const safePhotoDataUrl = escapeHtml(normalizeHotspotPhotoDataUrl(spot.photoDataUrl));
+    const titleWithPhotoBadge = safePhotoDataUrl
+      ? safeTitle + " <span class='spot-title-photo-badge' aria-label='사진 첨부'>🖼️</span>"
+      : safeTitle;
+    console.log(titleWithPhotoBadge);
+
+    const photoHtml = safePhotoDataUrl
+      ? (
+        "<div class='map-popup-photo-wrap'>" +
+        "<img class='map-popup-photo' src='" + safePhotoDataUrl + "' alt='" + safeTitle + " 사진'>" +
+        "</div>"
+      )
+      : "";
+    const externalUrl = normalizeExternalUrl(spot.externalUrl || spot.external_url);
+    const externalLinkHtml = externalUrl
+      ? "<div>외부 링크: <a href='" +
+      escapeHtml(externalUrl) +
+      "' target='_blank' rel='noopener noreferrer'>새 탭으로 열기</a></div>"
+      : "";
+
+    const editorInfo = isEditMode()
+      ? "<div>수정자: " + safeUser + "</div><div>수정시각: " + safeTime + "</div>"
+      : "";
+    openPopup(
+      coordinate,
+      "<strong>" + titleWithPhotoBadge + "</strong>" +
+      photoHtml +
+      "<div>분류: " + safeCategory + "</div>" +
+      "<div>소속 동: " + safeDong + "</div>" +
+      "<div>내용: " + safeMemo + "</div>" +
+      externalLinkHtml +
+      editorInfo
+    );
+  }
 
   function openIssueGroupPopup(coordinate, group) {
     if (!group) {
