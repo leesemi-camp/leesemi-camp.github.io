@@ -441,7 +441,7 @@ p {
     font-size: 13px;
     color: #1b2d47;
     box-shadow: 0 10px 30px rgba(5, 23, 48, 0.18);
-    pointer-events: none;
+    pointer-events: auto;
 }
 
 .mobile-map-action {
