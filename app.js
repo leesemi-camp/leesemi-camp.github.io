@@ -229,7 +229,10 @@
     togglePopulationFlow: document.getElementById("toggle-population-flow"),
     populationMonth: document.getElementById("population-month"),
     populationHour: document.getElementById("population-hour"),
-    populationStatus: document.getElementById("population-status")
+    populationStatus: document.getElementById("population-status"),
+    photoLightbox: null,
+    photoLightboxImage: null,
+    photoLightboxCloseButton: null
   };
 
   const hotspotPhotoConfig = {
@@ -248,6 +251,7 @@
       if (!window.ol) {
         throw new Error("OpenLayers 스크립트 로드에 실패했습니다.");
       }
+      setupPhotoLightbox();
       bindUiEvents();
       syncIssueReferenceFieldVisibility();
       renderCommonPledges();
@@ -374,6 +378,38 @@
       });
     }
 
+    if (elements.spotPhotoPreviewWrap) {
+      elements.spotPhotoPreviewWrap.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        const previewPhoto = target.closest(".spot-photo-preview");
+        if (!(previewPhoto instanceof HTMLImageElement)) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        openPhotoLightboxFromImage(previewPhoto);
+      });
+    }
+
+    if (elements.mapPopup) {
+      elements.mapPopup.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        const popupPhoto = target.closest(".map-popup-photo");
+        if (!(popupPhoto instanceof HTMLImageElement)) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        openPhotoLightboxFromImage(popupPhoto);
+      });
+    }
+
     if (elements.toggleVehicleFlow) {
       elements.toggleVehicleFlow.addEventListener("change", () => {
         void handleOverlayToggle("vehicle", elements.toggleVehicleFlow.checked);
@@ -422,6 +458,14 @@
       elements.spotList.addEventListener("click", (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const spotPhoto = target.closest(".spot-photo-thumb");
+        if (spotPhoto instanceof HTMLImageElement) {
+          event.preventDefault();
+          event.stopPropagation();
+          openPhotoLightboxFromImage(spotPhoto);
           return;
         }
 
@@ -554,6 +598,26 @@
       });
     }
 
+    if (elements.photoLightboxCloseButton) {
+      elements.photoLightboxCloseButton.addEventListener("click", () => {
+        closePhotoLightbox();
+      });
+    }
+
+    if (elements.photoLightbox) {
+      elements.photoLightbox.addEventListener("click", (event) => {
+        if (event.target === elements.photoLightbox) {
+          closePhotoLightbox();
+        }
+      });
+    }
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && isPhotoLightboxVisible()) {
+        closePhotoLightbox();
+      }
+    });
+
     if (mobileLayoutQuery && typeof mobileLayoutQuery.addEventListener === "function") {
       mobileLayoutQuery.addEventListener("change", () => {
         syncSpotFormLayoutState();
@@ -569,6 +633,115 @@
     syncDongSelectOptions();
     updateDongFilterUi();
     syncIssueListModeUi();
+  }
+
+  function setupPhotoLightbox() {
+    if (!document.body) {
+      return;
+    }
+
+    let lightbox = document.getElementById("photo-lightbox");
+    if (!lightbox) {
+      lightbox = document.createElement("div");
+      lightbox.id = "photo-lightbox";
+      lightbox.className = "photo-lightbox hidden";
+      lightbox.setAttribute("aria-hidden", "true");
+      lightbox.innerHTML =
+        "<div class='photo-lightbox-dialog' role='dialog' aria-modal='true' aria-label='사진 확대 보기'>" +
+          "<button id='photo-lightbox-close-btn' type='button' class='photo-lightbox-close' aria-label='팝업 닫기' title='닫기'>×</button>" +
+          "<img id='photo-lightbox-image' class='photo-lightbox-image' alt='확대 사진' loading='eager'>" +
+        "</div>";
+      document.body.appendChild(lightbox);
+    }
+
+    elements.photoLightbox = lightbox;
+    elements.photoLightboxImage = lightbox.querySelector("#photo-lightbox-image");
+    elements.photoLightboxCloseButton = lightbox.querySelector("#photo-lightbox-close-btn");
+  }
+
+  function openPhotoLightboxFromImage(imageElement) {
+    if (!(imageElement instanceof HTMLImageElement)) {
+      return;
+    }
+    const source = String(imageElement.currentSrc || imageElement.getAttribute("src") || "").trim();
+    if (!source) {
+      return;
+    }
+    const altText = String(imageElement.getAttribute("alt") || "현안 사진 확대 보기");
+    openPhotoLightbox(source, altText);
+  }
+
+  function openPhotoLightbox(rawSource, rawAltText) {
+    if (!elements.photoLightbox || !elements.photoLightboxImage) {
+      return;
+    }
+    const source = String(rawSource || "").trim();
+    if (!source) {
+      return;
+    }
+    elements.photoLightboxImage.src = source;
+    elements.photoLightboxImage.alt = String(rawAltText || "현안 사진 확대 보기");
+    elements.photoLightbox.classList.remove("hidden");
+    elements.photoLightbox.setAttribute("aria-hidden", "false");
+    document.body.classList.add("photo-lightbox-open");
+  }
+
+  function closePhotoLightbox() {
+    if (!elements.photoLightbox) {
+      return;
+    }
+    elements.photoLightbox.classList.add("hidden");
+    elements.photoLightbox.setAttribute("aria-hidden", "true");
+    if (elements.photoLightboxImage) {
+      elements.photoLightboxImage.removeAttribute("src");
+    }
+    document.body.classList.remove("photo-lightbox-open");
+  }
+
+  function isPhotoLightboxVisible() {
+    return Boolean(elements.photoLightbox && !elements.photoLightbox.classList.contains("hidden"));
+  }
+
+  function handleMapPopupClickThrough(mapBrowserEvent) {
+    if (!elements.mapPopup || elements.mapPopup.classList.contains("hidden")) {
+      return false;
+    }
+    const originalEvent = mapBrowserEvent && mapBrowserEvent.originalEvent
+      ? mapBrowserEvent.originalEvent
+      : null;
+    if (!originalEvent) {
+      return false;
+    }
+    const clientX = Number(originalEvent.clientX);
+    const clientY = Number(originalEvent.clientY);
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+      return false;
+    }
+    const popupRect = elements.mapPopup.getBoundingClientRect();
+    if (!isPointInsideRect(clientX, clientY, popupRect)) {
+      return false;
+    }
+
+    const popupPhoto = elements.mapPopup.querySelector(".map-popup-photo");
+    if (popupPhoto instanceof HTMLImageElement) {
+      const photoRect = popupPhoto.getBoundingClientRect();
+      if (isPointInsideRect(clientX, clientY, photoRect)) {
+        openPhotoLightboxFromImage(popupPhoto);
+      }
+    }
+    return true;
+  }
+
+  function isPointInsideRect(clientX, clientY, rect) {
+    if (!rect) {
+      return false;
+    }
+    return (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    );
   }
 
   function renderCommonPledges() {
@@ -1132,6 +1305,7 @@
     }
     closeSpotFormSheetForMobile();
     closePopup();
+    closePhotoLightbox();
     setStatus(message || "", isError === true);
   }
 
@@ -1292,11 +1466,16 @@
       element: elements.mapPopup,
       offset: [0, -16],
       positioning: "bottom-center",
-      stopEvent: false
+      stopEvent: true,
+      className: "map-popup-overlay"
     });
     state.map.addOverlay(state.popupOverlay);
 
     state.map.on("singleclick", (event) => {
+      if (handleMapPopupClickThrough(event)) {
+        return;
+      }
+
       const lonLat = ol.proj.toLonLat(event.coordinate);
       if (isEditMode() && state.currentUser) {
         setSelectedCoord(Number(lonLat[1]), Number(lonLat[0]));
@@ -5204,6 +5383,11 @@
       return;
     }
     elements.mapPopup.innerHTML = html;
+    elements.mapPopup.style.pointerEvents = "auto";
+    const popupPhoto = elements.mapPopup.querySelector(".map-popup-photo");
+    if (popupPhoto instanceof HTMLImageElement) {
+      popupPhoto.style.cursor = "zoom-in";
+    }
     elements.mapPopup.classList.remove("hidden");
     state.popupOverlay.setPosition(coordinate);
   }
