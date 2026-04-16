@@ -102,7 +102,7 @@
   };
   const issueCategoryMeta = {
     traffic_parking: { icon: "🚌", color: "#2f6fb8" },
-    education_childcare: { icon: "🏫", color: "#188e5b" },
+    education_childcare: { icon: "🏫", color: "#b8860b" },
     environment_park: { icon: "🌳", color: "#2b8a3e" },
     safety_security: { icon: "🚨", color: "#d9480f" },
     housing_infra: { icon: "🏘️", color: "#8d6e63" },
@@ -110,7 +110,7 @@
   };
   const fallbackCategoryPalette = [
     "#2f6fb8",
-    "#188e5b",
+    "#b8860b",
     "#2b8a3e",
     "#d9480f",
     "#8d6e63",
