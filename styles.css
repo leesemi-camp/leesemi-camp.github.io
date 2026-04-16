@@ -563,6 +563,15 @@ textarea {
   color: #1f3857;
 }
 
+.spot-dong-issue-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .spot-dong-issue-category {
   flex: 0 0 auto;
   border-radius: 999px;
@@ -572,6 +581,12 @@ textarea {
   color: #305885;
   font-size: 11px;
   font-weight: 600;
+}
+
+.spot-dong-issue-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .spot-group-count {

@@ -61,7 +61,7 @@
     issues: [],
     commonIssueTagMap: new Map(),
     issueGroupMap: new Map(),
-    issueListMode: "spot",
+    issueListMode: "dong",
     activeDongName: "",
     overlayStyleCache: {
       vehicle: new Map(),
@@ -230,7 +230,6 @@
     spotPhotoPreviewImage: document.getElementById("spot-photo-preview"),
     spotPhotoRemoveButton: document.getElementById("spot-photo-remove-btn"),
     spotList: document.getElementById("spot-list"),
-    issueViewListButton: document.getElementById("issue-view-list-btn"),
     issueViewDongButton: document.getElementById("issue-view-dong-btn"),
     clearDongFilterButton: document.getElementById("clear-dong-filter-btn"),
     activeDongFilter: document.getElementById("active-dong-filter"),
@@ -570,12 +569,6 @@
           return;
         }
         focusCommonIssueTag(commonTag);
-      });
-    }
-
-    if (elements.issueViewListButton) {
-      elements.issueViewListButton.addEventListener("click", () => {
-        setIssueListMode("spot");
       });
     }
 
@@ -2377,23 +2370,17 @@
   }
 
   function setIssueListMode(mode) {
-    const normalized = mode === "dong"
-      ? "dong"
-      : "spot";
-    if (state.issueListMode === normalized) {
+    if (mode !== "dong" || state.issueListMode === "dong") {
       return;
     }
-    state.issueListMode = normalized;
+    state.issueListMode = "dong";
     syncIssueListModeUi();
     renderVisibleIssueList();
   }
 
   function syncIssueListModeUi() {
-    if (elements.issueViewListButton) {
-      elements.issueViewListButton.classList.toggle("spot-action-btn-checked", state.issueListMode === "spot");
-    }
     if (elements.issueViewDongButton) {
-      elements.issueViewDongButton.classList.toggle("spot-action-btn-checked", state.issueListMode === "dong");
+      elements.issueViewDongButton.classList.add("spot-action-btn-checked");
     }
   }
 
@@ -4500,11 +4487,7 @@
     updateTotalIssueCountLabel();
     const filtered = applyIssueFilter(state.issues);
     renderIssueStatsSummary(state.issues);
-    if (state.issueListMode === "dong") {
-      renderIssueDongList(filtered);
-      return;
-    }
-    renderHotspotList(filtered);
+    renderIssueDongList(filtered);
   }
 
   function renderIssueStatsSummary(hotspots) {
@@ -4775,6 +4758,7 @@
 
     const groups = buildIssueDongGroups(hotspots);
     state.issueGroupMap = new Map(groups.map((group) => [group.key, group]));
+    const showEditorActions = isEditMode();
 
     const items = groups.map((group) => {
       const safeKey = escapeHtml(group.key);
@@ -4797,10 +4781,21 @@
           const rawSpotId = String(spot && spot.id ? spot.id : "").trim();
           const safeSpotId = escapeHtml(rawSpotId);
           const spotIdAttr = rawSpotId ? " data-spot-id='" + safeSpotId + "'" : "";
+          const issueActionsHtml = showEditorActions && rawSpotId
+            ? (
+              "<span class='spot-dong-issue-actions'>" +
+                "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='edit-spot' data-spot-id='" + safeSpotId + "'>수정</button>" +
+                "<button type='button' class='btn-secondary btn-small spot-action-btn danger' data-action='delete-spot' data-spot-id='" + safeSpotId + "'>삭제</button>" +
+              "</span>"
+            )
+            : "";
           return (
             "<li class='spot-dong-issue-item'" + spotIdAttr + ">" +
               "<span class='spot-dong-issue-title'>" + safeIssueTitle + "</span>" +
-              "<span class='spot-dong-issue-category' style='" + issueCategoryStyle + "'>" + safeIssueCategory + "</span>" +
+              "<span class='spot-dong-issue-meta'>" +
+                "<span class='spot-dong-issue-category' style='" + issueCategoryStyle + "'>" + safeIssueCategory + "</span>" +
+                issueActionsHtml +
+              "</span>" +
             "</li>"
           );
         }).join("");
