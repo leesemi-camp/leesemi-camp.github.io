@@ -537,9 +537,13 @@
         setHighlightedHotspots([spot.id]);
         const mapView = state.map.getView();
         if (mapView) {
+          const hasPhoto = Boolean(normalizeHotspotPhotoDataUrl(spot.photoDataUrl));
+          const targetCenter = resolvePopupAwareCenterCoordinate(coordinate, {
+            hasPhoto
+          });
           const currentZoom = mapView.getZoom();
           const animateOptions = {
-            center: coordinate,
+            center: targetCenter,
             duration: 240
           };
           if (Number.isFinite(currentZoom)) {
@@ -4957,6 +4961,58 @@
 
   function normalizeIssueGroupLabel(value) {
     return String(value || "").trim();
+  }
+
+  function resolvePopupAwareCenterCoordinate(coordinate, options) {
+    if (!isMobileLayout()) {
+      return coordinate;
+    }
+    if (!state.map || !Array.isArray(coordinate) || coordinate.length < 2) {
+      return coordinate;
+    }
+
+    const view = state.map.getView();
+    const size = state.map.getSize();
+    if (!view || !Array.isArray(size) || size.length < 2) {
+      return coordinate;
+    }
+
+    const coordinateX = Number(coordinate[0]);
+    const coordinateY = Number(coordinate[1]);
+    const mapHeight = Number(size[1]);
+    const resolution = Number(view.getResolution());
+    if (
+      !Number.isFinite(coordinateX) ||
+      !Number.isFinite(coordinateY) ||
+      !Number.isFinite(mapHeight) ||
+      mapHeight <= 0 ||
+      !Number.isFinite(resolution) ||
+      resolution <= 0
+    ) {
+      return coordinate;
+    }
+
+    const hasPhoto = Boolean(options && options.hasPhoto);
+    const popupHeightPx = readPositiveNumber(
+      options && options.popupHeightPx,
+      hasPhoto ? 248 : 132
+    );
+    const centerY = mapHeight / 2;
+    const topMarginPx = hasPhoto ? 20 : 14;
+    const bottomMarginPx = 20;
+    const requiredMarkerY = popupHeightPx + topMarginPx;
+    const maxMarkerY = Math.max(centerY, mapHeight - bottomMarginPx);
+    let desiredMarkerY = Math.max(centerY, Math.max(mapHeight * 0.66, requiredMarkerY));
+    if (desiredMarkerY > maxMarkerY) {
+      desiredMarkerY = maxMarkerY;
+    }
+
+    const pixelOffsetY = desiredMarkerY - centerY;
+    if (!Number.isFinite(pixelOffsetY) || pixelOffsetY <= 0.5) {
+      return coordinate;
+    }
+
+    return [coordinateX, coordinateY + (pixelOffsetY * resolution)];
   }
 
   function focusIssueGroup(groupKey) {
