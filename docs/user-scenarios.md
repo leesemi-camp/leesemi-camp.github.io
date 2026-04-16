@@ -72,16 +72,17 @@
   - `tests/spot-list.spec.js`: `Memo presence toggles compact card class`
   - `tests/smoke.spec.js`: `Map spot memo state`
 
-## PUB-004: 현안 열람(리스트 모드 전환: 개별/그룹)
+## PUB-004: 현안 열람(동별 보기 고정)
 
 - Entry: `/map/` (편집 화면에도 동일 버튼/리스트가 존재)
 - 사용자 흐름
-  - “개별 보기/그룹 보기” 버튼으로 리스트 렌더링 모드를 전환합니다.
+  - 리스트는 항상 동별 묶음으로 렌더링됩니다.
+  - “동별 보기” 버튼은 현재 보기 상태를 표시합니다.
 - 구현
-  - 버튼 이벤트: `app.js#L309` `bindUiEvents()`에서 `#issue-view-list-btn`, `#issue-view-group-btn`
-  - 모드 전환: `app.js#L2045` `setIssueListMode(mode)` → `syncIssueListModeUi()`
-  - 렌더 분기: `app.js#L4150` `renderVisibleIssueList()`가 `renderHotspotList()` / `renderIssueGroupList()` 선택
-  - 그룹 렌더: `app.js#L4222` `renderIssueGroupList(hotspots)` / `buildIssueGroups(...)`
+  - 버튼 이벤트: `app.js` `bindUiEvents()`에서 `#issue-view-dong-btn`
+  - 모드 동기화: `setIssueListMode(mode)` / `syncIssueListModeUi()`
+  - 리스트 렌더: `renderVisibleIssueList()`가 `renderIssueDongList(hotspots)`를 호출
+  - 동별 묶음 계산: `buildIssueDongGroups(...)`
 - 테스트
   - 없음(현재)
 
@@ -217,4 +218,3 @@
   - `tests/api-files.spec.js`: 브라우저 컨텍스트에서 `fetch()` 실행
 - 테스트
   - `tests/api-files.spec.js`: `API endpoints respond in browser`
-
