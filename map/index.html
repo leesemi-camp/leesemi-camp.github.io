@@ -41,7 +41,10 @@
     <section id="app-shell" class="app-shell" aria-live="polite">
         <header class="topbar">
             <div class="topbar-texts">
-                <h2 class="topbar-title">우리동네 현안도, 이세미입니다</h2>
+                <div class="topbar-title-row">
+                    <h2 class="topbar-title">우리동네 현안도, 이세미입니다</h2>
+                    <span id="total-issue-count" class="topbar-total-issue-count">총 현안 건수: 0건</span>
+                </div>
                 <p class="topbar-message">
                     이 지도에 담고 싶은 동네의 이야기가 있나요? 사소한 의견이라도 좋으니 제보해 주세요. 귀 기울여 듣겠습니다!
                     <a href="sms:01081901440" class="issue-contact-link topbar-message-link"
@@ -74,6 +77,7 @@
             </div>
 
             <aside class="side-panel">
+                <section id="issue-stats-summary" class="issue-stats-summary" aria-live="polite"></section>
                 <section class="pledge-panel">
                     <h3>지역구 공통 현안</h3>
                     <ul id="common-pledge-list" class="pledge-list"></ul>
@@ -84,10 +88,8 @@
                     <button id="issue-view-list-btn" type="button"
                             class="btn-secondary btn-small spot-action-btn spot-action-btn-checked">개별 보기
                     </button>
-                    <button id="issue-view-group-btn" type="button" class="btn-secondary btn-small spot-action-btn">그룹
-                        보기
+                    <button id="issue-view-dong-btn" type="button" class="btn-secondary btn-small spot-action-btn">동별 보기
                     </button>
-                    <span id="active-dong-filter" class="active-dong-filter hidden"></span>
                     <button id="clear-dong-filter-btn" type="button" class="btn-secondary btn-small hidden">전체 보기
                     </button>
                 </div>
