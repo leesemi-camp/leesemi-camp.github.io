@@ -89,12 +89,33 @@ p {
   gap: 4px;
 }
 
+.topbar-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .topbar-title {
   font-size: 19px;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.topbar-total-issue-count {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: #edf4ff;
+  color: #1d4c8f;
+  border: 1px solid #c9dcfa;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .topbar-message {
@@ -499,6 +520,60 @@ textarea {
   background: #eef4fd;
 }
 
+.spot-dong-group-item {
+  background: #f4f8ff;
+}
+
+.spot-dong-group-item:hover {
+  background: #e8f0fc;
+}
+
+.spot-dong-issue-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.spot-dong-issue-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid #d7e3f4;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 12px;
+  color: #2b415f;
+}
+
+.spot-dong-issue-item[data-spot-id] {
+  cursor: pointer;
+}
+
+.spot-dong-issue-item[data-spot-id]:hover {
+  background: #f4f8ff;
+  border-color: #c7d9f2;
+}
+
+.spot-dong-issue-title {
+  font-weight: 600;
+  color: #1f3857;
+}
+
+.spot-dong-issue-category {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 2px 7px;
+  border: 1px solid #d5e3f7;
+  background: #eef4ff;
+  color: #305885;
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .spot-group-count {
   display: inline-flex;
   align-items: center;
@@ -573,6 +648,87 @@ textarea {
 
 .spot-filter-row .spot-action-btn {
   margin-right: 2px;
+}
+
+.issue-stats-summary {
+  margin-top: 4px;
+  margin-bottom: 8px;
+  border: 1px solid #d8e4f5;
+  border-radius: 12px;
+  padding: 10px;
+  background: #f7faff;
+}
+
+.issue-stats-head {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f3f66;
+}
+
+.issue-stats-scope {
+  color: #5d7594;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.issue-stats-grid {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.issue-stats-block h4 {
+  margin: 0;
+  font-size: 12px;
+  color: #466286;
+}
+
+.issue-stats-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.issue-stats-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.issue-stats-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.issue-stats-chip-dong {
+  color: #204a77;
+  background: #e7f0fb;
+  border: 1px solid #cadcf3;
+}
+
+.issue-stats-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1f3f66;
+}
+
+.issue-stats-hint {
+  flex: 1 0 100%;
+  font-size: 11px;
+  color: #5f7592;
+}
+
+.issue-stats-empty {
+  font-size: 12px;
+  color: #607998;
 }
 
 .active-dong-filter {
@@ -875,6 +1031,11 @@ body.photo-lightbox-open {
   .topbar-title {
     font-size: 17px;
     white-space: normal;
+  }
+
+  .topbar-total-issue-count {
+    font-size: 11px;
+    padding: 3px 8px;
   }
 
   .topbar-message {

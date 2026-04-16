@@ -79,6 +79,18 @@
   const DONG_COMMON_KEY = "__common__";
   const DONG_COMMON_NAME = "공통";
   const DONG_COMMON_LABEL = "공통 (전체 동)";
+  const DONG_DISPLAY_ORDER = [
+    DONG_COMMON_NAME,
+    "백현동",
+    "판교동",
+    "운중동",
+    "대장동"
+  ];
+  const DONG_STATS_MERGE_MAP = {
+    운중동: "운중동",
+    하산운동: "운중동",
+    석운동: "운중동"
+  };
 
   const issueCategories = {
     traffic_parking: "🚌 교통·주차",
@@ -219,9 +231,11 @@
     spotPhotoRemoveButton: document.getElementById("spot-photo-remove-btn"),
     spotList: document.getElementById("spot-list"),
     issueViewListButton: document.getElementById("issue-view-list-btn"),
-    issueViewGroupButton: document.getElementById("issue-view-group-btn"),
+    issueViewDongButton: document.getElementById("issue-view-dong-btn"),
     clearDongFilterButton: document.getElementById("clear-dong-filter-btn"),
     activeDongFilter: document.getElementById("active-dong-filter"),
+    issueStatsSummary: document.getElementById("issue-stats-summary"),
+    totalIssueCount: document.getElementById("total-issue-count"),
     commonPledgeList: document.getElementById("common-pledge-list"),
     toggleVehicleFlow: document.getElementById("toggle-vehicle-flow"),
     togglePedestrianFlow: document.getElementById("toggle-pedestrian-flow"),
@@ -497,17 +511,15 @@
           }
         }
 
-        const groupItem = target.closest("[data-group-key]");
-        if (groupItem) {
-          const groupKey = String(groupItem.getAttribute("data-group-key") || "").trim();
-          if (groupKey) {
-            focusIssueGroup(groupKey);
-          }
-          return;
-        }
-
         const item = target.closest("[data-spot-id]");
         if (!item || !state.map || !state.hotspotSource) {
+          const groupItem = target.closest("[data-group-key]");
+          if (groupItem) {
+            const groupKey = String(groupItem.getAttribute("data-group-key") || "").trim();
+            if (groupKey) {
+              focusIssueGroup(groupKey);
+            }
+          }
           return;
         }
 
@@ -567,9 +579,9 @@
       });
     }
 
-    if (elements.issueViewGroupButton) {
-      elements.issueViewGroupButton.addEventListener("click", () => {
-        setIssueListMode("group");
+    if (elements.issueViewDongButton) {
+      elements.issueViewDongButton.addEventListener("click", () => {
+        setIssueListMode("dong");
       });
     }
 
@@ -633,6 +645,7 @@
     syncDongSelectOptions();
     updateDongFilterUi();
     syncIssueListModeUi();
+    updateTotalIssueCountLabel();
   }
 
   function setupPhotoLightbox() {
@@ -1092,7 +1105,7 @@
       const rawCategoryId = row[catalogConfig.categoryIdField];
       const categoryId = normalizeCategoryId(rawCategoryId);
       const categoryLabel = resolveCategoryLabel(categoryId, row[catalogConfig.categoryLabelField] || rawCategoryId);
-      const dongName = String(row[catalogConfig.dongNameField] || "").trim();
+      const dongName = resolveMergedDongName(row[catalogConfig.dongNameField]);
       const emdCode = normalizeEmdCode(row[catalogConfig.emdCodeField]);
 
       map.set(issueId, {
@@ -1108,10 +1121,10 @@
     });
 
     const list = Array.from(map.values()).sort((a, b) => {
-      const aDong = String(a.dongName || "");
-      const bDong = String(b.dongName || "");
+      const aDong = resolveMergedDongName(a.dongName);
+      const bDong = resolveMergedDongName(b.dongName);
       if (aDong !== bDong) {
-        return aDong.localeCompare(bDong, "ko");
+        return compareDongLabelForDisplay(aDong, bDong);
       }
       return String(a.title || "").localeCompare(String(b.title || ""), "ko");
     });
@@ -1519,7 +1532,11 @@
         clearHighlightedHotspots();
         if (!isEditMode()) {
           const dongName = String(hitFeature.get("dongName") || "").trim();
-          setActiveDongFilter(dongName);
+          focusDongIssues(dongName, {
+            fallbackCoordinate: event.coordinate,
+            boundaryFeature: hitFeature
+          });
+          return;
         }
         openBoundaryPopup(event.coordinate, hitFeature);
         return;
@@ -1795,7 +1812,7 @@
       haloWidth: boundaryHaloWidth + 0.8,
       fillColor: createBoundaryHatchPattern({
         backgroundColor: "rgba(11,87,208,0.10)",
-        stripeColor: "rgba(11,87,208,0.36)",
+        stripeColor: "rgba(11,87,208,0.30)",
         cellSize: 10,
         stripeWidth: 1.2
       }) || "rgba(11,87,208,0.10)"
@@ -1835,7 +1852,7 @@
     state.boundarySelectedStyle = boundarySelectedStyle;
     updateBoundaryHighlightStyles();
     const sortedDongs = Array.from(dongMap.values()).sort((a, b) => {
-      return compareKoreanText(a.dongName, b.dongName);
+      return compareDongLabelForDisplay(a.dongName, b.dongName);
     });
     state.availableDongs = [
       {
@@ -2062,12 +2079,12 @@
     if (!state.boundarySource) {
       return;
     }
-    const activeDong = String(state.activeDongName || "").trim();
+    const activeDong = resolveMergedDongName(state.activeDongName);
     const defaultStyle = state.boundaryDefaultStyle;
     const selectedStyle = state.boundarySelectedStyle || defaultStyle;
 
     state.boundarySource.getFeatures().forEach((feature) => {
-      const dongName = String(feature.get("dongName") || "").trim();
+      const dongName = resolveMergedDongName(feature.get("dongName"));
       const isSelected = Boolean(activeDong) && dongName === activeDong;
       feature.setStyle(isSelected ? selectedStyle : defaultStyle);
     });
@@ -2232,21 +2249,137 @@
 
   function formatSpotDongLabel(spot) {
     if (isExplicitCommonSpot(spot)) {
-      return DONG_COMMON_LABEL;
+      return DONG_COMMON_NAME;
     }
     const bracketTag = resolveBracketedCommonTag(spot);
-    const dongName = String(spot && spot.dongName ? spot.dongName : "").trim();
+    const dongName = resolveMergedDongName(spot && spot.dongName ? spot.dongName : "");
     if (bracketTag) {
-      if (dongName && dongName !== DONG_COMMON_NAME) {
-        return DONG_COMMON_LABEL + " · " + dongName;
-      }
-      return DONG_COMMON_LABEL;
+      return DONG_COMMON_NAME;
     }
     return dongName || "동 정보 없음";
   }
 
+  function resolveMergedDongName(dongName) {
+    const normalizedName = String(dongName || "").trim();
+    if (!normalizedName) {
+      return "";
+    }
+    if (
+      normalizedName === DONG_COMMON_NAME ||
+      normalizedName === DONG_COMMON_LABEL ||
+      normalizedName.startsWith(DONG_COMMON_LABEL + " ·")
+    ) {
+      return DONG_COMMON_NAME;
+    }
+    if (Object.prototype.hasOwnProperty.call(DONG_STATS_MERGE_MAP, normalizedName)) {
+      return DONG_STATS_MERGE_MAP[normalizedName];
+    }
+    if (normalizedName.includes("백현동")) {
+      return "백현동";
+    }
+    if (normalizedName.includes("판교동")) {
+      return "판교동";
+    }
+    if (
+      normalizedName.includes("운중동") ||
+      normalizedName.includes("석운동") ||
+      normalizedName.includes("하산운동")
+    ) {
+      return "운중동";
+    }
+    if (normalizedName.includes("대장동")) {
+      return "대장동";
+    }
+    return normalizedName;
+  }
+
+  function resolveDongStatsLabel(spot) {
+    if (isExplicitCommonSpot(spot)) {
+      return DONG_COMMON_NAME;
+    }
+    const dongName = resolveMergedDongName(spot && spot.dongName ? spot.dongName : "");
+    if (dongName) {
+      return dongName;
+    }
+    if (isCommonSpot(spot)) {
+      return DONG_COMMON_NAME;
+    }
+    return "동 정보 없음";
+  }
+
+  function resolveSpotDongForAggregation(spot) {
+    if (!spot || typeof spot !== "object") {
+      return "";
+    }
+
+    const directDong = resolveMergedDongName(spot.dongName);
+    if (directDong && directDong !== DONG_COMMON_NAME) {
+      return directDong;
+    }
+
+    const lat = Number(spot.lat);
+    const lng = Number(spot.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
+      const boundaryDong = resolveMergedDongName(boundaryMeta.dongName);
+      if (boundaryDong && boundaryDong !== DONG_COMMON_NAME) {
+        return boundaryDong;
+      }
+    }
+
+    return "";
+  }
+
+  function normalizeDongLabelForOrdering(dongLabel) {
+    const normalizedLabel = String(dongLabel || "").trim();
+    if (!normalizedLabel) {
+      return "";
+    }
+    if (normalizedLabel === DONG_COMMON_NAME || normalizedLabel === DONG_COMMON_LABEL) {
+      return DONG_COMMON_NAME;
+    }
+    if (normalizedLabel.startsWith(DONG_COMMON_LABEL + " ·")) {
+      return DONG_COMMON_NAME;
+    }
+    return resolveMergedDongName(normalizedLabel);
+  }
+
+  function compareDongLabelForDisplay(a, b) {
+    const aRaw = String(a || "").trim();
+    const bRaw = String(b || "").trim();
+    const aNormalized = normalizeDongLabelForOrdering(aRaw);
+    const bNormalized = normalizeDongLabelForOrdering(bRaw);
+    const aIndex = DONG_DISPLAY_ORDER.indexOf(aNormalized);
+    const bIndex = DONG_DISPLAY_ORDER.indexOf(bNormalized);
+    const aRank = aIndex >= 0 ? aIndex : DONG_DISPLAY_ORDER.length;
+    const bRank = bIndex >= 0 ? bIndex : DONG_DISPLAY_ORDER.length;
+    if (aRank !== bRank) {
+      return aRank - bRank;
+    }
+    const normalizedOrder = compareKoreanText(aNormalized, bNormalized);
+    if (normalizedOrder !== 0) {
+      return normalizedOrder;
+    }
+    const aIsCanonical = aRaw === aNormalized;
+    const bIsCanonical = bRaw === bNormalized;
+    if (aIsCanonical !== bIsCanonical) {
+      return aIsCanonical ? -1 : 1;
+    }
+    return compareKoreanText(aRaw, bRaw);
+  }
+
+  function updateTotalIssueCountLabel() {
+    if (!elements.totalIssueCount) {
+      return;
+    }
+    const totalCount = Array.isArray(state.issues) ? state.issues.length : 0;
+    elements.totalIssueCount.textContent = "총 현안 건수: " + String(totalCount) + "건";
+  }
+
   function setIssueListMode(mode) {
-    const normalized = mode === "group" ? "group" : "spot";
+    const normalized = mode === "dong"
+      ? "dong"
+      : "spot";
     if (state.issueListMode === normalized) {
       return;
     }
@@ -2259,8 +2392,8 @@
     if (elements.issueViewListButton) {
       elements.issueViewListButton.classList.toggle("spot-action-btn-checked", state.issueListMode === "spot");
     }
-    if (elements.issueViewGroupButton) {
-      elements.issueViewGroupButton.classList.toggle("spot-action-btn-checked", state.issueListMode === "group");
+    if (elements.issueViewDongButton) {
+      elements.issueViewDongButton.classList.toggle("spot-action-btn-checked", state.issueListMode === "dong");
     }
   }
 
@@ -2286,7 +2419,7 @@
     if (titleOrder !== 0) {
       return titleOrder;
     }
-    const dongOrder = compareKoreanText(formatSpotDongLabel(a), formatSpotDongLabel(b));
+    const dongOrder = compareDongLabelForDisplay(formatSpotDongLabel(a), formatSpotDongLabel(b));
     if (dongOrder !== 0) {
       return dongOrder;
     }
@@ -2322,14 +2455,18 @@
       "<option value='" + DONG_AUTO_KEY + "'>좌표 기준 자동 판별</option>",
       "<option value='" + DONG_COMMON_KEY + "'>" + escapeHtml(DONG_COMMON_LABEL) + "</option>"
     ];
+    const addedDongLabels = new Set([DONG_COMMON_NAME]);
 
     state.availableDongs.forEach((dong) => {
       if (!dong || dong.key === DONG_COMMON_KEY) {
         return;
       }
-      const label = dong.emdCode
-        ? escapeHtml(dong.dongName + " (" + dong.emdCode + ")")
-        : escapeHtml(dong.dongName);
+      const mergedDongName = resolveMergedDongName(dong.dongName);
+      if (!mergedDongName || addedDongLabels.has(mergedDongName)) {
+        return;
+      }
+      addedDongLabels.add(mergedDongName);
+      const label = escapeHtml(mergedDongName);
       options.push("<option value='" + escapeHtml(dong.key) + "'>" + label + "</option>");
     });
 
@@ -3865,13 +4002,13 @@
         ? state.issueCatalogMap.get(issueRefId)
         : null;
       const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
-      const dongName = String(
+      const dongName = resolveMergedDongName(
         value.dongName ||
         value.dong_name ||
         (catalogIssue ? catalogIssue.dongName : "") ||
         boundaryMeta.dongName ||
         ""
-      ).trim();
+      );
       const emdCode = normalizeEmdCode(
         value.emdCode ||
         value.emd_cd ||
@@ -3974,17 +4111,17 @@
 
   function applyIssueFilter(hotspots) {
     const list = Array.isArray(hotspots) ? hotspots : [];
-    const activeDong = String(state.activeDongName || "").trim();
+    const activeDong = resolveMergedDongName(state.activeDongName);
     if (!activeDong) {
       return list;
     }
     return list.filter((spot) => {
-      return String(spot.dongName || "").trim() === activeDong || isCommonSpot(spot);
+      return resolveSpotDongForAggregation(spot) === activeDong;
     });
   }
 
   function setActiveDongFilter(dongName) {
-    const normalized = String(dongName || "").trim();
+    const normalized = resolveMergedDongName(dongName);
     if (state.activeDongName === normalized) {
       return;
     }
@@ -3995,21 +4132,25 @@
   }
 
   function updateDongFilterUi() {
-    if (!elements.activeDongFilter) {
-      return;
-    }
     const activeDong = String(state.activeDongName || "").trim();
-    if (!activeDong) {
+    if (elements.issueViewDongButton) {
+      elements.issueViewDongButton.textContent = activeDong
+        ? "동별 보기(" + activeDong + ")"
+        : "동별 보기";
+    }
+
+    if (elements.activeDongFilter) {
       elements.activeDongFilter.classList.add("hidden");
       elements.activeDongFilter.textContent = "";
+    }
+
+    if (!activeDong) {
       if (elements.clearDongFilterButton) {
         elements.clearDongFilterButton.classList.add("hidden");
       }
       return;
     }
 
-    elements.activeDongFilter.classList.remove("hidden");
-    elements.activeDongFilter.textContent = activeDong + " + " + DONG_COMMON_NAME + " 보기";
     if (elements.clearDongFilterButton) {
       elements.clearDongFilterButton.classList.remove("hidden");
     }
@@ -4356,12 +4497,132 @@
   }
 
   function renderVisibleIssueList() {
+    updateTotalIssueCountLabel();
     const filtered = applyIssueFilter(state.issues);
-    if (state.issueListMode === "group") {
-      renderIssueGroupList(filtered);
+    renderIssueStatsSummary(state.issues);
+    if (state.issueListMode === "dong") {
+      renderIssueDongList(filtered);
       return;
     }
     renderHotspotList(filtered);
+  }
+
+  function renderIssueStatsSummary(hotspots) {
+    if (!elements.issueStatsSummary) {
+      return;
+    }
+
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    if (list.length === 0) {
+      elements.issueStatsSummary.innerHTML = "<div class='issue-stats-empty'>표시할 현안 통계가 없습니다.</div>";
+      return;
+    }
+
+    const scopeLabel = "전체 기준";
+    const categoryStats = buildIssueCategoryStats(list);
+    const dongStats = buildIssueDongStats(list);
+
+    const categoryItems = categoryStats.map((item) => {
+      const safeLabel = escapeHtml(item.label);
+      const countLabel = String(item.count) + "건";
+      const chipStyle = buildCategoryBadgeStyle(item.color);
+      return (
+        "<li class='issue-stats-item'>" +
+          "<span class='issue-stats-chip issue-stats-chip-category' style='" + chipStyle + "'>" + safeLabel + "</span>" +
+          "<span class='issue-stats-count'>" + countLabel + "</span>" +
+        "</li>"
+      );
+    });
+
+    const dongItems = dongStats.map((item) => {
+      const safeLabel = escapeHtml(item.label);
+      const countLabel = String(item.count) + "건";
+      const sourceNames = Array.isArray(item.sourceNames) ? item.sourceNames : [];
+      const mergeHint = sourceNames.length > 1
+        ? "<div class='issue-stats-hint'>" + escapeHtml(sourceNames.join(" · ") + " 묶음") + "</div>"
+        : "";
+      return (
+        "<li class='issue-stats-item'>" +
+          "<span class='issue-stats-chip issue-stats-chip-dong'>" + safeLabel + "</span>" +
+          "<span class='issue-stats-count'>" + countLabel + "</span>" +
+          mergeHint +
+        "</li>"
+      );
+    });
+
+    elements.issueStatsSummary.innerHTML =
+      "<div class='issue-stats-head'>현안 통계 <span class='issue-stats-scope'>(" + scopeLabel + ")</span></div>" +
+      "<div class='issue-stats-grid'>" +
+        "<section class='issue-stats-block'>" +
+          "<h4>카테고리별 총 건수</h4>" +
+          "<ul class='issue-stats-list'>" + categoryItems.join("") + "</ul>" +
+        "</section>" +
+        "<section class='issue-stats-block'>" +
+          "<h4>동별 총 건수</h4>" +
+          "<ul class='issue-stats-list'>" + dongItems.join("") + "</ul>" +
+        "</section>" +
+      "</div>";
+  }
+
+  function buildIssueCategoryStats(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    const statsByLabel = new Map();
+
+    list.forEach((spot) => {
+      const categoryMeta = resolveIssueCategoryMeta(spot.categoryId, spot.categoryLabel);
+      const label = String(categoryMeta.label || "").trim() || "미분류";
+      if (!statsByLabel.has(label)) {
+        statsByLabel.set(label, {
+          label,
+          color: categoryMeta.color || defaultIssueCategoryColor,
+          count: 0
+        });
+      }
+      statsByLabel.get(label).count += 1;
+    });
+
+    return Array.from(statsByLabel.values()).sort((a, b) => {
+      if (a.count !== b.count) {
+        return b.count - a.count;
+      }
+      return compareKoreanText(a.label, b.label);
+    });
+  }
+
+  function buildIssueDongStats(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    const statsByDong = new Map();
+    const dongTargets = DONG_DISPLAY_ORDER.filter((dongName) => dongName !== DONG_COMMON_NAME);
+
+    dongTargets.forEach((dongName) => {
+      statsByDong.set(dongName, {
+        label: dongName,
+        count: 0,
+        sourceNames: new Set([dongName])
+      });
+    });
+
+    list.forEach((spot) => {
+      const targetDong = resolveSpotDongForAggregation(spot);
+      if (!targetDong || !statsByDong.has(targetDong)) {
+        return;
+      }
+      const stat = statsByDong.get(targetDong);
+      stat.count += 1;
+      stat.sourceNames.add(targetDong);
+    });
+
+    return Array.from(statsByDong.values())
+      .map((item) => {
+        return {
+          label: item.label,
+          count: item.count,
+          sourceNames: Array.from(item.sourceNames).sort(compareDongLabelForDisplay)
+        };
+      })
+      .sort((a, b) => {
+        return compareDongLabelForDisplay(a.label, b.label);
+      });
   }
 
   function renderHotspotList(hotspots) {
@@ -4374,7 +4635,7 @@
     if (hotspots.length === 0) {
       if (state.activeDongName) {
         const safeDongName = escapeHtml(state.activeDongName);
-        elements.spotList.innerHTML = "<li class='empty'>" + safeDongName + " 및 " + DONG_COMMON_NAME + "에 등록된 현안이 없습니다.</li>";
+        elements.spotList.innerHTML = "<li class='empty'>" + safeDongName + "에 등록된 현안이 없습니다.</li>";
       } else {
         elements.spotList.innerHTML = "<li class='empty'>등록된 지역 현안이 없습니다.</li>";
       }
@@ -4449,7 +4710,7 @@
       state.issueGroupMap = new Map();
       if (state.activeDongName) {
         const safeDongName = escapeHtml(state.activeDongName);
-        elements.spotList.innerHTML = "<li class='empty'>" + safeDongName + " 및 " + DONG_COMMON_NAME + "에 등록된 현안이 없습니다.</li>";
+        elements.spotList.innerHTML = "<li class='empty'>" + safeDongName + "에 등록된 현안이 없습니다.</li>";
       } else {
         elements.spotList.innerHTML = "<li class='empty'>등록된 지역 현안이 없습니다.</li>";
       }
@@ -4496,6 +4757,132 @@
     elements.spotList.innerHTML = items.join("");
   }
 
+  function renderIssueDongList(hotspots) {
+    if (!elements.spotList) {
+      return;
+    }
+
+    if (hotspots.length === 0) {
+      state.issueGroupMap = new Map();
+      if (state.activeDongName) {
+        const safeDongName = escapeHtml(state.activeDongName);
+        elements.spotList.innerHTML = "<li class='empty'>" + safeDongName + "에 등록된 현안이 없습니다.</li>";
+      } else {
+        elements.spotList.innerHTML = "<li class='empty'>등록된 지역 현안이 없습니다.</li>";
+      }
+      return;
+    }
+
+    const groups = buildIssueDongGroups(hotspots);
+    state.issueGroupMap = new Map(groups.map((group) => [group.key, group]));
+
+    const items = groups.map((group) => {
+      const safeKey = escapeHtml(group.key);
+      const safeTitle = escapeHtml(group.title);
+      const sourceNames = Array.isArray(group.sourceDongNames) ? group.sourceDongNames : [];
+      const sourceNamesText = sourceNames.length > 0 ? sourceNames.join(", ") : group.title;
+      const countLabel = String(group.spots.length) + "건";
+      const categorySummary = Array.isArray(group.categorySummary) ? group.categorySummary : [];
+      const categoryText = categorySummary.length > 0
+        ? categorySummary.join(" · ")
+        : "카테고리 정보 없음";
+      const spotItems = Array.isArray(group.spots) ? group.spots : [];
+      const issueListHtml = spotItems.length === 0
+        ? "<li class='spot-dong-issue-item empty'>표시할 현안이 없습니다.</li>"
+        : spotItems.map((spot) => {
+          const safeIssueTitle = escapeHtml(String(spot && spot.title ? spot.title : "현안"));
+          const safeIssueCategory = escapeHtml(resolveCategoryLabel(spot && spot.categoryId, spot && spot.categoryLabel));
+          const issueCategoryMeta = resolveIssueCategoryMeta(spot && spot.categoryId, spot && spot.categoryLabel);
+          const issueCategoryStyle = buildCategoryBadgeStyle(issueCategoryMeta.color);
+          const rawSpotId = String(spot && spot.id ? spot.id : "").trim();
+          const safeSpotId = escapeHtml(rawSpotId);
+          const spotIdAttr = rawSpotId ? " data-spot-id='" + safeSpotId + "'" : "";
+          return (
+            "<li class='spot-dong-issue-item'" + spotIdAttr + ">" +
+              "<span class='spot-dong-issue-title'>" + safeIssueTitle + "</span>" +
+              "<span class='spot-dong-issue-category' style='" + issueCategoryStyle + "'>" + safeIssueCategory + "</span>" +
+            "</li>"
+          );
+        }).join("");
+
+      return (
+        "<li class='spot-item spot-group-item spot-dong-group-item' data-group-key='" + safeKey + "'>" +
+          "<div class='spot-item-top'>" +
+            "<strong>" + safeTitle + "</strong>" +
+            "<span class='spot-group-count'>" + countLabel + "</span>" +
+          "</div>" +
+          "<div class='spot-dong'>묶음 기준: " + escapeHtml(sourceNamesText) + "</div>" +
+          "<div class='spot-memo'>카테고리 분포: " + escapeHtml(categoryText) + "</div>" +
+          "<ul class='spot-dong-issue-list'>" + issueListHtml + "</ul>" +
+          "<div class='spot-item-actions'>" +
+            "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='focus-group' data-group-key='" + safeKey + "'>지도에서 동별 보기</button>" +
+          "</div>" +
+        "</li>"
+      );
+    });
+
+    elements.spotList.innerHTML = items.join("");
+  }
+
+  function buildIssueDongGroups(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    const groupMap = new Map();
+
+    list.forEach((spot) => {
+      const mergedDongName = resolveSpotDongForAggregation(spot);
+      if (!mergedDongName || mergedDongName === DONG_COMMON_NAME) {
+        return;
+      }
+      const key = "dong:" + mergedDongName.toLowerCase();
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          key,
+          title: mergedDongName,
+          categoryId: "",
+          categoryLabel: "동별 묶음",
+          spots: [],
+          dongNames: [mergedDongName],
+          sourceDongNames: new Set(),
+          categoryMap: new Map()
+        });
+      }
+      const group = groupMap.get(key);
+      group.spots.push(spot);
+      group.dongNames = [mergedDongName];
+      group.sourceDongNames.add(mergedDongName);
+      const categoryLabel = resolveCategoryLabel(spot.categoryId, spot.categoryLabel);
+      group.categoryMap.set(categoryLabel, (group.categoryMap.get(categoryLabel) || 0) + 1);
+    });
+
+    return Array.from(groupMap.values())
+      .map((group) => {
+        group.spots.sort(compareHotspotByTitle);
+        const categorySummary = Array.from(group.categoryMap.entries())
+          .sort((a, b) => {
+            if (a[1] !== b[1]) {
+              return b[1] - a[1];
+            }
+            return compareKoreanText(a[0], b[0]);
+          })
+          .map(([label, count]) => {
+            return label + " " + String(count) + "건";
+          });
+        return {
+          key: group.key,
+          title: group.title,
+          categoryId: group.categoryId,
+          categoryLabel: group.categoryLabel,
+          spots: group.spots,
+          dongNames: group.dongNames,
+          sourceDongNames: Array.from(group.sourceDongNames).sort(compareDongLabelForDisplay),
+          categorySummary
+        };
+      })
+      .sort((a, b) => {
+        return compareDongLabelForDisplay(a.title, b.title);
+      });
+  }
+
   function buildIssueGroups(hotspots) {
     const list = Array.isArray(hotspots) ? hotspots : [];
     const groupMap = new Map();
@@ -4526,7 +4913,7 @@
       .map((group) => {
         group.spots.sort(compareHotspotByTitle);
         const uniqueDongs = Array.from(new Set(group.spots.map((spot) => formatSpotDongLabel(spot))));
-        group.dongNames = uniqueDongs.sort(compareKoreanText);
+        group.dongNames = uniqueDongs.sort(compareDongLabelForDisplay);
         return group;
       })
       .sort((a, b) => compareIssueTitleForList(a.title, b.title));
@@ -4583,6 +4970,10 @@
       return;
     }
     const group = state.issueGroupMap.get(key);
+    if (group && String(group.categoryLabel || "").trim() === "동별 묶음") {
+      focusDongIssues(group.title);
+      return;
+    }
     setHighlightedHotspots((group && Array.isArray(group.spots) ? group.spots : []).map((spot) => spot.id));
     const extentMeta = resolveHotspotExtentMeta(group ? group.spots : []);
     if (!extentMeta) {
@@ -4606,6 +4997,81 @@
       state.suppressPopupCloseOnNextMoveStart = false;
     });
     openIssueGroupPopup(extentMeta.center, group);
+  }
+
+  function resolveBoundaryCenterCoordinate(boundaryFeature) {
+    if (!boundaryFeature || typeof boundaryFeature.getGeometry !== "function") {
+      return null;
+    }
+    const geometry = boundaryFeature.getGeometry();
+    if (!geometry || typeof geometry.getExtent !== "function") {
+      return null;
+    }
+    const extent = geometry.getExtent();
+    if (!extent || extent.length !== 4 || !extent.every((value) => Number.isFinite(value))) {
+      return null;
+    }
+    return ol.extent.getCenter(extent);
+  }
+
+  function resolveIssuesByDongName(dongName) {
+    const normalizedDong = resolveMergedDongName(dongName);
+    if (!normalizedDong) {
+      return [];
+    }
+    return state.issues.filter((spot) => resolveSpotDongForAggregation(spot) === normalizedDong);
+  }
+
+  function openDongIssueSummaryPopup(coordinate, dongName, count) {
+    if (!coordinate) {
+      return;
+    }
+    const safeDong = escapeHtml(resolveMergedDongName(dongName) || "동 정보 없음");
+    const safeCount = Number.isFinite(Number(count)) ? Math.max(0, Number(count)) : 0;
+    openPopup(
+      coordinate,
+      "<strong>" + safeDong + "</strong>" +
+      "<div>현안 건수: " + String(safeCount) + "건</div>"
+    );
+  }
+
+  function focusDongIssues(dongName, options) {
+    const normalizedDong = resolveMergedDongName(dongName);
+    if (!normalizedDong || !state.map) {
+      return;
+    }
+
+    if (!isEditMode()) {
+      setActiveDongFilter(normalizedDong);
+    }
+
+    const spots = resolveIssuesByDongName(normalizedDong);
+    setHighlightedHotspots(spots.map((spot) => spot.id));
+    const extentMeta = resolveHotspotExtentMeta(spots);
+    const fallbackCoordinate = options && options.fallbackCoordinate
+      ? options.fallbackCoordinate
+      : resolveBoundaryCenterCoordinate(options && options.boundaryFeature ? options.boundaryFeature : null);
+    const targetCoordinate = extentMeta ? extentMeta.center : fallbackCoordinate;
+
+    const view = state.map.getView();
+    if (view && targetCoordinate) {
+      const currentZoom = view.getZoom();
+      const animateOptions = {
+        center: targetCoordinate,
+        duration: extentMeta && extentMeta.count > 1 ? 250 : 240
+      };
+      if (Number.isFinite(currentZoom)) {
+        animateOptions.zoom = currentZoom;
+      }
+      state.suppressPopupCloseOnNextMoveStart = true;
+      view.animate(animateOptions, () => {
+        state.suppressPopupCloseOnNextMoveStart = false;
+      });
+    }
+
+    if (targetCoordinate) {
+      openDongIssueSummaryPopup(targetCoordinate, normalizedDong, spots.length);
+    }
   }
 
   function focusCommonIssueTag(commonTag) {
@@ -4644,7 +5110,7 @@
       categoryId: "",
       categoryLabel: "공통 현안",
       spots,
-      dongNames: Array.from(new Set(spots.map((spot) => formatSpotDongLabel(spot)))).sort(compareKoreanText)
+      dongNames: Array.from(new Set(spots.map((spot) => formatSpotDongLabel(spot)))).sort(compareDongLabelForDisplay)
     };
     openIssueGroupPopup(extentMeta.center, group);
   }
@@ -4869,16 +5335,20 @@
     const isCommonSelection = selectedDongKey === DONG_COMMON_KEY;
     const selectedDongMeta = resolveDongMetaByKey(selectedDongKey);
     const usingManualDong = Boolean(selectedDongMeta) && !isCommonSelection;
-    const finalDongName = isCommonSelection
+    const finalDongNameRaw = isCommonSelection
       ? DONG_COMMON_NAME
       : usingManualDong
       ? String(selectedDongMeta.dongName || "").trim()
       : String(boundaryMeta.dongName || "").trim();
+    const finalDongName = resolveMergedDongName(finalDongNameRaw);
     const finalEmdCode = isCommonSelection
       ? ""
       : usingManualDong
       ? normalizeEmdCode(selectedDongMeta.emdCode)
       : normalizeEmdCode(boundaryMeta.emdCode);
+    const finalDongKey = isCommonSelection
+      ? DONG_COMMON_KEY
+      : buildDongKey("", finalDongName);
 
     if (!finalDongName) {
       window.alert("동을 판별하지 못했습니다. '동 선택'에서 직접 지정하세요.");
@@ -4897,7 +5367,7 @@
       dongName: finalDongName,
       emdCode: finalEmdCode || "",
       dongSelectionMode: isCommonSelection ? "common" : usingManualDong ? "manual" : "auto",
-      dongKey: isCommonSelection ? DONG_COMMON_KEY : usingManualDong ? String(selectedDongMeta.key || "") : "",
+      dongKey: finalDongKey,
       photoDataUrl,
       updatedBy: normalizeEmail(state.currentUser.email),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -5265,7 +5735,8 @@
 
   function openBoundaryPopup(coordinate, boundaryFeature) {
     const dongName = boundaryFeature ? boundaryFeature.get("dongName") : "";
-    const safeName = escapeHtml(dongName || "동 경계");
+    const mergedDongName = resolveMergedDongName(dongName);
+    const safeName = escapeHtml(mergedDongName || dongName || "동 경계");
     const emdCode = boundaryFeature ? normalizeEmdCode(boundaryFeature.get("emd_cd")) : "";
     const populationLabel = buildPopulationPopupText(emdCode);
     openPopup(
