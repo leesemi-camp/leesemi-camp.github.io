@@ -492,7 +492,13 @@ body.modal-open {
     }
 
     .map-wrap {
-        min-height: 25vh;
+        position: sticky;
+        top: 0;
+        z-index: 6;
+        min-height: 280px;
+        height: clamp(280px, 44vh, 420px);
+        background: #ffffff;
+        border-bottom: 1px solid var(--line);
     }
 
     .side-panel {
