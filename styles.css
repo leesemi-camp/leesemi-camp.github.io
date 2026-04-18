@@ -969,6 +969,40 @@ body.photo-lightbox-open {
     padding: 12px;
   }
 
+  body[data-map-mode="edit"]:not(.modal-open):not(.photo-lightbox-open) {
+    overflow: auto;
+  }
+
+  body[data-map-mode="edit"] .layout {
+    height: auto;
+    min-height: 100%;
+  }
+
+  body[data-map-mode="edit"] .app-shell {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  body[data-map-mode="edit"] .workspace {
+    overflow: visible;
+    grid-template-rows: auto auto;
+  }
+
+  body[data-map-mode="edit"] .map-wrap {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    min-height: 280px;
+    height: clamp(280px, 44vh, 420px);
+    background: #ffffff;
+    border-bottom: 1px solid var(--line);
+  }
+
+  body[data-map-mode="edit"] .side-panel {
+    overflow: visible;
+  }
+
   .photo-lightbox {
     padding: 12px;
   }
