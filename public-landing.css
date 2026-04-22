@@ -5,6 +5,10 @@
   --text: #17283f;
   --muted: #556a85;
   --line: #d1dceb;
+  --category-traffic-parking: #2f6fb8;
+  --category-education-childcare: #b8860b;
+  --category-environment-park: #2b8a3e;
+  --category-economy-culture: #c2255c;
   --landing-content-max-width: 560px;
 }
 
@@ -66,6 +70,8 @@ body {
 }
 
 .public-card {
+  --card-section-gap: 14px;
+  --button-gap: 10px;
   width: min(var(--landing-content-max-width), 100%);
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -73,7 +79,7 @@ body {
   box-shadow: 0 18px 40px rgba(11, 31, 58, 0.12);
   padding: 24px;
   display: grid;
-  gap: 14px;
+  gap: var(--card-section-gap);
 }
 
 .public-card h1 {
@@ -90,7 +96,52 @@ body {
 
 .public-actions {
   display: grid;
-  gap: 10px;
+  gap: var(--button-gap);
+}
+
+.public-actions + .public-actions {
+  margin-top: calc(var(--button-gap) - var(--card-section-gap));
+}
+
+.public-actions .public-link {
+  min-height: 82px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.public-support-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--button-gap);
+  row-gap: var(--button-gap);
+  align-items: stretch;
+}
+
+.public-link.public-link-support-donation {
+  background: #fbf6e8;
+  border-color: var(--category-education-childcare);
+}
+
+.public-link.public-link-support-donation:hover {
+  background: #f4ecd4;
+}
+
+.public-link.public-link-support-receipt {
+  background: #fceff4;
+  border-color: var(--category-economy-culture);
+}
+
+.public-link.public-link-support-receipt:hover {
+  background: #f7e1eb;
+}
+
+.public-support-actions .public-link strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.public-support-actions .public-link span {
+  color: var(--muted);
 }
 
 .public-social-inline {
@@ -145,21 +196,21 @@ body {
 }
 
 .public-link-map {
-  background: #f1f5fb;
-  border-color: #c8d6eb;
+  background: #edf4ff;
+  border-color: var(--category-traffic-parking);
 }
 
 .public-link-map:hover {
-  background: #e5edf8;
+  background: #e2edfc;
 }
 
 .public-link-profile {
-  background: #f5f2ee;
-  border-color: #ddd2c3;
+  background: #edf8ef;
+  border-color: var(--category-environment-park);
 }
 
 .public-link-profile:hover {
-  background: #ebe3d8;
+  background: #e1f1e4;
 }
 
 .public-system-link {
@@ -199,7 +250,18 @@ body {
     height: 24px;
   }
 
+  .public-actions .public-link {
+    min-height: 76px;
+  }
+}
+
+@media (max-width: 760px) {
+  .public-support-actions {
+    grid-template-columns: 1fr;
+  }
+
   .public-card {
+    --card-section-gap: 10px;
     border-radius: 14px;
     padding: 18px;
   }
