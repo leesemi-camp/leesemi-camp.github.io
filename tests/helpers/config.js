@@ -1,16 +1,9 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
-
-function loadAppConfig() {
-  const filePath = path.resolve(process.cwd(), "config.js");
-  const code = fs.readFileSync(filePath, "utf8");
-  const context = { window: {} };
-  vm.runInNewContext(code, context, { filename: "config.js" });
-  if (!context.window || !context.window.APP_CONFIG) {
-    throw new Error("APP_CONFIG not found in config.js");
+async function loadAppConfig() {
+  const { default: config } = await import("../../config.mjs");
+  if (!config) {
+    throw new Error("APP_CONFIG not found in config.mjs");
   }
-  return context.window.APP_CONFIG;
+  return config;
 }
 
 function resolveUrl(baseURL, value) {

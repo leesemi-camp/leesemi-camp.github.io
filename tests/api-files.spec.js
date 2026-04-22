@@ -10,7 +10,7 @@ function resolveBaseURL(testInfo) {
 }
 
 test("API endpoints respond in browser", async ({ page }, testInfo) => {
-  const config = loadAppConfig();
+  const config = await loadAppConfig();
   const baseURL = resolveBaseURL(testInfo);
   const apiPlan = buildApiRequests(config, baseURL);
   const requests = apiPlan.requests;

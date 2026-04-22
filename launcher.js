@@ -1,7 +1,9 @@
 "use strict";
 
+import APP_CONFIG from "./config.mjs";
+
 (function launcherBootstrap() {
-  const config = window.APP_CONFIG;
+  const config = APP_CONFIG;
   const elements = {
     loading: document.getElementById("launcher-loading"),
     error: document.getElementById("launcher-error"),

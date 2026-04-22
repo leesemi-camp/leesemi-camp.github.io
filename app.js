@@ -1,7 +1,9 @@
 "use strict";
 
+import APP_CONFIG from "./config.mjs";
+
 (function bootstrap() {
-  const config = window.APP_CONFIG;
+  const config = APP_CONFIG;
   const state = {
     mode: resolveMapMode(),
     auth: null,

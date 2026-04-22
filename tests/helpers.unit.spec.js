@@ -7,9 +7,9 @@ const {
 } = require("./helpers/config");
 const { maskTokens, formatRequestForLog } = require("./helpers/network");
 
-test("Config loads", () => {
-  // config.js에서 기본 설정이 로드되는지 확인
-  const config = loadAppConfig();
+test("Config loads", async () => {
+  // config.mjs에서 기본 설정이 로드되는지 확인
+  const config = await loadAppConfig();
   expect(config).toBeTruthy();
   expect(config.map).toBeTruthy();
   expect(config.data).toBeTruthy();
