@@ -173,3 +173,42 @@ mobilityPopulation: {
 - GitHub Pages는 정적 호스팅이라 페이지 자체 URL은 공개될 수 있습니다.
 - 현재 템플릿은 인증되지 않은 사용자가 데이터(Firestore)를 읽지 못하도록 보호합니다.
 - "페이지 자체 접근까지 완전히 차단"이 필요하면 Cloudflare Access 같은 별도 게이트를 앞단에 두는 것을 권장합니다.
+
+## References
+
+이 저장소의 AI 보조 개발 환경(VS Code GitHub Copilot, Copilot CLI) 관련 공식 문서 모음입니다.
+
+### VS Code Copilot 커스터마이징
+
+| 주제 | 링크 |
+|------|------|
+| 커스터마이징 개요 | [Customizing Copilot](https://code.visualstudio.com/docs/copilot/copilot-customization) |
+| Custom Agents | [Custom agents in VS Code](https://code.visualstudio.com/docs/copilot/chat/custom-agents) |
+| Agent Skills | [Agent skills](https://code.visualstudio.com/docs/copilot/chat/agent-skills) |
+| Prompt Files | [Reusable prompt files](https://code.visualstudio.com/docs/copilot/copilot-customization#_reusable-prompt-files-experimental) |
+| Custom Instructions | [Custom instructions](https://code.visualstudio.com/docs/copilot/copilot-customization#_custom-instructions) |
+| Agents Overview | [Copilot agents](https://code.visualstudio.com/docs/copilot/chat/copilot-agents) |
+| Context Engineering | [Context engineering guide](https://code.visualstudio.com/docs/copilot/guides/context-engineering) |
+| Best Practices | [Copilot best practices](https://code.visualstudio.com/docs/copilot/guides/prompt-crafting) |
+| Browser Testing | [Browser testing guide](https://code.visualstudio.com/docs/copilot/guides/browser-testing) |
+| Hooks | [Agent hooks](https://code.visualstudio.com/docs/copilot/chat/agent-hooks) |
+
+### GitHub Docs — Repository Customization
+
+| 주제 | 링크 |
+|------|------|
+| Repository Custom Instructions | [Adding repository custom instructions](https://docs.github.com/en/copilot/customizing-copilot/adding-repository-custom-instructions-for-github-copilot) |
+| Personal Custom Instructions | [Adding personal custom instructions](https://docs.github.com/en/copilot/customizing-copilot/adding-personal-custom-instructions-for-github-copilot) |
+| Custom Agents (Cloud) | [Creating a Copilot coding agent](https://docs.github.com/en/copilot/building-copilot-extensions/building-a-copilot-agent-for-your-copilot-extension/creating-a-copilot-agent) |
+
+### Copilot CLI 환경
+
+| 주제 | 링크 |
+|------|------|
+| Copilot CLI Sessions in VS Code | [Copilot CLI sessions](https://code.visualstudio.com/docs/copilot/chat/copilot-cli-sessions) |
+
+### 외부 표준
+
+| 주제 | 링크 |
+|------|------|
+| Agent Skills 표준 | [agentskills.io](https://agentskills.io) |

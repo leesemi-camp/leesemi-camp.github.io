@@ -210,3 +210,110 @@ Update this section if new entry points are added or removed. This helps testing
 - 테스트 파일은 최소한으로 유지하고, 불필요한 헬퍼 추가를 지양합니다. 테스트 커버리지를 높이는 것보다, 핵심 기능이 망가지지 않는다는 것을 확인하는 것이 중요합니다.
 - 테스트 제목은 짧고 이해하기 쉽게 작성합니다.
 - 테스트 코드 주석은 한국어로 작성합니다.
+
+## Copilot Agent Orchestration
+
+이 저장소는 VS Code GitHub Copilot 및 Copilot CLI에서 재사용 가능한 custom agent 체계를 `.github/agents/` 아래에 정의합니다.
+
+### 디렉터리 구조
+
+```text
+.github/
+└─ agents/
+   ├─ coverage-simplicity-orchestrator.agent.md   # 테스트 커버리지 + 기술 복잡도 억제 조정자
+   ├─ feature-research-orchestrator.agent.md       # Read-only 기능 연구 조정자
+   ├─ feature-development-orchestrator.agent.md    # 구현 실행 조정자
+   ├─ runtime-slice-builder.agent.md               # JS 런타임 단일 writer
+   ├─ ux-flow-designer.agent.md                    # UX 흐름/상태 설계
+   ├─ visual-system-builder.agent.md               # CSS/HTML 시각 구현
+   ├─ browser-ux-validator.agent.md                # 브라우저 UI 검증
+   ├─ accessibility-content-reviewer.agent.md      # 접근성/마이크로카피 검토
+   ├─ test-contract-builder.agent.md               # Playwright 테스트 추가/보강
+   └─ regression-reviewer.agent.md                 # 회귀 최종 점검
+```
+
+### Agent 역할 분담
+
+| Agent | 역할 | 쓰기 권한 | 유형 |
+|-------|------|-----------|------|
+| `coverage-simplicity-orchestrator` | Coverage gap 파악 → acceptance criteria → 구현 handoff | 없음 (read-only) | Orchestrator |
+| `feature-research-orchestrator` | 코드베이스 탐색 + 외부 문서 조회 → 리서치 요약 | 없음 (read-only) | Orchestrator |
+| `feature-development-orchestrator` | 구현 lane 조율 → worker handoff 순서 결정 | 없음 (read-only) | Orchestrator |
+| `runtime-slice-builder` | `app.js`, `launcher.js`, `service-shell.js` 구현 | JS 런타임 파일 전용 | Worker |
+| `ux-flow-designer` | 화면 상태/흐름 Mermaid 다이어그램 설계 | 없음 (read-only) | Worker |
+| `visual-system-builder` | CSS 파일 + HTML 마크업 구조 수정 | CSS + HTML | Worker |
+| `browser-ux-validator` | 로컬 서버에서 UI 시각 검증 | 없음 (read-only) | Worker |
+| `accessibility-content-reviewer` | aria/시맨틱/마이크로카피 검토 보고 | 없음 (read-only) | Worker |
+| `test-contract-builder` | `tests/` 디렉터리 테스트 추가/수정 | tests/ 전용 | Worker |
+| `regression-reviewer` | `npm test` + drift 최종 점검 | 없음 (read-only) | Worker |
+
+### Handoff 흐름 (기능 개발 사이클)
+
+```mermaid
+flowchart TD
+  REQ["기능 요청"]
+
+  REQ --> FRO["feature-research-orchestrator\n(리서치 + 영향 분석)"]
+  FRO --> CSO["coverage-simplicity-orchestrator\n(coverage gap + acceptance criteria)"]
+  CSO --> FDO["feature-development-orchestrator\n(lane 조율 + 구현 순서 결정)"]
+
+  FDO --> UXD["ux-flow-designer\n(흐름/상태 설계)"]
+  FDO --> RSB["runtime-slice-builder\n(JS 구현)"]
+
+  UXD --> VSB["visual-system-builder\n(CSS/HTML 구현)"]
+  VSB --> BUV["browser-ux-validator\n(시각 검증)"]
+
+  RSB --> TCB["test-contract-builder\n(테스트 추가)"]
+  BUV --> ACR["accessibility-content-reviewer\n(접근성 검토)"]
+
+  TCB --> RR["regression-reviewer\n(최종 회귀 점검)"]
+  ACR --> RR
+```
+
+### 핵심 원칙
+
+#### 1. `app.js` 단일 Writer 원칙
+`app.js`, `launcher.js`, `service-shell.js` 는 **`runtime-slice-builder` 만** 수정한다.
+이 세 파일에 다른 agent가 동시에 접근하면 충돌이 발생한다.
+
+#### 2. UI/UX Lane 분리 원칙
+UI/UX 작업은 4개 역할로 분리되어 있다:
+- **설계**: `ux-flow-designer` — Mermaid 다이어그램, 상태 목록 (코드 없음)
+- **시각 구현**: `visual-system-builder` — CSS + HTML
+- **검증**: `browser-ux-validator` — 브라우저에서 확인
+- **접근성**: `accessibility-content-reviewer` — aria + 마이크로카피
+
+#### 3. 테스트 우선 원칙
+`coverage-simplicity-orchestrator`를 통해 진행할 때는 acceptance criteria가 확정되기 전에 구현 handoff를 하지 않는다.
+
+#### 4. Read-Only Orchestrator 원칙
+모든 Orchestrator(`coverage-simplicity`, `feature-research`, `feature-development`)는 코드를 직접 수정하지 않는다. 분석·결정·handoff만 수행한다.
+
+### VS Code에서 사용하기
+
+VS Code Chat에서 `@` 을 입력하면 `.github/agents/` 아래 정의된 custom agent 목록이 표시된다.
+
+```
+@coverage-simplicity-orchestrator 이 기능에 대한 coverage gap을 분석해줘
+@feature-research-orchestrator app.js에서 이 패턴과 유사한 구현이 있는지 조사해줘
+@runtime-slice-builder 이 acceptance criteria를 기반으로 구현해줘
+```
+
+### Copilot CLI에서 사용하기
+
+Copilot CLI가 설치된 환경에서 custom agent를 사용하려면 VS Code 설정에서 아래를 활성화한다:
+
+```json
+"github.copilot.chat.cli.customAgents.enabled": true
+```
+
+활성화 후 CLI 세션에서 workspace-defined agent를 선택할 수 있다.
+
+### 커스터마이징 확장 가이드
+
+| 자산 유형 | 위치 | 목적 |
+|-----------|------|------|
+| **Agent** | `.github/agents/*.agent.md` | 역할별 persona + handoff |
+| **Skill** | `.github/skills/*/SKILL.md` | VS Code/CLI/Cloud 공통 재사용 capability |
+| **Instructions** | `.github/copilot-instructions.md` | 모든 세션에 항상 적용되는 컨텍스트 |
+| **Prompt** | `.github/prompts/*.prompt.md` | 반복적인 one-shot 워크플로 |
