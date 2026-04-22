@@ -14,8 +14,8 @@ module.exports = defineConfig({
   },
   projects: [
     {
-      name: "Chromium-Chrome",
-      use: { browserName: "chromium", channel: "chrome" }
+      name: "Chromium",
+      use: { browserName: "chromium" }
     },
     {
       name: "Chromium-Edge",
