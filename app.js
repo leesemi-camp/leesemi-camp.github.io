@@ -63,6 +63,14 @@
     issueGroupMap: new Map(),
     issueListMode: "dong",
     activeDongName: "",
+    spotPhotoDataUrls: [],
+    photoSlideshowSerial: 0,
+    photoSlideshows: new Map(),
+    activePhotoLightbox: {
+      slideshowId: "",
+      index: 0,
+      slides: []
+    },
     overlayStyleCache: {
       vehicle: new Map(),
       pedestrian: new Map()
@@ -225,10 +233,13 @@
     spotIssueRefSelect: document.getElementById("spot-issue-ref"),
     spotIssueRefHelp: document.getElementById("spot-issue-ref-help"),
     spotPhotoFileInput: document.getElementById("spot-photo-file"),
-    spotPhotoDataInput: document.getElementById("spot-photo-data-url"),
+    spotPhotoDataInput: document.getElementById("spot-photo-data-urls"),
     spotPhotoPreviewWrap: document.getElementById("spot-photo-preview-wrap"),
-    spotPhotoPreviewImage: document.getElementById("spot-photo-preview"),
+    spotPhotoPreviewSlideshow: document.getElementById("spot-photo-preview-slideshow"),
+    spotPhotoRemoveCurrentButton: document.getElementById("spot-photo-remove-current-btn"),
     spotPhotoRemoveButton: document.getElementById("spot-photo-remove-btn"),
+    spotPhotoReprocessButton: document.getElementById("spot-photo-reprocess-btn"),
+    spotPhotoReprocessStatus: document.getElementById("spot-photo-reprocess-status"),
     spotList: document.getElementById("spot-list"),
     issueViewDongButton: document.getElementById("issue-view-dong-btn"),
     clearDongFilterButton: document.getElementById("clear-dong-filter-btn"),
@@ -245,15 +256,25 @@
     populationStatus: document.getElementById("population-status"),
     photoLightbox: null,
     photoLightboxImage: null,
-    photoLightboxCloseButton: null
+    photoLightboxCloseButton: null,
+    photoLightboxPrevButton: null,
+    photoLightboxNextButton: null,
+    photoLightboxCounter: null
   };
 
   const hotspotPhotoConfig = {
     maxFileBytes: 5 * 1024 * 1024,
     maxStoredChars: 700000,
-    maxLongEdge: 1400,
+    maxTotalStoredChars: 900000,
+    maxPerPhotoChars: 320000,
+    maxPhotoCount: 8,
+    maxWidth: 800,
+    watermarkWidth: 200,
+    watermarkSrc: "/assets/leesemi_watermark.png",
+    processingVersion: 2,
     jpegQuality: 0.82
   };
+  let hotspotWatermarkImagePromise = null;
 
   void init();
 
@@ -391,13 +412,30 @@
       });
     }
 
+    if (elements.spotPhotoRemoveCurrentButton) {
+      elements.spotPhotoRemoveCurrentButton.addEventListener("click", () => {
+        removeCurrentSpotPhotoSelection();
+      });
+    }
+
+    if (elements.spotPhotoReprocessButton) {
+      elements.spotPhotoReprocessButton.addEventListener("click", () => {
+        void reprocessStoredHotspotPhotos();
+      });
+    }
+
     if (elements.spotPhotoPreviewWrap) {
       elements.spotPhotoPreviewWrap.addEventListener("click", (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) {
           return;
         }
-        const previewPhoto = target.closest(".spot-photo-preview");
+        if (tryHandlePhotoSlideControlClick(target)) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        const previewPhoto = target.closest(".spot-photo-preview, .photo-slide-image");
         if (!(previewPhoto instanceof HTMLImageElement)) {
           return;
         }
@@ -413,7 +451,12 @@
         if (!(target instanceof HTMLElement)) {
           return;
         }
-        const popupPhoto = target.closest(".map-popup-photo");
+        if (tryHandlePhotoSlideControlClick(target)) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        const popupPhoto = target.closest(".map-popup-photo, .photo-slide-image");
         if (!(popupPhoto instanceof HTMLImageElement)) {
           return;
         }
@@ -474,7 +517,13 @@
           return;
         }
 
-        const spotPhoto = target.closest(".spot-photo-thumb");
+        if (tryHandlePhotoSlideControlClick(target)) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        const spotPhoto = target.closest(".spot-photo-thumb, .photo-slide-image");
         if (spotPhoto instanceof HTMLImageElement) {
           event.preventDefault();
           event.stopPropagation();
@@ -537,7 +586,7 @@
         setHighlightedHotspots([spot.id]);
         const mapView = state.map.getView();
         if (mapView) {
-          const hasPhoto = Boolean(normalizeHotspotPhotoDataUrl(spot.photoDataUrl));
+          const hasPhoto = getSpotPhotoDataUrls(spot).length > 0;
           const targetCenter = resolvePopupAwareCenterCoordinate(coordinate, {
             hasPhoto
           });
@@ -613,6 +662,18 @@
       });
     }
 
+    if (elements.photoLightboxPrevButton) {
+      elements.photoLightboxPrevButton.addEventListener("click", () => {
+        movePhotoLightbox(-1);
+      });
+    }
+
+    if (elements.photoLightboxNextButton) {
+      elements.photoLightboxNextButton.addEventListener("click", () => {
+        movePhotoLightbox(1);
+      });
+    }
+
     if (elements.photoLightbox) {
       elements.photoLightbox.addEventListener("click", (event) => {
         if (event.target === elements.photoLightbox) {
@@ -622,8 +683,21 @@
     }
 
     window.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && isPhotoLightboxVisible()) {
+      if (!isPhotoLightboxVisible()) {
+        return;
+      }
+      if (event.key === "Escape") {
         closePhotoLightbox();
+        return;
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        movePhotoLightbox(-1);
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        movePhotoLightbox(1);
       }
     });
 
@@ -659,7 +733,10 @@
       lightbox.innerHTML =
         "<div class='photo-lightbox-dialog' role='dialog' aria-modal='true' aria-label='사진 확대 보기'>" +
           "<button id='photo-lightbox-close-btn' type='button' class='photo-lightbox-close' aria-label='팝업 닫기' title='닫기'>×</button>" +
+          "<button id='photo-lightbox-prev-btn' type='button' class='photo-lightbox-nav photo-lightbox-nav-prev' aria-label='이전 사진' title='이전'>‹</button>" +
           "<img id='photo-lightbox-image' class='photo-lightbox-image' alt='확대 사진' loading='eager'>" +
+          "<button id='photo-lightbox-next-btn' type='button' class='photo-lightbox-nav photo-lightbox-nav-next' aria-label='다음 사진' title='다음'>›</button>" +
+          "<div id='photo-lightbox-counter' class='photo-lightbox-counter' aria-live='polite'></div>" +
         "</div>";
       document.body.appendChild(lightbox);
     }
@@ -667,10 +744,196 @@
     elements.photoLightbox = lightbox;
     elements.photoLightboxImage = lightbox.querySelector("#photo-lightbox-image");
     elements.photoLightboxCloseButton = lightbox.querySelector("#photo-lightbox-close-btn");
+    elements.photoLightboxPrevButton = lightbox.querySelector("#photo-lightbox-prev-btn");
+    elements.photoLightboxNextButton = lightbox.querySelector("#photo-lightbox-next-btn");
+    elements.photoLightboxCounter = lightbox.querySelector("#photo-lightbox-counter");
+  }
+
+  function createPhotoSlideshowId(prefix) {
+    const base = String(prefix || "photo")
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "photo";
+    state.photoSlideshowSerial += 1;
+    return base + "-" + String(state.photoSlideshowSerial);
+  }
+
+  function clearPhotoSlideshowsByPrefix(prefix) {
+    const safePrefix = String(prefix || "").trim();
+    if (!safePrefix || !(state.photoSlideshows instanceof Map)) {
+      return;
+    }
+    Array.from(state.photoSlideshows.keys()).forEach((key) => {
+      if (String(key).startsWith(safePrefix)) {
+        state.photoSlideshows.delete(key);
+      }
+    });
+  }
+
+  function normalizePhotoSlides(slides) {
+    if (!Array.isArray(slides)) {
+      return [];
+    }
+    return slides
+      .map((slide) => {
+        const source = String(slide && slide.src ? slide.src : "").trim();
+        if (!source) {
+          return null;
+        }
+        const alt = String(slide && slide.alt ? slide.alt : "현안 사진").trim() || "현안 사진";
+        return {
+          src: source,
+          alt
+        };
+      })
+      .filter((slide) => Boolean(slide));
+  }
+
+  function wrapPhotoSlideIndex(index, slideCount) {
+    const count = Number(slideCount);
+    if (!Number.isFinite(count) || count <= 0) {
+      return 0;
+    }
+    const numericIndex = Number(index);
+    if (!Number.isFinite(numericIndex)) {
+      return 0;
+    }
+    const normalized = ((Math.floor(numericIndex) % count) + count) % count;
+    return normalized;
+  }
+
+  function registerPhotoSlideshow(slideshowId, slides, initialIndex) {
+    const id = String(slideshowId || "").trim();
+    if (!id) {
+      return;
+    }
+    const normalizedSlides = normalizePhotoSlides(slides);
+    if (normalizedSlides.length === 0) {
+      state.photoSlideshows.delete(id);
+      return;
+    }
+    state.photoSlideshows.set(id, {
+      slides: normalizedSlides,
+      index: wrapPhotoSlideIndex(initialIndex, normalizedSlides.length)
+    });
+  }
+
+  function buildPhotoSlideshowHtml(options) {
+    const slideshowId = String(options && options.slideshowId ? options.slideshowId : "").trim();
+    if (!slideshowId) {
+      return "";
+    }
+    const slides = normalizePhotoSlides(options ? options.slides : []);
+    if (slides.length === 0) {
+      state.photoSlideshows.delete(slideshowId);
+      return "";
+    }
+
+    const initialIndex = wrapPhotoSlideIndex(options && options.initialIndex, slides.length);
+    registerPhotoSlideshow(slideshowId, slides, initialIndex);
+
+    const wrapperClassName = String(options && options.wrapperClassName ? options.wrapperClassName : "").trim();
+    const imageClassName = String(options && options.imageClassName ? options.imageClassName : "").trim();
+    const loading = String(options && options.loading ? options.loading : "lazy").trim() === "eager"
+      ? "eager"
+      : "lazy";
+    const activeSlide = slides[initialIndex];
+    const hasMultiple = slides.length > 1;
+    const className = ["photo-slideshow", wrapperClassName].filter(Boolean).join(" ");
+    const imageClass = ["photo-slide-image", imageClassName].filter(Boolean).join(" ");
+
+    return (
+      "<div class='" + escapeHtml(className) + "' data-photo-slideshow-id='" + escapeHtml(slideshowId) + "' data-photo-count='" + String(slides.length) + "'>" +
+        (hasMultiple
+          ? (
+            "<button type='button' class='photo-slide-arrow photo-slide-arrow-prev' data-action='photo-slide-prev' data-slideshow-id='" + escapeHtml(slideshowId) + "' aria-label='이전 사진' title='이전 사진'>‹</button>"
+          )
+          : "") +
+        "<img class='" + escapeHtml(imageClass) + "' src='" + escapeHtml(activeSlide.src) + "' alt='" + escapeHtml(activeSlide.alt) + "' loading='" + loading + "' data-photo-slideshow-id='" + escapeHtml(slideshowId) + "' data-photo-index='" + String(initialIndex) + "'>" +
+        (hasMultiple
+          ? (
+            "<button type='button' class='photo-slide-arrow photo-slide-arrow-next' data-action='photo-slide-next' data-slideshow-id='" + escapeHtml(slideshowId) + "' aria-label='다음 사진' title='다음 사진'>›</button>" +
+            "<div class='photo-slide-indicator' aria-live='polite'>" + String(initialIndex + 1) + " / " + String(slides.length) + "</div>"
+          )
+          : "") +
+      "</div>"
+    );
+  }
+
+  function renderPhotoSlideshow(slideshowId) {
+    const id = String(slideshowId || "").trim();
+    if (!id || !state.photoSlideshows.has(id)) {
+      return;
+    }
+    const slideshow = state.photoSlideshows.get(id);
+    const slides = normalizePhotoSlides(slideshow && slideshow.slides);
+    if (slides.length === 0) {
+      state.photoSlideshows.delete(id);
+      return;
+    }
+    const index = wrapPhotoSlideIndex(slideshow.index, slides.length);
+    slideshow.slides = slides;
+    slideshow.index = index;
+    const activeSlide = slides[index];
+    const selector = "[data-photo-slideshow-id='" + id + "']";
+    document.querySelectorAll(selector).forEach((container) => {
+      if (!(container instanceof HTMLElement)) {
+        return;
+      }
+      container.setAttribute("data-photo-count", String(slides.length));
+      const image = container.querySelector(".photo-slide-image");
+      if (image instanceof HTMLImageElement) {
+        image.src = activeSlide.src;
+        image.alt = activeSlide.alt;
+        image.dataset.photoSlideshowId = id;
+        image.dataset.photoIndex = String(index);
+      }
+      const indicator = container.querySelector(".photo-slide-indicator");
+      if (indicator) {
+        indicator.textContent = String(index + 1) + " / " + String(slides.length);
+      }
+    });
+  }
+
+  function movePhotoSlideshow(slideshowId, delta) {
+    const id = String(slideshowId || "").trim();
+    if (!id || !state.photoSlideshows.has(id)) {
+      return false;
+    }
+    const slideshow = state.photoSlideshows.get(id);
+    if (!slideshow || !Array.isArray(slideshow.slides) || slideshow.slides.length <= 1) {
+      return false;
+    }
+    const step = Number(delta) < 0 ? -1 : 1;
+    slideshow.index = wrapPhotoSlideIndex((Number(slideshow.index) || 0) + step, slideshow.slides.length);
+    renderPhotoSlideshow(id);
+    return true;
+  }
+
+  function tryHandlePhotoSlideControlClick(target) {
+    if (!(target instanceof HTMLElement)) {
+      return false;
+    }
+    const slideButton = target.closest("[data-action='photo-slide-prev'], [data-action='photo-slide-next']");
+    if (!(slideButton instanceof HTMLElement)) {
+      return false;
+    }
+    const slideshowId = String(slideButton.getAttribute("data-slideshow-id") || "").trim();
+    if (!slideshowId) {
+      return false;
+    }
+    const action = String(slideButton.getAttribute("data-action") || "");
+    return movePhotoSlideshow(slideshowId, action === "photo-slide-prev" ? -1 : 1);
   }
 
   function openPhotoLightboxFromImage(imageElement) {
     if (!(imageElement instanceof HTMLImageElement)) {
+      return;
+    }
+    const slideshowId = String(imageElement.dataset.photoSlideshowId || "").trim();
+    const slideIndex = Number(imageElement.dataset.photoIndex);
+    if (slideshowId && state.photoSlideshows.has(slideshowId)) {
+      openPhotoLightboxBySlideshow(slideshowId, slideIndex);
       return;
     }
     const source = String(imageElement.currentSrc || imageElement.getAttribute("src") || "").trim();
@@ -678,22 +941,99 @@
       return;
     }
     const altText = String(imageElement.getAttribute("alt") || "현안 사진 확대 보기");
-    openPhotoLightbox(source, altText);
+    openPhotoLightbox(
+      [
+        {
+          src: source,
+          alt: altText
+        }
+      ],
+      0,
+      ""
+    );
   }
 
-  function openPhotoLightbox(rawSource, rawAltText) {
+  function openPhotoLightboxBySlideshow(slideshowId, initialIndex) {
+    const id = String(slideshowId || "").trim();
+    if (!id || !state.photoSlideshows.has(id)) {
+      return;
+    }
+    const slideshow = state.photoSlideshows.get(id);
+    openPhotoLightbox(slideshow ? slideshow.slides : [], initialIndex, id);
+  }
+
+  function openPhotoLightbox(rawSlides, initialIndex, slideshowId) {
     if (!elements.photoLightbox || !elements.photoLightboxImage) {
       return;
     }
-    const source = String(rawSource || "").trim();
-    if (!source) {
+    const slides = normalizePhotoSlides(rawSlides);
+    if (slides.length === 0) {
       return;
     }
-    elements.photoLightboxImage.src = source;
-    elements.photoLightboxImage.alt = String(rawAltText || "현안 사진 확대 보기");
+    state.activePhotoLightbox = {
+      slideshowId: String(slideshowId || "").trim(),
+      index: wrapPhotoSlideIndex(initialIndex, slides.length),
+      slides
+    };
+    renderActivePhotoLightboxSlide();
     elements.photoLightbox.classList.remove("hidden");
     elements.photoLightbox.setAttribute("aria-hidden", "false");
     document.body.classList.add("photo-lightbox-open");
+  }
+
+  function renderActivePhotoLightboxSlide() {
+    if (!elements.photoLightboxImage) {
+      return;
+    }
+    const slides = normalizePhotoSlides(state.activePhotoLightbox && state.activePhotoLightbox.slides);
+    if (slides.length === 0) {
+      return;
+    }
+    const index = wrapPhotoSlideIndex(state.activePhotoLightbox.index, slides.length);
+    const activeSlide = slides[index];
+    state.activePhotoLightbox.index = index;
+    state.activePhotoLightbox.slides = slides;
+    elements.photoLightboxImage.src = activeSlide.src;
+    elements.photoLightboxImage.alt = activeSlide.alt;
+
+    const hasMultiple = slides.length > 1;
+    if (elements.photoLightboxPrevButton) {
+      elements.photoLightboxPrevButton.classList.toggle("hidden", !hasMultiple);
+      elements.photoLightboxPrevButton.disabled = !hasMultiple;
+    }
+    if (elements.photoLightboxNextButton) {
+      elements.photoLightboxNextButton.classList.toggle("hidden", !hasMultiple);
+      elements.photoLightboxNextButton.disabled = !hasMultiple;
+    }
+    if (elements.photoLightboxCounter) {
+      elements.photoLightboxCounter.textContent = hasMultiple
+        ? String(index + 1) + " / " + String(slides.length)
+        : "";
+      elements.photoLightboxCounter.classList.toggle("hidden", !hasMultiple);
+    }
+  }
+
+  function movePhotoLightbox(delta) {
+    if (!isPhotoLightboxVisible()) {
+      return;
+    }
+    const slides = normalizePhotoSlides(state.activePhotoLightbox && state.activePhotoLightbox.slides);
+    if (slides.length <= 1) {
+      return;
+    }
+    const step = Number(delta) < 0 ? -1 : 1;
+    state.activePhotoLightbox.index = wrapPhotoSlideIndex(
+      state.activePhotoLightbox.index + step,
+      slides.length
+    );
+    state.activePhotoLightbox.slides = slides;
+    renderActivePhotoLightboxSlide();
+    const linkedSlideshowId = String(state.activePhotoLightbox.slideshowId || "").trim();
+    if (linkedSlideshowId && state.photoSlideshows.has(linkedSlideshowId)) {
+      const linkedSlideshow = state.photoSlideshows.get(linkedSlideshowId);
+      linkedSlideshow.index = state.activePhotoLightbox.index;
+      renderPhotoSlideshow(linkedSlideshowId);
+    }
   }
 
   function closePhotoLightbox() {
@@ -705,6 +1045,11 @@
     if (elements.photoLightboxImage) {
       elements.photoLightboxImage.removeAttribute("src");
     }
+    state.activePhotoLightbox = {
+      slideshowId: "",
+      index: 0,
+      slides: []
+    };
     document.body.classList.remove("photo-lightbox-open");
   }
 
@@ -732,7 +1077,7 @@
       return false;
     }
 
-    const popupPhoto = elements.mapPopup.querySelector(".map-popup-photo");
+    const popupPhoto = elements.mapPopup.querySelector(".map-popup-photo, .photo-slide-image");
     if (popupPhoto instanceof HTMLImageElement) {
       const photoRect = popupPhoto.getBoundingClientRect();
       if (isPointInsideRect(clientX, clientY, photoRect)) {
@@ -4027,10 +4372,18 @@
         value.issue_group_label ||
         ""
       ).trim();
-      const photoDataUrl = normalizeHotspotPhotoDataUrl(
+      const photoDataUrls = normalizeHotspotPhotoDataUrls(
+        value.photoDataUrls ||
+        value.photo_data_urls ||
+        []
+      );
+      const legacyPhotoDataUrl = normalizeHotspotPhotoDataUrl(
         value.photoDataUrl ||
         value.photo_data_url
       );
+      if (photoDataUrls.length === 0 && legacyPhotoDataUrl) {
+        photoDataUrls.push(legacyPhotoDataUrl);
+      }
 
       hotspots.push({
         id: doc.id,
@@ -4057,7 +4410,13 @@
           : "auto",
         dongKey: storedDongKey || computedDongKey,
         groupLabel,
-        photoDataUrl,
+        photoDataUrls,
+        photoDataUrl: photoDataUrls.length > 0 ? photoDataUrls[0] : "",
+        photoProcessingVersion: Number(
+          value.photoProcessingVersion ||
+          value.photo_processing_version ||
+          0
+        ) || 0,
         updatedBy: value.updatedBy || "",
         updatedAt: value.updatedAt || null
       });
@@ -4618,6 +4977,7 @@
     }
 
     state.issueGroupMap = new Map();
+    clearPhotoSlideshowsByPrefix("spot-list-");
 
     if (hotspots.length === 0) {
       if (state.activeDongName) {
@@ -4631,20 +4991,26 @@
 
     const showEditorActions = isEditMode();
     const items = hotspots.map((spot) => {
-      const title = escapeHtml(spot.title);
+      const rawTitle = String(spot.title || "").trim() || "현안";
+      const title = escapeHtml(rawTitle);
       const memoRaw = typeof spot.memo === "string" ? spot.memo.trim() : "";
       const memo = memoRaw ? escapeHtml(memoRaw) : "";
-      const photoDataUrl = normalizeHotspotPhotoDataUrl(spot.photoDataUrl);
-      const titleWithPhotoBadge = photoDataUrl
+      const photoDataUrls = getSpotPhotoDataUrls(spot);
+      const titleWithPhotoBadge = photoDataUrls.length > 0
         ? title + " <span class='spot-title-photo-badge' aria-label='사진 첨부'>🖼️</span>"
         : title;
-      const photoAlt = title + " 사진";
-      const photoPreviewHtml = photoDataUrl
-        ? (
-          "<div class='spot-photo-thumb-wrap'>" +
-            "<img class='spot-photo-thumb' src='" + escapeHtml(photoDataUrl) + "' alt='" + photoAlt + "' loading='lazy'>" +
-          "</div>"
-        )
+      const photoSlides = buildSpotPhotoSlides(photoDataUrls, rawTitle + " 사진");
+      const slideshowId = photoSlides.length > 0
+        ? createPhotoSlideshowId("spot-list")
+        : "";
+      const photoPreviewHtml = photoSlides.length > 0
+        ? buildPhotoSlideshowHtml({
+          slideshowId,
+          slides: photoSlides,
+          wrapperClassName: "spot-photo-thumb-wrap",
+          imageClassName: "spot-photo-thumb",
+          loading: "lazy"
+        })
         : "";
       const spotItemClassName = "spot-item" + (memo ? "" : " spot-item--no-memo");
       const dongName = escapeHtml(formatSpotDongLabel(spot));
@@ -4692,6 +5058,7 @@
     if (!elements.spotList) {
       return;
     }
+    clearPhotoSlideshowsByPrefix("spot-list-");
 
     if (hotspots.length === 0) {
       state.issueGroupMap = new Map();
@@ -4748,6 +5115,7 @@
     if (!elements.spotList) {
       return;
     }
+    clearPhotoSlideshowsByPrefix("spot-list-");
 
     if (hotspots.length === 0) {
       state.issueGroupMap = new Map();
@@ -5198,23 +5566,54 @@
     if (!elements.spotPhotoFileInput) {
       return;
     }
-    const file = elements.spotPhotoFileInput.files && elements.spotPhotoFileInput.files[0]
-      ? elements.spotPhotoFileInput.files[0]
-      : null;
-    if (!file) {
+    const files = Array.from(elements.spotPhotoFileInput.files || []);
+    if (files.length === 0) {
       return;
     }
     try {
-      const optimizedDataUrl = await optimizeHotspotPhotoFile(file);
-      setSpotPhotoDataUrl(optimizedDataUrl);
+      const optimizedDataUrls = [];
+      for (const file of files) {
+        const optimizedDataUrl = await optimizeHotspotPhotoFile(file);
+        optimizedDataUrls.push(optimizedDataUrl);
+      }
+      const mergedDataUrls = state.spotPhotoDataUrls.concat(optimizedDataUrls);
+      const result = setSpotPhotoDataUrls(mergedDataUrls);
+      if (result.trimmedByCount) {
+        window.alert("사진은 최대 " + String(hotspotPhotoConfig.maxPhotoCount) + "장까지 첨부할 수 있습니다.");
+      } else if (result.trimmedBySize) {
+        window.alert("총 사진 용량 제한으로 일부 사진이 제외되었습니다.");
+      }
     } catch (error) {
-      clearSpotPhotoFileInput();
       window.alert("사진 처리 실패: " + toMessage(error));
+    } finally {
+      clearSpotPhotoFileInput();
     }
   }
 
   function clearSpotPhotoSelection() {
-    setSpotPhotoDataUrl("");
+    setSpotPhotoDataUrls([]);
+    clearSpotPhotoFileInput();
+  }
+
+  function removeCurrentSpotPhotoSelection() {
+    if (!Array.isArray(state.spotPhotoDataUrls) || state.spotPhotoDataUrls.length === 0) {
+      return;
+    }
+    let removeIndex = state.spotPhotoDataUrls.length - 1;
+    const slideshowElement = elements.spotPhotoPreviewSlideshow
+      ? elements.spotPhotoPreviewSlideshow.querySelector("[data-photo-slideshow-id]")
+      : null;
+    if (slideshowElement instanceof HTMLElement) {
+      const slideshowId = String(slideshowElement.getAttribute("data-photo-slideshow-id") || "").trim();
+      if (slideshowId && state.photoSlideshows.has(slideshowId)) {
+        const slideshow = state.photoSlideshows.get(slideshowId);
+        removeIndex = wrapPhotoSlideIndex(slideshow ? slideshow.index : 0, state.spotPhotoDataUrls.length);
+      }
+    }
+    const nextPhotoDataUrls = state.spotPhotoDataUrls.filter((_photoDataUrl, index) => {
+      return index !== removeIndex;
+    });
+    setSpotPhotoDataUrls(nextPhotoDataUrls);
     clearSpotPhotoFileInput();
   }
 
@@ -5224,24 +5623,154 @@
     }
   }
 
-  function setSpotPhotoDataUrl(dataUrl) {
-    const normalized = normalizeHotspotPhotoDataUrl(dataUrl);
+  function setSpotPhotoDataUrls(dataUrls) {
+    const result = applyHotspotPhotoDataUrlLimits(dataUrls);
+    const normalized = result.photoDataUrls;
+    state.spotPhotoDataUrls = normalized;
     if (elements.spotPhotoDataInput) {
-      elements.spotPhotoDataInput.value = normalized;
+      elements.spotPhotoDataInput.value = normalized.length > 0
+        ? JSON.stringify(normalized)
+        : "";
     }
     renderSpotPhotoPreview(normalized);
+    return result;
   }
 
-  function renderSpotPhotoPreview(dataUrl) {
-    if (!elements.spotPhotoPreviewWrap || !elements.spotPhotoPreviewImage) {
+  function setSpotPhotoReprocessStatus(message, isError) {
+    if (!elements.spotPhotoReprocessStatus) {
       return;
     }
-    if (dataUrl) {
-      elements.spotPhotoPreviewImage.src = dataUrl;
+    const text = String(message || "").trim();
+    elements.spotPhotoReprocessStatus.textContent = text;
+    elements.spotPhotoReprocessStatus.classList.toggle("hidden", !text);
+    elements.spotPhotoReprocessStatus.classList.toggle("error", Boolean(text) && Boolean(isError));
+  }
+
+  async function reprocessStoredHotspotPhotos() {
+    if (!isEditMode()) {
+      return;
+    }
+    if (!state.currentUser || !state.db) {
+      window.alert("로그인 상태를 확인한 뒤 다시 시도하세요.");
+      return;
+    }
+
+    const spotsWithPhotos = Array.from(state.hotspotData.values()).filter((spot) => {
+      return getSpotPhotoDataUrls(spot).length > 0;
+    });
+    if (spotsWithPhotos.length === 0) {
+      window.alert("재처리할 기존 사진이 없습니다.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "기존 첨부사진 " + String(spotsWithPhotos.length) + "건을 일괄 재처리할까요?\n" +
+      "가로 800px 조정 + 중앙 워터마크 + JPG 변환으로 다시 저장됩니다."
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    const previousButtonText = elements.spotPhotoReprocessButton
+      ? String(elements.spotPhotoReprocessButton.textContent || "기존 첨부사진 일괄 재처리")
+      : "기존 첨부사진 일괄 재처리";
+    if (elements.spotPhotoReprocessButton) {
+      elements.spotPhotoReprocessButton.disabled = true;
+      elements.spotPhotoReprocessButton.textContent = "재처리 중...";
+    }
+    setSpotPhotoReprocessStatus("0 / " + String(spotsWithPhotos.length) + " 처리 시작", false);
+
+    try {
+      let processedCount = 0;
+      let updatedCount = 0;
+      let skippedCount = 0;
+      let failedCount = 0;
+      const collectionName = getIssueCollectionName();
+      for (const spot of spotsWithPhotos) {
+        processedCount += 1;
+        try {
+          const originalPhotos = getSpotPhotoDataUrls(spot);
+          const optimizedPhotos = [];
+          for (const source of originalPhotos) {
+            const optimizedPhoto = await optimizeHotspotPhotoDataUrl(source);
+            optimizedPhotos.push(optimizedPhoto);
+          }
+          const limitResult = applyHotspotPhotoDataUrlLimits(optimizedPhotos);
+          const finalPhotos = limitResult.photoDataUrls;
+          if (finalPhotos.length === 0) {
+            skippedCount += 1;
+            continue;
+          }
+
+          const currentPhotos = normalizeHotspotPhotoDataUrls(originalPhotos);
+          const alreadyLatest = (
+            Number(spot.photoProcessingVersion || 0) >= hotspotPhotoConfig.processingVersion &&
+            currentPhotos.length === finalPhotos.length &&
+            currentPhotos.every((item, index) => item === finalPhotos[index])
+          );
+          if (alreadyLatest) {
+            skippedCount += 1;
+            continue;
+          }
+
+          await state.db.collection(collectionName).doc(String(spot.id)).update({
+            photoDataUrls: finalPhotos,
+            photoDataUrl: finalPhotos[0] || "",
+            photoProcessingVersion: hotspotPhotoConfig.processingVersion,
+            updatedBy: normalizeEmail(state.currentUser.email),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          updatedCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          console.error("[photo-reprocess]", spot && spot.id ? spot.id : "-", toMessage(error));
+        }
+        setSpotPhotoReprocessStatus(
+          String(processedCount) + " / " + String(spotsWithPhotos.length) +
+          " 처리 중 (업데이트 " + String(updatedCount) + ", 건너뜀 " + String(skippedCount) + ", 실패 " + String(failedCount) + ")",
+          failedCount > 0
+        );
+      }
+
+      const summary =
+        "완료: 총 " + String(spotsWithPhotos.length) + "건 중 업데이트 " + String(updatedCount) +
+        "건, 건너뜀 " + String(skippedCount) + "건, 실패 " + String(failedCount) + "건";
+      setSpotPhotoReprocessStatus(summary, failedCount > 0);
+      window.alert("기존 첨부사진 일괄 재처리가 끝났습니다.\n" + summary);
+    } finally {
+      if (elements.spotPhotoReprocessButton) {
+        elements.spotPhotoReprocessButton.disabled = false;
+        elements.spotPhotoReprocessButton.textContent = previousButtonText;
+      }
+    }
+  }
+
+  function renderSpotPhotoPreview(photoDataUrls) {
+    if (!elements.spotPhotoPreviewWrap || !elements.spotPhotoPreviewSlideshow) {
+      return;
+    }
+    const photoSlides = buildSpotPhotoSlides(photoDataUrls, "첨부한 현안 사진");
+    const hasPhotos = photoSlides.length > 0;
+    if (elements.spotPhotoRemoveCurrentButton) {
+      elements.spotPhotoRemoveCurrentButton.disabled = !hasPhotos;
+    }
+    if (elements.spotPhotoRemoveButton) {
+      elements.spotPhotoRemoveButton.disabled = !hasPhotos;
+    }
+    clearPhotoSlideshowsByPrefix("spot-form-preview-");
+    if (hasPhotos) {
+      const slideshowId = createPhotoSlideshowId("spot-form-preview");
+      elements.spotPhotoPreviewSlideshow.innerHTML = buildPhotoSlideshowHtml({
+        slideshowId,
+        slides: photoSlides,
+        wrapperClassName: "spot-photo-preview-inner",
+        imageClassName: "spot-photo-preview",
+        loading: "eager"
+      });
       elements.spotPhotoPreviewWrap.classList.remove("hidden");
       return;
     }
-    elements.spotPhotoPreviewImage.removeAttribute("src");
+    elements.spotPhotoPreviewSlideshow.innerHTML = "";
     elements.spotPhotoPreviewWrap.classList.add("hidden");
   }
 
@@ -5260,6 +5789,107 @@
     return raw;
   }
 
+  function normalizeSourceImageDataUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return "";
+    }
+    const pattern = /^data:image\/[a-zA-Z0-9.+-]+;base64,[a-zA-Z0-9+/=]+$/i;
+    if (!pattern.test(raw)) {
+      return "";
+    }
+    return raw;
+  }
+
+  function normalizeHotspotPhotoDataUrls(value) {
+    const values = [];
+    if (Array.isArray(value)) {
+      values.push(...value);
+    } else if (typeof value === "string") {
+      const raw = value.trim();
+      if (raw) {
+        if (raw.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              values.push(...parsed);
+            } else {
+              values.push(raw);
+            }
+          } catch (_error) {
+            values.push(raw);
+          }
+        } else {
+          values.push(raw);
+        }
+      }
+    } else if (value) {
+      values.push(value);
+    }
+
+    const normalized = [];
+    const seen = new Set();
+    values.forEach((item) => {
+      const photoDataUrl = normalizeHotspotPhotoDataUrl(item);
+      if (!photoDataUrl || seen.has(photoDataUrl)) {
+        return;
+      }
+      seen.add(photoDataUrl);
+      normalized.push(photoDataUrl);
+    });
+    return normalized;
+  }
+
+  function applyHotspotPhotoDataUrlLimits(photoDataUrls) {
+    const normalized = normalizeHotspotPhotoDataUrls(photoDataUrls);
+    const limitedByCount = normalized.slice(0, hotspotPhotoConfig.maxPhotoCount);
+    const limited = [];
+    let totalChars = 0;
+    limitedByCount.forEach((photoDataUrl) => {
+      if (totalChars + photoDataUrl.length > hotspotPhotoConfig.maxTotalStoredChars) {
+        return;
+      }
+      totalChars += photoDataUrl.length;
+      limited.push(photoDataUrl);
+    });
+    return {
+      photoDataUrls: limited,
+      trimmedByCount: normalized.length > limitedByCount.length,
+      trimmedBySize: limitedByCount.length > limited.length
+    };
+  }
+
+  function getSpotPhotoDataUrls(spot) {
+    if (!spot || typeof spot !== "object") {
+      return [];
+    }
+    const photos = normalizeHotspotPhotoDataUrls(
+      spot.photoDataUrls ||
+      spot.photo_data_urls ||
+      []
+    );
+    if (photos.length > 0) {
+      return photos;
+    }
+    const legacyPhoto = normalizeHotspotPhotoDataUrl(
+      spot.photoDataUrl ||
+      spot.photo_data_url
+    );
+    return legacyPhoto ? [legacyPhoto] : [];
+  }
+
+  function buildSpotPhotoSlides(photoDataUrls, altBaseText) {
+    const normalized = normalizeHotspotPhotoDataUrls(photoDataUrls);
+    const safeAltBase = String(altBaseText || "현안 사진").trim() || "현안 사진";
+    return normalized.map((photoDataUrl, index) => {
+      const suffix = normalized.length > 1 ? " (" + String(index + 1) + "/" + String(normalized.length) + ")" : "";
+      return {
+        src: photoDataUrl,
+        alt: safeAltBase + suffix
+      };
+    });
+  }
+
   async function optimizeHotspotPhotoFile(file) {
     const fileType = String(file && file.type ? file.type : "").toLowerCase();
     if (!fileType.startsWith("image/")) {
@@ -5273,6 +5903,24 @@
     }
 
     const imageDataUrl = await readFileAsDataUrl(file);
+    try {
+      return await optimizeHotspotPhotoDataUrl(imageDataUrl);
+    } catch (error) {
+      const message = toMessage(error);
+      const isHeicLike = fileType.includes("heic") || fileType.includes("heif");
+      if (isHeicLike && message.includes("이미지 디코딩에 실패")) {
+        throw new Error("이 브라우저에서 HEIC/HEIF 디코딩을 지원하지 않습니다. Safari 최신 버전 사용 또는 JPG/PNG로 변환 후 업로드해 주세요.");
+      }
+      throw error;
+    }
+  }
+
+  async function optimizeHotspotPhotoDataUrl(dataUrl) {
+    const normalizedSource = normalizeSourceImageDataUrl(dataUrl);
+    if (!normalizedSource) {
+      throw new Error("이미지 데이터 형식이 올바르지 않습니다.");
+    }
+    const imageDataUrl = normalizedSource;
     const image = await loadImageElement(imageDataUrl);
     const width = image.naturalWidth || image.width || 0;
     const height = image.naturalHeight || image.height || 0;
@@ -5280,9 +5928,8 @@
       throw new Error("이미지 크기를 확인할 수 없습니다.");
     }
 
-    const longEdge = Math.max(width, height);
-    const ratio = longEdge > hotspotPhotoConfig.maxLongEdge
-      ? hotspotPhotoConfig.maxLongEdge / longEdge
+    const ratio = width > hotspotPhotoConfig.maxWidth
+      ? hotspotPhotoConfig.maxWidth / width
       : 1;
     const targetWidth = Math.max(1, Math.round(width * ratio));
     const targetHeight = Math.max(1, Math.round(height * ratio));
@@ -5296,15 +5943,34 @@
     }
     context.drawImage(image, 0, 0, targetWidth, targetHeight);
 
+    const watermarkImage = await getHotspotWatermarkImage();
+    const watermarkWidth = watermarkImage.naturalWidth || watermarkImage.width || 0;
+    const watermarkHeight = watermarkImage.naturalHeight || watermarkImage.height || 0;
+    if (!Number.isFinite(watermarkWidth) || !Number.isFinite(watermarkHeight) || watermarkWidth <= 0 || watermarkHeight <= 0) {
+      throw new Error("워터마크 이미지를 읽을 수 없습니다.");
+    }
+    const targetWatermarkWidth = Math.max(1, Math.min(hotspotPhotoConfig.watermarkWidth, targetWidth));
+    const watermarkScale = targetWatermarkWidth / watermarkWidth;
+    const targetWatermarkHeight = Math.max(1, Math.round(watermarkHeight * watermarkScale));
+    const watermarkX = Math.round((targetWidth - targetWatermarkWidth) / 2);
+    const watermarkY = Math.round((targetHeight - targetWatermarkHeight) / 2);
+    context.drawImage(
+      watermarkImage,
+      watermarkX,
+      watermarkY,
+      targetWatermarkWidth,
+      targetWatermarkHeight
+    );
+
     let quality = hotspotPhotoConfig.jpegQuality;
     let encoded = canvas.toDataURL("image/jpeg", quality);
-    while (encoded.length > hotspotPhotoConfig.maxStoredChars && quality > 0.45) {
+    while (encoded.length > hotspotPhotoConfig.maxPerPhotoChars && quality > 0.45) {
       quality -= 0.1;
       encoded = canvas.toDataURL("image/jpeg", quality);
     }
     const normalized = normalizeHotspotPhotoDataUrl(encoded);
-    if (!normalized) {
-      throw new Error("이미지가 너무 커서 저장할 수 없습니다.");
+    if (!normalized || normalized.length > hotspotPhotoConfig.maxPerPhotoChars) {
+      throw new Error("이미지가 너무 커서 저장할 수 없습니다. 원본 크기를 더 줄여주세요.");
     }
     return normalized;
   }
@@ -5320,6 +5986,18 @@
       };
       reader.readAsDataURL(file);
     });
+  }
+
+  async function getHotspotWatermarkImage() {
+    if (hotspotWatermarkImagePromise) {
+      return hotspotWatermarkImagePromise;
+    }
+    hotspotWatermarkImagePromise = loadImageElement(hotspotPhotoConfig.watermarkSrc)
+      .catch((error) => {
+        hotspotWatermarkImagePromise = null;
+        throw new Error("워터마크 로드 실패: " + toMessage(error));
+      });
+    return hotspotWatermarkImagePromise;
   }
 
   function loadImageElement(src) {
@@ -5366,7 +6044,7 @@
 
     const resolvedTitle = String(catalogIssue && catalogIssue.title ? catalogIssue.title : title).trim();
     const resolvedMemo = String(catalogIssue && catalogIssue.memo ? catalogIssue.memo : memo).trim();
-    const photoDataUrl = normalizeHotspotPhotoDataUrl(formData.get("photoDataUrl"));
+    const photoDataUrls = normalizeHotspotPhotoDataUrls(formData.get("photoDataUrls"));
     const resolvedCategoryId = normalizeCategoryId(
       categoryId ||
       (catalogIssue ? catalogIssue.categoryId : "")
@@ -5419,7 +6097,9 @@
       emdCode: finalEmdCode || "",
       dongSelectionMode: isCommonSelection ? "common" : usingManualDong ? "manual" : "auto",
       dongKey: finalDongKey,
-      photoDataUrl,
+      photoDataUrls,
+      photoDataUrl: photoDataUrls.length > 0 ? photoDataUrls[0] : "",
+      photoProcessingVersion: hotspotPhotoConfig.processingVersion,
       updatedBy: normalizeEmail(state.currentUser.email),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
@@ -5468,7 +6148,8 @@
       memoInput.value = spot.memo || "";
       memoInput.readOnly = false;
     }
-    setSpotPhotoDataUrl(spot.photoDataUrl || "");
+    setSpotPhotoDataUrls(getSpotPhotoDataUrls(spot));
+    setSpotPhotoReprocessStatus("", false);
     clearSpotPhotoFileInput();
     if (issueRefSelect) {
       syncIssueCatalogSelectOptions(spot.issueRefId || "");
@@ -5517,7 +6198,8 @@
       if (elements.form) {
         elements.form.reset();
       }
-      setSpotPhotoDataUrl("");
+      setSpotPhotoDataUrls([]);
+      setSpotPhotoReprocessStatus("", false);
       clearSpotPhotoFileInput();
       if (elements.spotIssueRefSelect) {
         syncIssueCatalogSelectOptions("");
@@ -5846,22 +6528,30 @@
     if (!spot) {
       return;
     }
-    const safeTitle = escapeHtml(spot.title);
+    const rawTitle = String(spot.title || "").trim() || "현안";
+    const safeTitle = escapeHtml(rawTitle);
     const safeMemo = escapeHtml(spot.memo || "-");
     const safeCategory = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
     const safeDong = escapeHtml(formatSpotDongLabel(spot));
     const safeUser = escapeHtml(spot.updatedBy || "-");
     const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
-    const safePhotoDataUrl = escapeHtml(normalizeHotspotPhotoDataUrl(spot.photoDataUrl));
-    const titleWithPhotoBadge = safePhotoDataUrl
+    const photoDataUrls = getSpotPhotoDataUrls(spot);
+    const titleWithPhotoBadge = photoDataUrls.length > 0
       ? safeTitle + " <span class='spot-title-photo-badge' aria-label='사진 첨부'>🖼️</span>"
       : safeTitle;
-    const photoHtml = safePhotoDataUrl
-      ? (
-        "<div class='map-popup-photo-wrap'>" +
-          "<img class='map-popup-photo' src='" + safePhotoDataUrl + "' alt='" + safeTitle + " 사진'>" +
-        "</div>"
-      )
+    clearPhotoSlideshowsByPrefix("map-popup-");
+    const popupPhotoSlides = buildSpotPhotoSlides(photoDataUrls, rawTitle + " 사진");
+    const popupSlideshowId = popupPhotoSlides.length > 0
+      ? createPhotoSlideshowId("map-popup")
+      : "";
+    const photoHtml = popupPhotoSlides.length > 0
+      ? buildPhotoSlideshowHtml({
+        slideshowId: popupSlideshowId,
+        slides: popupPhotoSlides,
+        wrapperClassName: "map-popup-photo-wrap",
+        imageClassName: "map-popup-photo",
+        loading: "eager"
+      })
       : "";
 
     const editorInfo = isEditMode()
@@ -5919,6 +6609,7 @@
       return;
     }
     elements.mapPopup.classList.add("hidden");
+    clearPhotoSlideshowsByPrefix("map-popup-");
     state.popupOverlay.setPosition(undefined);
   }
 

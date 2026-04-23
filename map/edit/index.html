@@ -133,14 +133,19 @@
               <label for="spot-memo">현안 내용</label>
               <textarea id="spot-memo" name="memo" rows="3" maxlength="200" placeholder="예: 출근 시간 교차로 정체로 민원 다수"></textarea>
 
-              <label for="spot-photo-file">현안 사진 (선택)</label>
-              <input id="spot-photo-file" name="photoFile" type="file" accept="image/*">
-              <input id="spot-photo-data-url" name="photoDataUrl" type="hidden" value="">
-              <p class="field-note">사진은 1장만 첨부됩니다. 저장 시 자동으로 용량을 줄여 업로드합니다.</p>
+              <label for="spot-photo-file">현안 사진 (선택, 여러 장 가능)</label>
+              <input id="spot-photo-file" name="photoFile" type="file" accept="image/*,.heic,.heif" multiple>
+              <input id="spot-photo-data-urls" name="photoDataUrls" type="hidden" value="">
+              <p class="field-note">사진은 가로 최대 800px로 조정하고 중앙 워터마크를 넣은 뒤 JPG로 저장됩니다. (HEIC/HEIF 포함)</p>
               <div id="spot-photo-preview-wrap" class="spot-photo-preview-wrap hidden">
-                <img id="spot-photo-preview" class="spot-photo-preview" alt="첨부한 현안 사진 미리보기">
-                <button id="spot-photo-remove-btn" type="button" class="btn-secondary btn-small">사진 제거</button>
+                <div id="spot-photo-preview-slideshow" class="spot-photo-preview-slideshow"></div>
+                <div class="spot-photo-action-row">
+                  <button id="spot-photo-remove-current-btn" type="button" class="btn-secondary btn-small">현재 사진 제거</button>
+                  <button id="spot-photo-remove-btn" type="button" class="btn-secondary btn-small">사진 전체 제거</button>
+                </div>
               </div>
+              <button id="spot-photo-reprocess-btn" type="button" class="btn-secondary btn-small">기존 첨부사진 일괄 재처리</button>
+              <p id="spot-photo-reprocess-status" class="spot-photo-reprocess-status hidden" aria-live="polite"></p>
 
               <div class="coord-box">
                 <div id="selected-coord">좌표 미선택</div>
