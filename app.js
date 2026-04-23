@@ -2056,22 +2056,28 @@
     try {
       const allFeatures = [];
       const errors = [];
-      for (const path of boundaryPaths) {
-        try {
-          const response = await fetch(path, { cache: "no-store" });
-          if (!response.ok) {
-            throw new Error("불러오기 실패 (" + response.status + ")");
-          }
-
-          const boundaryPayload = await response.text();
-          const features = parseBoundaryFeatures(boundaryPayload);
-          allFeatures.push(...features);
-        } catch (innerError) {
-          const message = path + ": " + toMessage(innerError);
-          errors.push(message);
-          console.error("[boundary-load]", message);
+      const tasks = boundaryPaths.map(async (path) => {
+        const response = await fetch(path, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(path + ": 불러오기 실패 (" + response.status + ")");
         }
-      }
+        const boundaryPayload = await response.text();
+        const features = parseBoundaryFeatures(boundaryPayload);
+        return {
+          path,
+          features
+        };
+      });
+      const settled = await Promise.allSettled(tasks);
+      settled.forEach((result) => {
+        if (result.status === "fulfilled") {
+          allFeatures.push(...result.value.features);
+          return;
+        }
+        const message = toMessage(result.reason);
+        errors.push(message);
+        console.error("[boundary-load]", message);
+      });
 
       if (allFeatures.length === 0) {
         const detail = errors.length > 0 ? " / " + errors.join(" | ") : "";
