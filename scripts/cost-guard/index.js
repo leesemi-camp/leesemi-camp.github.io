@@ -205,17 +205,17 @@ function buildMessageLines(params) {
     : "-";
 
   return [
-    "[GCP Billing Guard]",
-    "project: " + targetProjectId,
-    "budget: " + String(payload.budgetDisplayName || "-"),
-    "cost: " + formatMoney(costAmount, currencyCode),
-    "budgetAmount: " + formatMoney(budgetAmount, currencyCode),
-    "usage: " + (Number.isFinite(usageRatio) ? usageRatio.toFixed(2) + "%" : "-"),
-    "thresholdExceeded(actual): " + exceeded,
-    "costIntervalStart: " + String(payload.costIntervalStart || "-"),
-    "budgetId: " + String(envelope.attributes.budgetId || "-"),
-    "messageId: " + String(envelope.messageId || "-"),
-    "action: " + actionSummary
+    "[GCP 과금 안전장치 알림]",
+    "프로젝트: " + targetProjectId,
+    "예산 이름: " + String(payload.budgetDisplayName || "-"),
+    "현재 비용: " + formatMoney(costAmount, currencyCode),
+    "예산 금액: " + formatMoney(budgetAmount, currencyCode),
+    "사용률: " + (Number.isFinite(usageRatio) ? usageRatio.toFixed(2) + "%" : "-"),
+    "초과 임계치(실측): " + exceeded,
+    "집계 시작 시각: " + String(payload.costIntervalStart || "-"),
+    "예산 ID: " + String(envelope.attributes.budgetId || "-"),
+    "메시지 ID: " + String(envelope.messageId || "-"),
+    "처리 결과: " + actionSummary
   ];
 }
 
@@ -229,22 +229,22 @@ exports.onBudgetNotification = async (event, context) => {
   const payload = decodeBudgetPayload(envelope.data);
   const allowed = isNotificationAllowed(envelope, payload);
 
-  let actionSummary = "ignored (allowlist mismatch)";
+  let actionSummary = "무시됨 (허용 목록 불일치)";
   if (allowed) {
     const needDisable = shouldDisableBilling(payload);
     if (!needDisable) {
-      actionSummary = "notification only (below disable threshold)";
+      actionSummary = "알림만 전송 (차단 임계치 미도달)";
     } else if (!disableAllowed) {
-      actionSummary = "notification only (DISABLE_BILLING=false)";
+      actionSummary = "알림만 전송 (과금 비활성화 미사용: DISABLE_BILLING=false)";
     } else if (simulateDisable) {
-      actionSummary = "billing off simulated (SIMULATE_DISABLE=true)";
+      actionSummary = "과금 비활성화 시뮬레이션 (SIMULATE_DISABLE=true)";
     } else {
       const billingInfo = await getProjectBillingInfo(projectName);
       if (billingInfo.billingEnabled === false) {
-        actionSummary = "billing already disabled";
+        actionSummary = "이미 과금 비활성화 상태";
       } else {
         await disableProjectBilling(projectName);
-        actionSummary = "billing disabled (budget threshold reached)";
+        actionSummary = "과금 비활성화 완료 (예산 임계치 도달)";
       }
     }
   }
