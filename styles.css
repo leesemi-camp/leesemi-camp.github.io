@@ -952,6 +952,19 @@ body.photo-lightbox-open {
   cursor: zoom-in;
 }
 
+.map-popup-actions {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #dde7f4;
+  display: flex;
+  gap: 8px;
+}
+
+.map-popup-actions .spot-action-btn {
+  flex: 1 1 auto;
+  text-align: center;
+}
+
 .photo-lightbox {
   position: fixed;
   inset: 0;

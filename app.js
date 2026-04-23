@@ -451,6 +451,29 @@
         if (!(target instanceof HTMLElement)) {
           return;
         }
+        const actionButton = target.closest("[data-action]");
+        if (actionButton) {
+          const action = String(actionButton.getAttribute("data-action") || "");
+          if (action === "edit-spot" || action === "delete-spot") {
+            const spotId = String(actionButton.getAttribute("data-spot-id") || "").trim();
+            if (!spotId) {
+              return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            if (action === "edit-spot") {
+              const editSpot = state.hotspotData.get(spotId);
+              if (editSpot) {
+                enterHotspotEditMode(editSpot);
+                closePopup();
+              }
+              return;
+            }
+            void deleteHotspot(spotId);
+            closePopup();
+            return;
+          }
+        }
         if (tryHandlePhotoSlideControlClick(target)) {
           event.preventDefault();
           event.stopPropagation();
@@ -6528,6 +6551,7 @@
     if (!spot) {
       return;
     }
+    const safeSpotId = escapeHtml(String(spot.id || "").trim());
     const rawTitle = String(spot.title || "").trim() || "현안";
     const safeTitle = escapeHtml(rawTitle);
     const safeMemo = escapeHtml(spot.memo || "-");
@@ -6557,6 +6581,14 @@
     const editorInfo = isEditMode()
       ? "<div>수정자: " + safeUser + "</div><div>수정시각: " + safeTime + "</div>"
       : "";
+    const popupActions = (isEditMode() && safeSpotId)
+      ? (
+        "<div class='map-popup-actions'>" +
+          "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='edit-spot' data-spot-id='" + safeSpotId + "'>수정</button>" +
+          "<button type='button' class='btn-secondary btn-small spot-action-btn danger' data-action='delete-spot' data-spot-id='" + safeSpotId + "'>삭제</button>" +
+        "</div>"
+      )
+      : "";
     openPopup(
       coordinate,
       "<strong>" + titleWithPhotoBadge + "</strong>" +
@@ -6564,7 +6596,8 @@
       "<div>분류: " + safeCategory + "</div>" +
       "<div>소속 동: " + safeDong + "</div>" +
       "<div>내용: " + safeMemo + "</div>" +
-      editorInfo
+      editorInfo +
+      popupActions
     );
   }
 
