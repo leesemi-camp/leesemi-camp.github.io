@@ -703,6 +703,30 @@
       });
     }
 
+    document.addEventListener("load", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLImageElement)) {
+        return;
+      }
+      if (!target.classList.contains("photo-slide-image")) {
+        return;
+      }
+      const container = resolvePhotoSlideshowContainer(target);
+      setPhotoSlideshowLoadState(container, "ready");
+    }, true);
+
+    document.addEventListener("error", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLImageElement)) {
+        return;
+      }
+      if (!target.classList.contains("photo-slide-image")) {
+        return;
+      }
+      const container = resolvePhotoSlideshowContainer(target);
+      setPhotoSlideshowLoadState(container, "error");
+    }, true);
+
     window.addEventListener("keydown", (event) => {
       if (!isPhotoLightboxVisible()) {
         return;
@@ -823,6 +847,75 @@
     return normalized;
   }
 
+  function resolvePhotoSlideshowContainer(node) {
+    if (!(node instanceof Element)) {
+      return null;
+    }
+    const container = node.closest(".photo-slideshow[data-photo-slideshow-id]");
+    return container instanceof HTMLElement ? container : null;
+  }
+
+  function setPhotoSlideshowLoadState(container, nextState) {
+    if (!(container instanceof HTMLElement)) {
+      return;
+    }
+    const stateValue = nextState === "ready" || nextState === "error"
+      ? nextState
+      : "loading";
+    container.setAttribute("data-photo-load-state", stateValue);
+  }
+
+  function syncPhotoSlideImageLoadState(imageElement) {
+    if (!(imageElement instanceof HTMLImageElement)) {
+      return;
+    }
+    const container = resolvePhotoSlideshowContainer(imageElement);
+    if (!container) {
+      return;
+    }
+    if (!imageElement.complete) {
+      setPhotoSlideshowLoadState(container, "loading");
+      return;
+    }
+    if (imageElement.naturalWidth > 0 && imageElement.naturalHeight > 0) {
+      setPhotoSlideshowLoadState(container, "ready");
+      return;
+    }
+    setPhotoSlideshowLoadState(container, "error");
+  }
+
+  function syncPhotoSlideshowsInScope(scopeElement) {
+    if (!(scopeElement instanceof HTMLElement)) {
+      return;
+    }
+    const images = [];
+    if (scopeElement.matches(".photo-slide-image")) {
+      images.push(scopeElement);
+    }
+    scopeElement.querySelectorAll(".photo-slide-image").forEach((node) => {
+      if (node instanceof HTMLImageElement) {
+        images.push(node);
+      }
+    });
+    images.forEach((imageElement) => {
+      syncPhotoSlideImageLoadState(imageElement);
+    });
+  }
+
+  function schedulePhotoSlideshowsSync(scopeElement) {
+    if (!(scopeElement instanceof HTMLElement)) {
+      return;
+    }
+    const run = () => {
+      syncPhotoSlideshowsInScope(scopeElement);
+    };
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(run);
+      return;
+    }
+    window.setTimeout(run, 0);
+  }
+
   function registerPhotoSlideshow(slideshowId, slides, initialIndex) {
     const id = String(slideshowId || "").trim();
     if (!id) {
@@ -864,13 +957,16 @@
     const imageClass = ["photo-slide-image", imageClassName].filter(Boolean).join(" ");
 
     return (
-      "<div class='" + escapeHtml(className) + "' data-photo-slideshow-id='" + escapeHtml(slideshowId) + "' data-photo-count='" + String(slides.length) + "'>" +
+      "<div class='" + escapeHtml(className) + "' data-photo-slideshow-id='" + escapeHtml(slideshowId) + "' data-photo-count='" + String(slides.length) + "' data-photo-load-state='loading'>" +
         (hasMultiple
           ? (
             "<button type='button' class='photo-slide-arrow photo-slide-arrow-prev' data-action='photo-slide-prev' data-slideshow-id='" + escapeHtml(slideshowId) + "' aria-label='이전 사진' title='이전 사진'>‹</button>"
           )
           : "") +
-        "<img class='" + escapeHtml(imageClass) + "' src='" + escapeHtml(activeSlide.src) + "' alt='" + escapeHtml(activeSlide.alt) + "' loading='" + loading + "' data-photo-slideshow-id='" + escapeHtml(slideshowId) + "' data-photo-index='" + String(initialIndex) + "'>" +
+        "<div class='photo-slide-media'>" +
+          "<img class='" + escapeHtml(imageClass) + "' src='" + escapeHtml(activeSlide.src) + "' alt='" + escapeHtml(activeSlide.alt) + "' loading='" + loading + "' data-photo-slideshow-id='" + escapeHtml(slideshowId) + "' data-photo-index='" + String(initialIndex) + "'>" +
+          "<div class='photo-slide-loading' aria-hidden='true'><span class='photo-slide-spinner'></span></div>" +
+        "</div>" +
         (hasMultiple
           ? (
             "<button type='button' class='photo-slide-arrow photo-slide-arrow-next' data-action='photo-slide-next' data-slideshow-id='" + escapeHtml(slideshowId) + "' aria-label='다음 사진' title='다음 사진'>›</button>" +
@@ -902,12 +998,14 @@
         return;
       }
       container.setAttribute("data-photo-count", String(slides.length));
+      setPhotoSlideshowLoadState(container, "loading");
       const image = container.querySelector(".photo-slide-image");
       if (image instanceof HTMLImageElement) {
         image.src = activeSlide.src;
         image.alt = activeSlide.alt;
         image.dataset.photoSlideshowId = id;
         image.dataset.photoIndex = String(index);
+        syncPhotoSlideImageLoadState(image);
       }
       const indicator = container.querySelector(".photo-slide-indicator");
       if (indicator) {
@@ -5107,6 +5205,7 @@
     });
 
     elements.spotList.innerHTML = items.join("");
+    schedulePhotoSlideshowsSync(elements.spotList);
   }
 
   function exposeSpotListTestHooks() {
@@ -5873,6 +5972,7 @@
         imageClassName: "spot-photo-preview",
         loading: "eager"
       });
+      schedulePhotoSlideshowsSync(elements.spotPhotoPreviewSlideshow);
       elements.spotPhotoPreviewWrap.classList.remove("hidden");
       return;
     }
@@ -7112,6 +7212,7 @@
       return;
     }
     elements.mapPopup.innerHTML = html;
+    schedulePhotoSlideshowsSync(elements.mapPopup);
     elements.mapPopup.style.pointerEvents = "auto";
     const popupPhoto = elements.mapPopup.querySelector(".map-popup-photo");
     if (popupPhoto instanceof HTMLImageElement) {
