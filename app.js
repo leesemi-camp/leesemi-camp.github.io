@@ -263,7 +263,6 @@
   };
 
   const hotspotPhotoConfig = {
-    maxFileBytes: 5 * 1024 * 1024,
     maxStoredChars: 700000,
     maxTotalStoredChars: 900000,
     maxPerPhotoChars: 320000,
@@ -5920,9 +5919,6 @@
     }
     if (!Number.isFinite(file.size) || file.size <= 0) {
       throw new Error("파일을 읽을 수 없습니다.");
-    }
-    if (file.size > hotspotPhotoConfig.maxFileBytes) {
-      throw new Error("이미지 용량은 5MB 이하만 지원합니다.");
     }
 
     const imageDataUrl = await readFileAsDataUrl(file);
