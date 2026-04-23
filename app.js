@@ -759,10 +759,16 @@
       lightbox.setAttribute("aria-hidden", "true");
       lightbox.innerHTML =
         "<div class='photo-lightbox-dialog' role='dialog' aria-modal='true' aria-label='사진 확대 보기'>" +
-          "<button id='photo-lightbox-close-btn' type='button' class='photo-lightbox-close' aria-label='팝업 닫기' title='닫기'>×</button>" +
-          "<button id='photo-lightbox-prev-btn' type='button' class='photo-lightbox-nav photo-lightbox-nav-prev' aria-label='이전 사진' title='이전'>‹</button>" +
+          "<button id='photo-lightbox-close-btn' type='button' class='photo-lightbox-close' aria-label='팝업 닫기' title='닫기'>" +
+            getPhotoControlIconMarkup("close") +
+          "</button>" +
+          "<button id='photo-lightbox-prev-btn' type='button' class='photo-lightbox-nav photo-lightbox-nav-prev' aria-label='이전 사진' title='이전'>" +
+            getPhotoControlIconMarkup("prev") +
+          "</button>" +
           "<img id='photo-lightbox-image' class='photo-lightbox-image' alt='확대 사진' loading='eager'>" +
-          "<button id='photo-lightbox-next-btn' type='button' class='photo-lightbox-nav photo-lightbox-nav-next' aria-label='다음 사진' title='다음'>›</button>" +
+          "<button id='photo-lightbox-next-btn' type='button' class='photo-lightbox-nav photo-lightbox-nav-next' aria-label='다음 사진' title='다음'>" +
+            getPhotoControlIconMarkup("next") +
+          "</button>" +
           "<div id='photo-lightbox-counter' class='photo-lightbox-counter' aria-live='polite'></div>" +
         "</div>";
       document.body.appendChild(lightbox);
@@ -942,7 +948,9 @@
       "<div class='" + escapeHtml(className) + "' data-photo-slideshow-id='" + escapeHtml(slideshowId) + "' data-photo-count='" + String(slides.length) + "' data-photo-load-state='loading'>" +
         (hasMultiple
           ? (
-            "<button type='button' class='photo-slide-arrow photo-slide-arrow-prev' data-action='photo-slide-prev' data-slideshow-id='" + escapeHtml(slideshowId) + "' aria-label='이전 사진' title='이전 사진'>‹</button>"
+            "<button type='button' class='photo-slide-arrow photo-slide-arrow-prev' data-action='photo-slide-prev' data-slideshow-id='" + escapeHtml(slideshowId) + "' aria-label='이전 사진' title='이전 사진'>" +
+              getPhotoControlIconMarkup("prev") +
+            "</button>"
           )
           : "") +
         "<div class='photo-slide-media'>" +
@@ -951,12 +959,40 @@
         "</div>" +
         (hasMultiple
           ? (
-            "<button type='button' class='photo-slide-arrow photo-slide-arrow-next' data-action='photo-slide-next' data-slideshow-id='" + escapeHtml(slideshowId) + "' aria-label='다음 사진' title='다음 사진'>›</button>" +
+            "<button type='button' class='photo-slide-arrow photo-slide-arrow-next' data-action='photo-slide-next' data-slideshow-id='" + escapeHtml(slideshowId) + "' aria-label='다음 사진' title='다음 사진'>" +
+              getPhotoControlIconMarkup("next") +
+            "</button>" +
             "<div class='photo-slide-indicator' aria-live='polite'>" + String(initialIndex + 1) + " / " + String(slides.length) + "</div>"
           )
           : "") +
       "</div>"
     );
+  }
+
+  function getPhotoControlIconMarkup(type) {
+    const iconType = String(type || "").trim().toLowerCase();
+    if (iconType === "close") {
+      return (
+        "<svg class='photo-control-icon photo-control-icon-close' viewBox='0 0 24 24' aria-hidden='true' focusable='false'>" +
+          "<path d='M6 6l12 12M18 6 6 18'></path>" +
+        "</svg>"
+      );
+    }
+    if (iconType === "prev") {
+      return (
+        "<svg class='photo-control-icon photo-control-icon-prev' viewBox='0 0 24 24' aria-hidden='true' focusable='false'>" +
+          "<path d='M14.5 5.5L8 12l6.5 6.5'></path>" +
+        "</svg>"
+      );
+    }
+    if (iconType === "next") {
+      return (
+        "<svg class='photo-control-icon photo-control-icon-next' viewBox='0 0 24 24' aria-hidden='true' focusable='false'>" +
+          "<path d='M9.5 5.5L16 12l-6.5 6.5'></path>" +
+        "</svg>"
+      );
+    }
+    return "";
   }
 
   function renderPhotoSlideshow(slideshowId) {

@@ -190,6 +190,7 @@ p {
 }
 
 .icon-btn svg {
+  display: block;
   width: 18px;
   height: 18px;
   fill: none;
@@ -428,17 +429,33 @@ textarea {
   transform: translateY(-50%);
   width: 32px;
   height: 32px;
+  padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 999px;
   background: rgba(8, 26, 48, 0.56);
   color: #ffffff;
-  font-size: 24px;
-  line-height: 1;
+  font-size: 0;
+  line-height: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  appearance: none;
+  box-shadow: 0 6px 16px rgba(6, 18, 34, 0.35);
   cursor: pointer;
-  z-index: 2;
+  z-index: 3;
+}
+
+.photo-control-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+  flex: 0 0 auto;
 }
 
 .photo-slide-arrow:hover {
@@ -463,6 +480,7 @@ textarea {
   left: 50%;
   bottom: 8px;
   transform: translateX(-50%);
+  z-index: 3;
   border-radius: 999px;
   padding: 2px 8px;
   background: rgba(7, 20, 38, 0.68);
@@ -783,7 +801,7 @@ textarea {
 
 .spot-photo-thumb {
   width: 100%;
-  height: 100%;
+  max-height: 170px;
   object-fit: cover;
   border-radius: 8px;
   border: 1px solid #d6e2f2;
@@ -1029,7 +1047,7 @@ body.photo-lightbox-open {
 
 .map-popup-photo {
   width: 100%;
-  height: 100%;
+  max-height: 180px;
   object-fit: cover;
   border-radius: 8px;
   border: 1px solid #d8e3f2;
@@ -1078,6 +1096,8 @@ body.photo-lightbox-open {
   width: auto;
   height: auto;
   object-fit: contain;
+  opacity: 1;
+  transition: opacity 0.2s ease;
 }
 
 .photo-lightbox-close {
@@ -1091,12 +1111,20 @@ body.photo-lightbox-open {
   padding: 0;
   background: rgba(11, 26, 47, 0.78);
   color: #ffffff;
-  font-size: 24px;
-  line-height: 1;
+  font-size: 0;
+  line-height: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  appearance: none;
+  box-shadow: 0 6px 18px rgba(3, 14, 29, 0.46);
   cursor: pointer;
+  z-index: 3;
+}
+
+.photo-lightbox-close .photo-control-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .photo-lightbox-close:hover {
@@ -1114,16 +1142,25 @@ body.photo-lightbox-open {
   transform: translateY(-50%);
   width: 44px;
   height: 44px;
+  padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 999px;
   background: rgba(10, 26, 46, 0.72);
   color: #ffffff;
-  font-size: 30px;
-  line-height: 1;
+  font-size: 0;
+  line-height: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  appearance: none;
+  box-shadow: 0 8px 20px rgba(3, 14, 29, 0.45);
   cursor: pointer;
+  z-index: 3;
+}
+
+.photo-lightbox-nav .photo-control-icon {
+  width: 20px;
+  height: 20px;
 }
 
 .photo-lightbox-nav:hover {
@@ -1148,6 +1185,7 @@ body.photo-lightbox-open {
   left: 50%;
   bottom: 12px;
   transform: translateX(-50%);
+  z-index: 3;
   border-radius: 999px;
   padding: 4px 10px;
   background: rgba(8, 22, 39, 0.7);
@@ -1242,13 +1280,22 @@ body.photo-lightbox-open {
   .photo-lightbox-nav {
     width: 38px;
     height: 38px;
-    font-size: 24px;
+    font-size: 0;
   }
 
   .photo-slide-arrow {
     width: 28px;
     height: 28px;
-    font-size: 20px;
+  }
+
+  .photo-slide-arrow .photo-control-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .photo-lightbox-nav .photo-control-icon {
+    width: 18px;
+    height: 18px;
   }
 
   .list-title {
