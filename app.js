@@ -5751,6 +5751,7 @@
       let updatedCount = 0;
       let skippedCount = 0;
       let failedCount = 0;
+      const failureReasonCounts = new Map();
       const collectionName = getIssueCollectionName();
       for (const spot of spotsWithPhotos) {
         processedCount += 1;
@@ -5773,15 +5774,22 @@
           }
 
           const optimizedPhotos = [];
-          for (const source of originalPhotos) {
-            const optimizedPhoto = await optimizeHotspotPhotoReference(source);
-            optimizedPhotos.push(optimizedPhoto);
+          for (let sourceIndex = 0; sourceIndex < originalPhotos.length; sourceIndex += 1) {
+            const source = originalPhotos[sourceIndex];
+            const preferredStoragePath = normalizeHotspotPhotoStoragePath(currentStoragePaths[sourceIndex]);
+            try {
+              const optimizedPhoto = await optimizeHotspotPhotoReference(source, {
+                preferredStoragePath
+              });
+              optimizedPhotos.push(optimizedPhoto);
+            } catch (error) {
+              console.warn("[photo-reprocess-photo]", spot && spot.id ? spot.id : "-", toMessage(error));
+            }
           }
           const limitResult = applyHotspotPhotoDataUrlLimits(optimizedPhotos);
           const finalPhotos = limitResult.photoDataUrls;
           if (finalPhotos.length === 0) {
-            skippedCount += 1;
-            continue;
+            throw new Error("재처리 가능한 사진이 없습니다. 기존 사진 URL 접근 권한 또는 형식을 확인하세요.");
           }
 
           const persistedPhotos = await persistHotspotPhotoRefs(String(spot.id), finalPhotos, spot);
@@ -5811,7 +5819,9 @@
             await deleteSpotPhotoStoragePaths(uploadedStoragePaths);
           }
           failedCount += 1;
-          console.error("[photo-reprocess]", spot && spot.id ? spot.id : "-", toMessage(error));
+          const failureReason = toMessage(error);
+          failureReasonCounts.set(failureReason, (failureReasonCounts.get(failureReason) || 0) + 1);
+          console.error("[photo-reprocess]", spot && spot.id ? spot.id : "-", failureReason);
         }
         setSpotPhotoReprocessStatus(
           String(processedCount) + " / " + String(spotsWithPhotos.length) +
@@ -5823,8 +5833,16 @@
       const summary =
         "완료: 총 " + String(spotsWithPhotos.length) + "건 중 업데이트 " + String(updatedCount) +
         "건, 건너뜀 " + String(skippedCount) + "건, 실패 " + String(failedCount) + "건";
-      setSpotPhotoReprocessStatus(summary, failedCount > 0);
-      window.alert("기존 첨부사진 일괄 재처리가 끝났습니다.\n" + summary);
+      const topFailureSummary = Array.from(failureReasonCounts.entries())
+        .sort((left, right) => right[1] - left[1])
+        .slice(0, 2)
+        .map((entry) => entry[0] + " (" + String(entry[1]) + "건)")
+        .join(" | ");
+      const statusSummary = topFailureSummary
+        ? summary + " | 주요 실패 원인: " + topFailureSummary
+        : summary;
+      setSpotPhotoReprocessStatus(statusSummary, failedCount > 0);
+      window.alert("기존 첨부사진 일괄 재처리가 끝났습니다.\n" + statusSummary);
     } finally {
       if (elements.spotPhotoReprocessButton) {
         elements.spotPhotoReprocessButton.disabled = false;
@@ -6371,19 +6389,59 @@
       throw new Error("기존 사진 다운로드 실패 (" + String(response.status) + ")");
     }
     const blob = await response.blob();
-    const blobType = String(blob.type || "").toLowerCase();
-    if (!blobType.startsWith("image/")) {
-      throw new Error("기존 사진 형식이 이미지가 아닙니다.");
+    if (!blob || !Number.isFinite(blob.size) || blob.size <= 0) {
+      throw new Error("기존 사진 응답이 비어 있습니다.");
     }
-    return await readBlobAsDataUrl(blob);
+    const sourceDataUrl = await readBlobAsDataUrl(blob);
+    const normalized = normalizeSourceImageDataUrl(sourceDataUrl);
+    if (!normalized) {
+      const blobType = String(blob.type || "").trim() || "-";
+      throw new Error("기존 사진 형식이 이미지가 아닙니다. (content-type: " + blobType + ")");
+    }
+    return normalized;
   }
 
-  async function optimizeHotspotPhotoReference(photoRef) {
+  async function fetchHotspotPhotoDataUrlByStoragePath(path) {
+    const storage = assertHotspotPhotoStorageReady();
+    const normalizedPath = normalizeHotspotPhotoStoragePath(path);
+    if (!normalizedPath) {
+      throw new Error("기존 사진의 Storage 경로가 올바르지 않습니다.");
+    }
+    const downloadUrl = await storage.ref(normalizedPath).getDownloadURL();
+    return await fetchHotspotPhotoUrlAsDataUrl(downloadUrl);
+  }
+
+  async function optimizeHotspotPhotoReference(photoRef, options) {
+    const preferredStoragePath = normalizeHotspotPhotoStoragePath(options && options.preferredStoragePath);
     if (isHotspotPhotoDataUrl(photoRef)) {
       return await optimizeHotspotPhotoDataUrl(photoRef);
     }
+    if (preferredStoragePath) {
+      try {
+        const sourceDataUrl = await fetchHotspotPhotoDataUrlByStoragePath(preferredStoragePath);
+        return await optimizeHotspotPhotoDataUrl(sourceDataUrl);
+      } catch (preferredError) {
+        console.warn("[photo-reprocess-storage-path]", preferredStoragePath, toMessage(preferredError));
+      }
+    }
     if (isHotspotPhotoRemoteUrl(photoRef)) {
-      const sourceDataUrl = await fetchHotspotPhotoUrlAsDataUrl(photoRef);
+      let sourceDataUrl = "";
+      try {
+        sourceDataUrl = await fetchHotspotPhotoUrlAsDataUrl(photoRef);
+      } catch (primaryError) {
+        const storagePath = extractStoragePathFromHotspotPhotoRef(photoRef);
+        if (!storagePath) {
+          throw new Error("기존 사진 다운로드 실패: " + toMessage(primaryError));
+        }
+        try {
+          sourceDataUrl = await fetchHotspotPhotoDataUrlByStoragePath(storagePath);
+        } catch (fallbackError) {
+          throw new Error(
+            "기존 사진 다운로드 실패: " + toMessage(primaryError) +
+            " / Storage 경로 재시도 실패: " + toMessage(fallbackError)
+          );
+        }
+      }
       return await optimizeHotspotPhotoDataUrl(sourceDataUrl);
     }
     throw new Error("이미지 데이터 형식이 올바르지 않습니다.");
