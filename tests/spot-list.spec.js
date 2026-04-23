@@ -1,4 +1,25 @@
 import { test, expect } from "@playwright/test";
+import { addCoverageReport } from "monocart-reporter";
+
+// Chromium에서만 V8 커버리지를 수집한다.
+test.beforeEach(async ({ page }, testInfo) => {
+  if (testInfo.project.use.browserName === "chromium") {
+    await Promise.all([
+      page.coverage.startJSCoverage({ resetOnNavigation: false }),
+      page.coverage.startCSSCoverage({ resetOnNavigation: false })
+    ]);
+  }
+});
+
+test.afterEach(async ({ page }, testInfo) => {
+  if (testInfo.project.use.browserName === "chromium") {
+    const [jsCoverage, cssCoverage] = await Promise.all([
+      page.coverage.stopJSCoverage(),
+      page.coverage.stopCSSCoverage()
+    ]);
+    await addCoverageReport([...jsCoverage, ...cssCoverage], testInfo);
+  }
+});
 
 test("Memo presence toggles compact card class", async ({ page }) => {
   // 메모 유무에 따라 카드 클래스/요소가 달라지는지 확인
