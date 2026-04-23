@@ -46,6 +46,7 @@ jobs:
           retention-days: 3
 
       - uses: kefasjw/lcov-pull-request-report@v1
+        continue-on-error: true # todo: check GitHub token permissions
         with:
           lcov-file: coverage/lcov.info
           github-token: ${{ github.token }}
