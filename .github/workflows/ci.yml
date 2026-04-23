@@ -8,6 +8,9 @@ on:
       - "docs/**"
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -17,7 +20,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: 'npm'
       - name: "Install lcov"
         run: |
@@ -32,11 +35,17 @@ jobs:
       - name: "Run Playwright Tests"
         run: |
           npm run test:coverage
+          # fixup: coverage/lcov.info contains "localhost-5173\". Remove this part for correct file mapping.
+          sed -i 's/localhost-5173//g' coverage/lcov.info
 
-      - uses: zgosalvez/github-actions-report-lcov@v7
+      - uses: actions/upload-artifact@v4
         if: github.event_name == 'pull_request'
         with:
-          coverage-files: coverage/lcov.info
-          artifact-name: code-coverage-report
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          update-comment: true
+          name: "coverage-pr-${{ github.event.number }}"
+          path: coverage
+          retention-days: 3
+
+      - uses: kefasjw/lcov-pull-request-report@v1
+        with:
+          lcov-file: coverage/lcov.info
+          github-token: ${{ github.token }}
