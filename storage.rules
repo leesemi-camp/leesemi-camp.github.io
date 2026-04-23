@@ -1,0 +1,18 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isStaff() {
+      return request.auth != null
+        && request.auth.token.staff == true;
+    }
+
+    match /hotspot-photos/{spotId}/{fileName} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

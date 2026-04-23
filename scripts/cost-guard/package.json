@@ -1,0 +1,19 @@
+{
+  "name": "billing-guard-telegram",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Cloud Billing budget guard: Telegram alerts + auto billing off at threshold",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "functions-framework --target=onBudgetNotification --signature-type=event"
+  },
+  "dependencies": {
+    "googleapis": "^171.0.0"
+  },
+  "devDependencies": {
+    "@google-cloud/functions-framework": "^3.4.0"
+  }
+}

@@ -22,13 +22,14 @@
 - [docs/getting-started.md](docs/getting-started.md): 로컬 실행/설정/권한 부여 등 온보딩
 - [docs/external-api.md](docs/external-api.md): 외부 API 및 로컬 데이터 파일 연결(설정 키 중심)
 - [docs/data-hotspots-and-routes.md](docs/data-hotspots-and-routes.md): `data/` 파일 사용처 + Firestore hotspot 관리 + route/trajectory 확장 조사(초안)
+- [docs/cost-guard-telegram.md](docs/cost-guard-telegram.md): Blaze 안전장치(예산 100% 시 billing off + 텔레그램 알림) 자동화
 
 ## 현재 포함된 기능
 
 1. 선거사무원만 로그인 허용 (Firebase Auth + custom claim `staff`)
 2. OSM 타일 + OpenLayers 지도 연동
 3. 동 경계(GeoJSON/WFS XML) 표시
-4. 혼잡 지점 마커 등록/실시간 공유(Firestore)
+4. 혼잡 지점 마커 등록/공유(Firestore, 열람 화면은 1회 조회 / 수정 화면은 실시간 동기화)
 5. 교통 오버레이(차량 통행/보행 유동, 원격 JSON/GeoJSON) (코드상 구현 / UI는 정리 필요)
 6. 수도권 생활이동 시간대 인구 오버레이(행정동 기준) (코드상 구현 / UI는 정리 필요)
 
@@ -43,8 +44,10 @@
 2. Authentication > Sign-in method에서 Google 로그인 활성화
 3. Authentication > Settings > Authorized domains에 GitHub Pages 도메인 추가
 4. Firestore Database 생성(Production/Region 선택)
-5. 프로젝트 루트의 `firestore.rules` 규칙 적용
-6. 지도 수정 권한을 줄 계정에 Firebase custom claim을 부여
+5. Firebase Storage 버킷 생성(기본 버킷 사용 가능)
+6. 프로젝트 루트의 `firestore.rules` 규칙 적용
+7. 프로젝트 루트의 `storage.rules` 규칙 적용
+8. 지도 수정 권한을 줄 계정에 Firebase custom claim을 부여
    - claim key: `staff`
    - claim value: `true`
    - 방법: `scripts/set-staff-claim.js` 사용(아래 절차 참고)

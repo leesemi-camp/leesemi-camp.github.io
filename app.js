@@ -6,6 +6,7 @@
     mode: resolveMapMode(),
     auth: null,
     db: null,
+    storage: null,
     map: null,
     popupOverlay: null,
     currentLocationSource: null,
@@ -263,15 +264,13 @@
   };
 
   const hotspotPhotoConfig = {
-    maxStoredChars: 700000,
-    maxTotalStoredChars: 900000,
-    maxPerPhotoChars: 320000,
     maxPhotoCount: 8,
     maxWidth: 800,
     watermarkWidth: 200,
     watermarkSrc: "/assets/leesemi_watermark.png",
-    processingVersion: 2,
-    jpegQuality: 0.82
+    processingVersion: 3,
+    jpegQuality: 0.82,
+    storagePathPrefix: "hotspot-photos"
   };
   let hotspotWatermarkImagePromise = null;
 
@@ -1709,6 +1708,7 @@
     initOptionalAppCheck();
     state.auth = firebase.auth();
     state.db = firebase.firestore();
+    state.storage = typeof firebase.storage === "function" ? firebase.storage() : null;
   }
 
   function initOptionalAppCheck() {
@@ -4325,8 +4325,13 @@
 
     stopHotspotSubscription();
     const collectionName = getIssueCollectionName();
+    const collectionRef = state.db.collection(collectionName);
+    if (!isEditMode()) {
+      void loadHotspotsOnce(collectionRef);
+      return;
+    }
 
-    state.unsubscribeHotspots = state.db.collection(collectionName).onSnapshot(
+    state.unsubscribeHotspots = collectionRef.onSnapshot(
       (snapshot) => {
         void processHotspotSnapshot(snapshot);
       },
@@ -4342,6 +4347,23 @@
         console.error("[hotspot-subscribe]", toMessage(error));
       }
     );
+  }
+
+  async function loadHotspotsOnce(collectionRef) {
+    try {
+      const snapshot = await collectionRef.get();
+      await processHotspotSnapshot(snapshot);
+    } catch (error) {
+      clearHotspotFeatures();
+      state.issues = [];
+      renderCommonPledges();
+      renderVisibleIssueList();
+      if (isFirestorePermissionError(error)) {
+        console.warn("[hotspot-load] insufficient permissions");
+        return;
+      }
+      console.error("[hotspot-load]", toMessage(error));
+    }
   }
 
   async function processHotspotSnapshot(snapshot) {
@@ -4395,17 +4417,34 @@
         ""
       ).trim();
       const photoDataUrls = normalizeHotspotPhotoDataUrls(
+        value.photoUrls ||
+        value.photo_urls ||
         value.photoDataUrls ||
         value.photo_data_urls ||
         []
+      );
+      const legacyPhotoUrl = normalizeHotspotPhotoDataUrl(
+        value.photoUrl ||
+        value.photo_url
       );
       const legacyPhotoDataUrl = normalizeHotspotPhotoDataUrl(
         value.photoDataUrl ||
         value.photo_data_url
       );
+      if (photoDataUrls.length === 0 && legacyPhotoUrl) {
+        photoDataUrls.push(legacyPhotoUrl);
+      }
       if (photoDataUrls.length === 0 && legacyPhotoDataUrl) {
         photoDataUrls.push(legacyPhotoDataUrl);
       }
+      const photoStoragePaths = alignHotspotPhotoStoragePaths(
+        photoDataUrls,
+        normalizeHotspotPhotoStoragePaths(
+          value.photoStoragePaths ||
+          value.photo_storage_paths ||
+          []
+        )
+      );
 
       hotspots.push({
         id: doc.id,
@@ -4432,8 +4471,11 @@
           : "auto",
         dongKey: storedDongKey || computedDongKey,
         groupLabel,
+        photoUrls: photoDataUrls,
+        photoUrl: photoDataUrls.length > 0 ? photoDataUrls[0] : "",
         photoDataUrls,
         photoDataUrl: photoDataUrls.length > 0 ? photoDataUrls[0] : "",
+        photoStoragePaths,
         photoProcessingVersion: Number(
           value.photoProcessingVersion ||
           value.photo_processing_version ||
@@ -5602,8 +5644,6 @@
       const result = setSpotPhotoDataUrls(mergedDataUrls);
       if (result.trimmedByCount) {
         window.alert("사진은 최대 " + String(hotspotPhotoConfig.maxPhotoCount) + "장까지 첨부할 수 있습니다.");
-      } else if (result.trimmedBySize) {
-        window.alert("총 사진 용량 제한으로 일부 사진이 제외되었습니다.");
       }
     } catch (error) {
       window.alert("사진 처리 실패: " + toMessage(error));
@@ -5676,6 +5716,10 @@
       window.alert("로그인 상태를 확인한 뒤 다시 시도하세요.");
       return;
     }
+    if (!state.storage) {
+      window.alert("Firebase Storage가 초기화되지 않아 재처리를 진행할 수 없습니다.");
+      return;
+    }
 
     const spotsWithPhotos = Array.from(state.hotspotData.values()).filter((spot) => {
       return getSpotPhotoDataUrls(spot).length > 0;
@@ -5710,11 +5754,27 @@
       const collectionName = getIssueCollectionName();
       for (const spot of spotsWithPhotos) {
         processedCount += 1;
+        let uploadedStoragePaths = [];
         try {
-          const originalPhotos = getSpotPhotoDataUrls(spot);
+          const originalPhotos = normalizeHotspotPhotoDataUrls(getSpotPhotoDataUrls(spot));
+          const currentStoragePaths = getSpotPhotoStoragePaths(spot);
+          const hasLegacyDataUrl = originalPhotos.some((photo) => isHotspotPhotoDataUrl(photo));
+          const hasMissingStoragePath = originalPhotos.some((_photo, index) => {
+            return !normalizeHotspotPhotoStoragePath(currentStoragePaths[index]);
+          });
+          const alreadyLatest = (
+            Number(spot.photoProcessingVersion || 0) >= hotspotPhotoConfig.processingVersion &&
+            !hasLegacyDataUrl &&
+            !hasMissingStoragePath
+          );
+          if (alreadyLatest) {
+            skippedCount += 1;
+            continue;
+          }
+
           const optimizedPhotos = [];
           for (const source of originalPhotos) {
-            const optimizedPhoto = await optimizeHotspotPhotoDataUrl(source);
+            const optimizedPhoto = await optimizeHotspotPhotoReference(source);
             optimizedPhotos.push(optimizedPhoto);
           }
           const limitResult = applyHotspotPhotoDataUrlLimits(optimizedPhotos);
@@ -5724,26 +5784,32 @@
             continue;
           }
 
-          const currentPhotos = normalizeHotspotPhotoDataUrls(originalPhotos);
-          const alreadyLatest = (
-            Number(spot.photoProcessingVersion || 0) >= hotspotPhotoConfig.processingVersion &&
-            currentPhotos.length === finalPhotos.length &&
-            currentPhotos.every((item, index) => item === finalPhotos[index])
-          );
-          if (alreadyLatest) {
-            skippedCount += 1;
-            continue;
-          }
-
+          const persistedPhotos = await persistHotspotPhotoRefs(String(spot.id), finalPhotos, spot);
+          uploadedStoragePaths = persistedPhotos.uploadedStoragePaths;
           await state.db.collection(collectionName).doc(String(spot.id)).update({
-            photoDataUrls: finalPhotos,
-            photoDataUrl: finalPhotos[0] || "",
+            photoUrls: persistedPhotos.photoUrls,
+            photoUrl: persistedPhotos.photoUrls[0] || "",
+            photoStoragePaths: persistedPhotos.photoStoragePaths,
+            photoDataUrls: firebase.firestore.FieldValue.delete(),
+            photoDataUrl: firebase.firestore.FieldValue.delete(),
+            photo_data_urls: firebase.firestore.FieldValue.delete(),
+            photo_data_url: firebase.firestore.FieldValue.delete(),
             photoProcessingVersion: hotspotPhotoConfig.processingVersion,
             updatedBy: normalizeEmail(state.currentUser.email),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
+          const removedStoragePaths = collectRemovedSpotPhotoStoragePaths(
+            spot,
+            persistedPhotos.photoStoragePaths
+          );
+          if (removedStoragePaths.length > 0) {
+            await deleteSpotPhotoStoragePaths(removedStoragePaths);
+          }
           updatedCount += 1;
         } catch (error) {
+          if (uploadedStoragePaths.length > 0) {
+            await deleteSpotPhotoStoragePaths(uploadedStoragePaths);
+          }
           failedCount += 1;
           console.error("[photo-reprocess]", spot && spot.id ? spot.id : "-", toMessage(error));
         }
@@ -5797,15 +5863,57 @@
   }
 
   function normalizeHotspotPhotoDataUrl(value) {
+    return normalizeHotspotPhotoRef(value);
+  }
+
+  function normalizeHotspotPhotoRef(value) {
     const raw = String(value || "").trim();
     if (!raw) {
       return "";
     }
-    if (raw.length > hotspotPhotoConfig.maxStoredChars) {
+    if (isHotspotPhotoDataUrl(raw)) {
+      return raw;
+    }
+    if (isHotspotPhotoRemoteUrl(raw)) {
+      try {
+        return new URL(raw, window.location.origin).toString();
+      } catch (_error) {
+        return raw;
+      }
+    }
+    return "";
+  }
+
+  function isHotspotPhotoDataUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return false;
+    }
+    return /^data:image\/[a-zA-Z0-9.+-]+;base64,[a-zA-Z0-9+/=]+$/i.test(raw);
+  }
+
+  function isHotspotPhotoRemoteUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return false;
+    }
+    try {
+      const parsed = new URL(raw, window.location.origin);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function normalizeHotspotPhotoStoragePath(value) {
+    const raw = String(value || "").trim().replace(/^\/+/, "");
+    if (!raw) {
       return "";
     }
-    const pattern = /^data:image\/(?:jpeg|jpg|png|webp);base64,[a-zA-Z0-9+/=]+$/i;
-    if (!pattern.test(raw)) {
+    if (raw.includes("..") || raw.includes("?") || raw.includes("#")) {
+      return "";
+    }
+    if (!/^[a-zA-Z0-9/_\-.]+$/.test(raw)) {
       return "";
     }
     return raw;
@@ -5816,8 +5924,7 @@
     if (!raw) {
       return "";
     }
-    const pattern = /^data:image\/[a-zA-Z0-9.+-]+;base64,[a-zA-Z0-9+/=]+$/i;
-    if (!pattern.test(raw)) {
+    if (!isHotspotPhotoDataUrl(raw)) {
       return "";
     }
     return raw;
@@ -5864,20 +5971,11 @@
 
   function applyHotspotPhotoDataUrlLimits(photoDataUrls) {
     const normalized = normalizeHotspotPhotoDataUrls(photoDataUrls);
-    const limitedByCount = normalized.slice(0, hotspotPhotoConfig.maxPhotoCount);
-    const limited = [];
-    let totalChars = 0;
-    limitedByCount.forEach((photoDataUrl) => {
-      if (totalChars + photoDataUrl.length > hotspotPhotoConfig.maxTotalStoredChars) {
-        return;
-      }
-      totalChars += photoDataUrl.length;
-      limited.push(photoDataUrl);
-    });
+    const limited = normalized.slice(0, hotspotPhotoConfig.maxPhotoCount);
     return {
       photoDataUrls: limited,
-      trimmedByCount: normalized.length > limitedByCount.length,
-      trimmedBySize: limitedByCount.length > limited.length
+      trimmedByCount: normalized.length > limited.length,
+      trimmedBySize: false
     };
   }
 
@@ -5886,6 +5984,8 @@
       return [];
     }
     const photos = normalizeHotspotPhotoDataUrls(
+      spot.photoUrls ||
+      spot.photo_urls ||
       spot.photoDataUrls ||
       spot.photo_data_urls ||
       []
@@ -5894,10 +5994,106 @@
       return photos;
     }
     const legacyPhoto = normalizeHotspotPhotoDataUrl(
+      spot.photoUrl ||
+      spot.photo_url ||
       spot.photoDataUrl ||
       spot.photo_data_url
     );
     return legacyPhoto ? [legacyPhoto] : [];
+  }
+
+  function normalizeHotspotPhotoStoragePaths(value) {
+    const values = [];
+    if (Array.isArray(value)) {
+      values.push(...value);
+    } else if (typeof value === "string") {
+      const raw = value.trim();
+      if (raw) {
+        if (raw.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              values.push(...parsed);
+            } else {
+              values.push(raw);
+            }
+          } catch (_error) {
+            values.push(raw);
+          }
+        } else {
+          values.push(raw);
+        }
+      }
+    } else if (value) {
+      values.push(value);
+    }
+    return values.map((item) => normalizeHotspotPhotoStoragePath(item));
+  }
+
+  function alignHotspotPhotoStoragePaths(photoDataUrls, storagePaths) {
+    const normalizedPhotos = normalizeHotspotPhotoDataUrls(photoDataUrls);
+    const normalizedPaths = normalizeHotspotPhotoStoragePaths(storagePaths);
+    return normalizedPhotos.map((photoDataUrl, index) => {
+      const explicitPath = normalizeHotspotPhotoStoragePath(normalizedPaths[index]);
+      if (explicitPath) {
+        return explicitPath;
+      }
+      return extractStoragePathFromHotspotPhotoRef(photoDataUrl);
+    });
+  }
+
+  function getSpotPhotoStoragePaths(spot) {
+    if (!spot || typeof spot !== "object") {
+      return [];
+    }
+    const photos = getSpotPhotoDataUrls(spot);
+    if (photos.length === 0) {
+      return [];
+    }
+    return alignHotspotPhotoStoragePaths(
+      photos,
+      normalizeHotspotPhotoStoragePaths(
+        spot.photoStoragePaths ||
+        spot.photo_storage_paths ||
+        []
+      )
+    );
+  }
+
+  function extractStoragePathFromHotspotPhotoRef(photoRef) {
+    if (!isHotspotPhotoRemoteUrl(photoRef)) {
+      return "";
+    }
+    try {
+      const parsed = new URL(String(photoRef));
+      const hostname = String(parsed.hostname || "").toLowerCase();
+      if (!hostname) {
+        return "";
+      }
+      if (hostname === "storage.googleapis.com") {
+        const chunks = parsed.pathname.split("/").filter(Boolean);
+        if (chunks.length >= 2) {
+          return normalizeHotspotPhotoStoragePath(decodeURIComponent(chunks.slice(1).join("/")));
+        }
+        return "";
+      }
+      if (hostname.includes("firebasestorage.googleapis.com")) {
+        const match = parsed.pathname.match(/\/o\/(.+)$/);
+        if (match && match[1]) {
+          return normalizeHotspotPhotoStoragePath(decodeURIComponent(match[1]));
+        }
+        return "";
+      }
+      if (hostname.endsWith(".firebasestorage.app")) {
+        const match = parsed.pathname.match(/\/o\/(.+)$/);
+        if (match && match[1]) {
+          return normalizeHotspotPhotoStoragePath(decodeURIComponent(match[1]));
+        }
+      }
+      return "";
+    } catch (_error) {
+      return "";
+    }
   }
 
   function buildSpotPhotoSlides(photoDataUrls, altBaseText) {
@@ -5981,15 +6177,10 @@
       targetWatermarkHeight
     );
 
-    let quality = hotspotPhotoConfig.jpegQuality;
-    let encoded = canvas.toDataURL("image/jpeg", quality);
-    while (encoded.length > hotspotPhotoConfig.maxPerPhotoChars && quality > 0.45) {
-      quality -= 0.1;
-      encoded = canvas.toDataURL("image/jpeg", quality);
-    }
-    const normalized = normalizeHotspotPhotoDataUrl(encoded);
-    if (!normalized || normalized.length > hotspotPhotoConfig.maxPerPhotoChars) {
-      throw new Error("이미지가 너무 커서 저장할 수 없습니다. 원본 크기를 더 줄여주세요.");
+    const encoded = canvas.toDataURL("image/jpeg", hotspotPhotoConfig.jpegQuality);
+    const normalized = normalizeSourceImageDataUrl(encoded);
+    if (!normalized) {
+      throw new Error("이미지 변환 결과가 올바르지 않습니다.");
     }
     return normalized;
   }
@@ -6028,6 +6219,210 @@
     });
   }
 
+  function sanitizeStoragePathSegment(value) {
+    const sanitized = String(value || "")
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return sanitized || "spot";
+  }
+
+  function createHotspotPhotoRandomId() {
+    const bytes = new Uint8Array(8);
+    if (window.crypto && typeof window.crypto.getRandomValues === "function") {
+      window.crypto.getRandomValues(bytes);
+    } else {
+      for (let index = 0; index < bytes.length; index += 1) {
+        bytes[index] = Math.floor(Math.random() * 256);
+      }
+    }
+    return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+  }
+
+  function buildHotspotPhotoStoragePath(spotId) {
+    const safeSpotId = sanitizeStoragePathSegment(spotId);
+    const timestamp = Date.now();
+    const randomId = createHotspotPhotoRandomId();
+    return hotspotPhotoConfig.storagePathPrefix + "/" + safeSpotId + "/" + String(timestamp) + "-" + randomId + ".jpg";
+  }
+
+  function assertHotspotPhotoStorageReady() {
+    if (!state.storage) {
+      throw new Error("Firebase Storage가 초기화되지 않았습니다. firebase-storage-compat.js 로드 여부를 확인해 주세요.");
+    }
+    return state.storage;
+  }
+
+  async function uploadHotspotPhotoDataUrlToStorage(spotId, photoDataUrl) {
+    const storage = assertHotspotPhotoStorageReady();
+    const normalizedSource = normalizeSourceImageDataUrl(photoDataUrl);
+    if (!normalizedSource) {
+      throw new Error("업로드할 이미지 데이터 형식이 올바르지 않습니다.");
+    }
+    const path = buildHotspotPhotoStoragePath(spotId);
+    const storageRef = storage.ref(path);
+    await storageRef.putString(normalizedSource, "data_url", {
+      contentType: "image/jpeg",
+      cacheControl: "public,max-age=31536000,immutable"
+    });
+    const url = await storageRef.getDownloadURL();
+    return { path, url };
+  }
+
+  function buildSpotPhotoStoragePathQueue(spot) {
+    const queue = new Map();
+    if (!spot) {
+      return queue;
+    }
+    const photoRefs = getSpotPhotoDataUrls(spot);
+    const storagePaths = getSpotPhotoStoragePaths(spot);
+    photoRefs.forEach((photoRef, index) => {
+      const normalizedRef = normalizeHotspotPhotoDataUrl(photoRef);
+      const normalizedPath = normalizeHotspotPhotoStoragePath(storagePaths[index]);
+      if (!normalizedRef || !normalizedPath) {
+        return;
+      }
+      if (!queue.has(normalizedRef)) {
+        queue.set(normalizedRef, []);
+      }
+      queue.get(normalizedRef).push(normalizedPath);
+    });
+    return queue;
+  }
+
+  function shiftSpotPhotoStoragePath(queue, photoRef) {
+    if (!queue || !(queue instanceof Map)) {
+      return "";
+    }
+    const normalizedRef = normalizeHotspotPhotoDataUrl(photoRef);
+    if (!normalizedRef || !queue.has(normalizedRef)) {
+      return "";
+    }
+    const values = queue.get(normalizedRef);
+    if (!Array.isArray(values) || values.length === 0) {
+      queue.delete(normalizedRef);
+      return "";
+    }
+    const next = normalizeHotspotPhotoStoragePath(values.shift());
+    if (values.length === 0) {
+      queue.delete(normalizedRef);
+    }
+    return next;
+  }
+
+  function collectRemovedSpotPhotoStoragePaths(spot, nextStoragePaths) {
+    if (!spot) {
+      return [];
+    }
+    const currentPaths = normalizeHotspotPhotoStoragePaths(getSpotPhotoStoragePaths(spot))
+      .filter(Boolean);
+    if (currentPaths.length === 0) {
+      return [];
+    }
+    const nextPathSet = new Set(
+      normalizeHotspotPhotoStoragePaths(nextStoragePaths)
+        .filter(Boolean)
+    );
+    return currentPaths.filter((path) => !nextPathSet.has(path));
+  }
+
+  function isStorageObjectNotFoundError(error) {
+    const code = String(error && error.code ? error.code : "").toLowerCase();
+    return code === "storage/object-not-found" || code === "object-not-found";
+  }
+
+  async function deleteSpotPhotoStoragePaths(paths) {
+    if (!state.storage) {
+      return;
+    }
+    const uniquePaths = [];
+    const seen = new Set();
+    normalizeHotspotPhotoStoragePaths(paths).forEach((path) => {
+      if (!path || seen.has(path)) {
+        return;
+      }
+      seen.add(path);
+      uniquePaths.push(path);
+    });
+    for (const path of uniquePaths) {
+      try {
+        await state.storage.ref(path).delete();
+      } catch (error) {
+        if (isStorageObjectNotFoundError(error)) {
+          continue;
+        }
+        console.warn("[spot-photo-delete]", path, toMessage(error));
+      }
+    }
+  }
+
+  async function readBlobAsDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("이미지 응답을 읽지 못했습니다."));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function fetchHotspotPhotoUrlAsDataUrl(photoUrl) {
+    const response = await fetch(String(photoUrl), { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("기존 사진 다운로드 실패 (" + String(response.status) + ")");
+    }
+    const blob = await response.blob();
+    const blobType = String(blob.type || "").toLowerCase();
+    if (!blobType.startsWith("image/")) {
+      throw new Error("기존 사진 형식이 이미지가 아닙니다.");
+    }
+    return await readBlobAsDataUrl(blob);
+  }
+
+  async function optimizeHotspotPhotoReference(photoRef) {
+    if (isHotspotPhotoDataUrl(photoRef)) {
+      return await optimizeHotspotPhotoDataUrl(photoRef);
+    }
+    if (isHotspotPhotoRemoteUrl(photoRef)) {
+      const sourceDataUrl = await fetchHotspotPhotoUrlAsDataUrl(photoRef);
+      return await optimizeHotspotPhotoDataUrl(sourceDataUrl);
+    }
+    throw new Error("이미지 데이터 형식이 올바르지 않습니다.");
+  }
+
+  async function persistHotspotPhotoRefs(spotId, photoRefs, existingSpot) {
+    const normalized = normalizeHotspotPhotoDataUrls(photoRefs);
+    const limited = normalized.slice(0, hotspotPhotoConfig.maxPhotoCount);
+    const existingPathQueue = buildSpotPhotoStoragePathQueue(existingSpot);
+    const photoUrls = [];
+    const photoStoragePaths = [];
+    const uploadedStoragePaths = [];
+
+    for (const photoRef of limited) {
+      if (isHotspotPhotoDataUrl(photoRef)) {
+        const uploaded = await uploadHotspotPhotoDataUrlToStorage(spotId, photoRef);
+        photoUrls.push(uploaded.url);
+        photoStoragePaths.push(uploaded.path);
+        uploadedStoragePaths.push(uploaded.path);
+        continue;
+      }
+      const normalizedRef = normalizeHotspotPhotoDataUrl(photoRef);
+      if (!normalizedRef) {
+        continue;
+      }
+      const preservedPath =
+        shiftSpotPhotoStoragePath(existingPathQueue, normalizedRef) ||
+        extractStoragePathFromHotspotPhotoRef(normalizedRef);
+      photoUrls.push(normalizedRef);
+      photoStoragePaths.push(normalizeHotspotPhotoStoragePath(preservedPath));
+    }
+
+    return {
+      photoUrls,
+      photoStoragePaths,
+      uploadedStoragePaths
+    };
+  }
+
   async function handleHotspotSubmit(event) {
     event.preventDefault();
     if (!isEditMode()) {
@@ -6063,7 +6458,13 @@
 
     const resolvedTitle = String(catalogIssue && catalogIssue.title ? catalogIssue.title : title).trim();
     const resolvedMemo = String(catalogIssue && catalogIssue.memo ? catalogIssue.memo : memo).trim();
-    const photoDataUrls = normalizeHotspotPhotoDataUrls(formData.get("photoDataUrls"));
+    const photoLimitResult = applyHotspotPhotoDataUrlLimits(
+      normalizeHotspotPhotoDataUrls(formData.get("photoDataUrls"))
+    );
+    const photoDataUrls = photoLimitResult.photoDataUrls;
+    if (photoLimitResult.trimmedByCount) {
+      window.alert("사진은 최대 " + String(hotspotPhotoConfig.maxPhotoCount) + "장까지 첨부할 수 있습니다.");
+    }
     const resolvedCategoryId = normalizeCategoryId(
       categoryId ||
       (catalogIssue ? catalogIssue.categoryId : "")
@@ -6103,37 +6504,62 @@
       return;
     }
 
-    const payload = {
-      title: resolvedTitle,
-      memo: resolvedMemo,
-      level: level >= 1 && level <= 5 ? level : 3,
-      categoryId: issueCategories[resolvedCategoryId] ? resolvedCategoryId : "",
-      categoryLabel,
-      issueRefId: catalogIssue ? catalogIssue.id : issueRefId,
-      lat,
-      lng,
-      dongName: finalDongName,
-      emdCode: finalEmdCode || "",
-      dongSelectionMode: isCommonSelection ? "common" : usingManualDong ? "manual" : "auto",
-      dongKey: finalDongKey,
-      photoDataUrls,
-      photoDataUrl: photoDataUrls.length > 0 ? photoDataUrls[0] : "",
-      photoProcessingVersion: hotspotPhotoConfig.processingVersion,
-      updatedBy: normalizeEmail(state.currentUser.email),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    };
-
     const collectionName = getIssueCollectionName();
     const editingSpotId = state.editingHotspotId;
+    const collectionRef = state.db.collection(collectionName);
+    const targetDocRef = editingSpotId
+      ? collectionRef.doc(editingSpotId)
+      : collectionRef.doc();
+    const targetSpotId = String(targetDocRef.id || "").trim();
+    const existingSpot = editingSpotId ? state.hotspotData.get(editingSpotId) : null;
+    let uploadedStoragePaths = [];
 
     try {
+      const persistedPhotos = await persistHotspotPhotoRefs(targetSpotId, photoDataUrls, existingSpot);
+      uploadedStoragePaths = persistedPhotos.uploadedStoragePaths;
+      const payload = {
+        title: resolvedTitle,
+        memo: resolvedMemo,
+        level: level >= 1 && level <= 5 ? level : 3,
+        categoryId: issueCategories[resolvedCategoryId] ? resolvedCategoryId : "",
+        categoryLabel,
+        issueRefId: catalogIssue ? catalogIssue.id : issueRefId,
+        lat,
+        lng,
+        dongName: finalDongName,
+        emdCode: finalEmdCode || "",
+        dongSelectionMode: isCommonSelection ? "common" : usingManualDong ? "manual" : "auto",
+        dongKey: finalDongKey,
+        photoUrls: persistedPhotos.photoUrls,
+        photoUrl: persistedPhotos.photoUrls[0] || "",
+        photoStoragePaths: persistedPhotos.photoStoragePaths,
+        photoProcessingVersion: hotspotPhotoConfig.processingVersion,
+        updatedBy: normalizeEmail(state.currentUser.email),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+
       if (editingSpotId) {
-        await state.db.collection(collectionName).doc(editingSpotId).update(payload);
+        payload.photoDataUrls = firebase.firestore.FieldValue.delete();
+        payload.photoDataUrl = firebase.firestore.FieldValue.delete();
+        payload.photo_data_urls = firebase.firestore.FieldValue.delete();
+        payload.photo_data_url = firebase.firestore.FieldValue.delete();
+        await targetDocRef.update(payload);
       } else {
-        await state.db.collection(collectionName).add(payload);
+        await targetDocRef.set(payload);
+      }
+
+      const removedStoragePaths = collectRemovedSpotPhotoStoragePaths(
+        existingSpot,
+        persistedPhotos.photoStoragePaths
+      );
+      if (removedStoragePaths.length > 0) {
+        void deleteSpotPhotoStoragePaths(removedStoragePaths);
       }
       exitHotspotEditMode(true);
     } catch (error) {
+      if (uploadedStoragePaths.length > 0) {
+        await deleteSpotPhotoStoragePaths(uploadedStoragePaths);
+      }
       window.alert("현안 저장 실패: " + toMessage(error));
     }
   }
@@ -6246,6 +6672,7 @@
 
     const spot = state.hotspotData.get(targetId);
     const title = spot && spot.title ? String(spot.title) : "이 현안";
+    const spotPhotoStoragePaths = getSpotPhotoStoragePaths(spot);
     const confirmed = window.confirm("'" + title + "' 현안을 삭제할까요?");
     if (!confirmed) {
       return;
@@ -6254,6 +6681,9 @@
     const collectionName = getIssueCollectionName();
     try {
       await state.db.collection(collectionName).doc(targetId).delete();
+      if (spotPhotoStoragePaths.length > 0) {
+        void deleteSpotPhotoStoragePaths(spotPhotoStoragePaths);
+      }
       if (state.editingHotspotId === targetId) {
         exitHotspotEditMode(true);
       }
