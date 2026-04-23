@@ -30,6 +30,8 @@
       vehicle: null,
       pedestrian: null
     },
+    boundaryLookupFeatures: [],
+    boundaryMetaCache: new Map(),
     currentUser: null,
     boundariesLoaded: false,
     overlayLoaded: {
@@ -51,6 +53,8 @@
     populationMaxByPeriod: new Map(),
     hotspotData: new Map(),
     hotspotStyleCache: new Map(),
+    issueCategoryMetaCache: new Map(),
+    categoryBadgeStyleCache: new Map(),
     highlightedHotspotIds: new Set(),
     availableDongs: [],
     availableDongMap: new Map(),
@@ -63,6 +67,7 @@
     commonIssueTagMap: new Map(),
     issueGroupMap: new Map(),
     issueListMode: "dong",
+    issueStatsSource: null,
     activeDongName: "",
     spotPhotoDataUrls: [],
     photoSlideshowSerial: 0,
@@ -109,6 +114,8 @@
     housing_infra: "🏘️ 주거·인프라",
     economy_culture: "🛒 경제·문화"
   };
+  const koreanTextCollator = new Intl.Collator("ko", { sensitivity: "base" });
+  const normalizedCategoryIdMap = buildNormalizedCategoryIdMap(issueCategories);
   const issueCategoryMeta = {
     traffic_parking: { icon: "🚌", color: "#2f6fb8" },
     education_childcare: { icon: "🏫", color: "#b8860b" },
@@ -301,15 +308,17 @@
         });
         showAppShell();
         await ensureMapReady();
-        await loadBoundaries();
-        await ensureIssueCatalogLoaded();
+        await Promise.all([
+          loadBoundaries(),
+          ensureIssueCatalogLoaded()
+        ]);
         updateOverlayControls();
         updatePopulationControls();
         updateCurrentLocationButtonAvailability();
         syncSpotFormLayoutState();
+        subscribeHotspots();
         await applyDefaultOverlayVisibility();
         await applyDefaultPopulationVisibility();
-        subscribeHotspots();
       }
     } catch (error) {
       showFatal(error);
@@ -1465,7 +1474,7 @@
 
       try {
         const requestUrl = buildIssueCatalogRequestUrl(catalogConfig);
-        const response = await fetch(requestUrl, { cache: "no-store" });
+        const response = await fetch(requestUrl);
         if (!response.ok) {
           throw new Error("요청 실패 (" + response.status + ")");
         }
@@ -1587,7 +1596,7 @@
       if (aDong !== bDong) {
         return compareDongLabelForDisplay(aDong, bDong);
       }
-      return String(a.title || "").localeCompare(String(b.title || ""), "ko");
+      return compareKoreanText(a.title, b.title);
     });
 
     return { list, map };
@@ -1607,14 +1616,11 @@
     }
 
     const normalizedRaw = sanitizeCategoryText(raw);
-    const categoryKeys = Object.keys(issueCategories);
-    for (const key of categoryKeys) {
-      if (sanitizeCategoryText(key) === normalizedRaw) {
-        return key;
-      }
-      if (sanitizeCategoryText(issueCategories[key]) === normalizedRaw) {
-        return key;
-      }
+    if (!normalizedRaw) {
+      return "";
+    }
+    if (normalizedCategoryIdMap.has(normalizedRaw)) {
+      return normalizedCategoryIdMap.get(normalizedRaw);
     }
     return "";
   }
@@ -1623,6 +1629,24 @@
     return String(value || "")
       .toLowerCase()
       .replace(/[^a-z0-9가-힣]+/g, "");
+  }
+
+  function buildNormalizedCategoryIdMap(categoryMap) {
+    const normalizedMap = new Map();
+    if (!categoryMap || typeof categoryMap !== "object") {
+      return normalizedMap;
+    }
+    Object.keys(categoryMap).forEach((categoryId) => {
+      const normalizedId = sanitizeCategoryText(categoryId);
+      const normalizedLabel = sanitizeCategoryText(categoryMap[categoryId]);
+      if (normalizedId) {
+        normalizedMap.set(normalizedId, categoryId);
+      }
+      if (normalizedLabel) {
+        normalizedMap.set(normalizedLabel, categoryId);
+      }
+    });
+    return normalizedMap;
   }
 
   function syncIssueCatalogSelectOptions(preferredIssueRefId) {
@@ -1759,15 +1783,17 @@
     state.currentUser = user;
     showAppShell();
     await ensureMapReady();
-    await loadBoundaries();
-    await ensureIssueCatalogLoaded();
+    await Promise.all([
+      loadBoundaries(),
+      ensureIssueCatalogLoaded()
+    ]);
     updateOverlayControls();
     updatePopulationControls();
     updateCurrentLocationButtonAvailability();
     syncSpotFormLayoutState();
+    subscribeHotspots();
     await applyDefaultOverlayVisibility();
     await applyDefaultPopulationVisibility();
-    subscribeHotspots();
   }
 
   function showLoginPanel(message, isError) {
@@ -2057,7 +2083,7 @@
       const allFeatures = [];
       const errors = [];
       const tasks = boundaryPaths.map(async (path) => {
-        const response = await fetch(path, { cache: "no-store" });
+        const response = await fetch(path);
         if (!response.ok) {
           throw new Error(path + ": 불러오기 실패 (" + response.status + ")");
         }
@@ -2315,6 +2341,8 @@
     }
 
     state.boundarySource.addFeatures(drawableFeatures);
+    state.boundaryLookupFeatures = drawableFeatures;
+    state.boundaryMetaCache.clear();
     updateOutsideBoundaryMask(drawableFeatures);
     state.boundaryDefaultStyle = boundaryStyle;
     state.boundarySelectedStyle = boundarySelectedStyle;
@@ -2605,22 +2633,29 @@
 
   function resolveIssueCategoryMeta(categoryId, fallbackLabel) {
     const normalizedId = normalizeCategoryId(categoryId);
+    const normalizedFallback = String(fallbackLabel || "").trim();
+    const cacheKey = normalizedId + "|" + normalizedFallback;
+    if (state.issueCategoryMetaCache.has(cacheKey)) {
+      return state.issueCategoryMetaCache.get(cacheKey);
+    }
     const knownMeta = normalizedId && issueCategoryMeta[normalizedId]
       ? issueCategoryMeta[normalizedId]
       : null;
-    const resolvedLabel = resolveCategoryLabel(normalizedId, fallbackLabel);
+    const resolvedLabel = resolveCategoryLabel(normalizedId, normalizedFallback);
     const resolvedColor = knownMeta && knownMeta.color
       ? knownMeta.color
       : resolveFallbackCategoryColor(normalizedId || resolvedLabel);
     const resolvedIcon = knownMeta && knownMeta.icon
       ? knownMeta.icon
       : resolveCategoryIcon(resolvedLabel);
-    return {
+    const resolvedMeta = {
       id: normalizedId,
       label: resolvedLabel,
       color: resolvedColor || defaultIssueCategoryColor,
       icon: resolvedIcon || "📍"
     };
+    state.issueCategoryMetaCache.set(cacheKey, resolvedMeta);
+    return resolvedMeta;
   }
 
   function resolveCategoryIcon(labelText) {
@@ -2666,14 +2701,19 @@
 
   function buildCategoryBadgeStyle(color) {
     const resolved = String(color || "").trim() || defaultIssueCategoryColor;
+    if (state.categoryBadgeStyleCache.has(resolved)) {
+      return state.categoryBadgeStyleCache.get(resolved);
+    }
     const borderColor = toRgba(resolved, 0.45);
     const backgroundColor = toRgba(resolved, 0.16);
     const textColor = resolved;
-    return (
+    const styleText = (
       "background:" + backgroundColor + ";" +
       "color:" + textColor + ";" +
       "border:1px solid " + borderColor + ";"
     );
+    state.categoryBadgeStyleCache.set(resolved, styleText);
+    return styleText;
   }
 
   function extractBracketedCommonTag(title) {
@@ -2784,6 +2824,10 @@
     if (directDong && directDong !== DONG_COMMON_NAME) {
       return directDong;
     }
+    const cachedBoundaryDong = resolveMergedDongName(spot.boundaryDongName);
+    if (cachedBoundaryDong && cachedBoundaryDong !== DONG_COMMON_NAME) {
+      return cachedBoundaryDong;
+    }
 
     const lat = Number(spot.lat);
     const lng = Number(spot.lng);
@@ -2860,7 +2904,7 @@
   }
 
   function compareKoreanText(a, b) {
-    return String(a || "").localeCompare(String(b || ""), "ko", { sensitivity: "base" });
+    return koreanTextCollator.compare(String(a || ""), String(b || ""));
   }
 
   function isBracketLeadingTitle(value) {
@@ -3175,7 +3219,7 @@
 
     try {
       const requestUrl = buildPopulationRequestUrl(populationConfig);
-      const response = await fetch(requestUrl, { cache: "no-store" });
+      const response = await fetch(requestUrl);
       if (!response.ok) {
         throw new Error("요청 실패 (" + response.status + ")");
       }
@@ -4078,8 +4122,7 @@
       const requestUrl = buildOverlayRequestUrl(overlayConfig);
       const response = await fetch(requestUrl, {
         method: overlayConfig.method,
-        headers: overlayConfig.headers,
-        cache: "no-store"
+        headers: overlayConfig.headers
       });
       if (!response.ok) {
         throw new Error("요청 실패 (" + response.status + ")");
@@ -4471,8 +4514,12 @@
   }
 
   async function processHotspotSnapshot(snapshot) {
-    await ensureIssueCatalogLoaded();
+    const catalogConfig = getIssueCatalogConfig();
+    if (catalogConfig.enabled) {
+      await ensureIssueCatalogLoaded();
+    }
     const hotspots = [];
+    const catalogMap = state.issueCatalogMap;
     snapshot.forEach((doc) => {
       const value = doc.data() || {};
       const lat = Number(value.lat);
@@ -4482,22 +4529,32 @@
       }
 
       const issueRefId = normalizeIssueCatalogId(value.issueRefId || value.issue_id);
-      const catalogIssue = issueRefId && state.issueCatalogMap.has(issueRefId)
-        ? state.issueCatalogMap.get(issueRefId)
+      const catalogIssue = issueRefId && catalogMap.has(issueRefId)
+        ? catalogMap.get(issueRefId)
         : null;
-      const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
-      const dongName = resolveMergedDongName(
+      const rawDongName = String(
         value.dongName ||
         value.dong_name ||
         (catalogIssue ? catalogIssue.dongName : "") ||
-        boundaryMeta.dongName ||
+        ""
+      ).trim();
+      const rawEmdCode = normalizeEmdCode(
+        value.emdCode ||
+        value.emd_cd ||
+        (catalogIssue ? catalogIssue.emdCode : "")
+      );
+      const needsBoundaryLookup = !rawDongName || !rawEmdCode;
+      const boundaryMeta = needsBoundaryLookup
+        ? resolveBoundaryMetaForLonLat(lng, lat)
+        : null;
+      const dongName = resolveMergedDongName(
+        rawDongName ||
+        (boundaryMeta ? boundaryMeta.dongName : "") ||
         ""
       );
       const emdCode = normalizeEmdCode(
-        value.emdCode ||
-        value.emd_cd ||
-        (catalogIssue ? catalogIssue.emdCode : "") ||
-        boundaryMeta.emdCode
+        rawEmdCode ||
+        (boundaryMeta ? boundaryMeta.emdCode : "")
       );
       const rawDongSelectionMode = String(value.dongSelectionMode || "").trim().toLowerCase();
       const storedDongKey = String(value.dongKey || "").trim();
@@ -4570,6 +4627,7 @@
         lng,
         dongName,
         emdCode,
+        boundaryDongName: boundaryMeta ? resolveMergedDongName(boundaryMeta.dongName) : "",
         dongSelectionMode: rawDongSelectionMode === "common" || rawDongSelectionMode === "manual"
           ? rawDongSelectionMode
           : "auto",
@@ -4674,25 +4732,39 @@
     }
   }
 
+  function buildBoundaryMetaCacheKey(lng, lat) {
+    return Number(lng).toFixed(6) + "," + Number(lat).toFixed(6);
+  }
+
   function resolveBoundaryMetaForLonLat(lng, lat) {
     if (!state.boundarySource || !Number.isFinite(lng) || !Number.isFinite(lat)) {
       return { dongName: "", emdCode: "" };
     }
+    const cacheKey = buildBoundaryMetaCacheKey(lng, lat);
+    if (state.boundaryMetaCache.has(cacheKey)) {
+      return state.boundaryMetaCache.get(cacheKey);
+    }
     const projected = ol.proj.fromLonLat([lng, lat]);
-    const features = state.boundarySource.getFeatures();
+    const features = state.boundaryLookupFeatures.length > 0
+      ? state.boundaryLookupFeatures
+      : state.boundarySource.getFeatures();
     for (const feature of features) {
       const geometry = feature.getGeometry();
       if (!geometry || typeof geometry.intersectsCoordinate !== "function") {
         continue;
       }
       if (geometry.intersectsCoordinate(projected)) {
-        return {
+        const resolved = {
           dongName: String(feature.get("dongName") || "").trim(),
           emdCode: normalizeEmdCode(feature.get("emd_cd"))
         };
+        state.boundaryMetaCache.set(cacheKey, resolved);
+        return resolved;
       }
     }
-    return { dongName: "", emdCode: "" };
+    const emptyMeta = { dongName: "", emdCode: "" };
+    state.boundaryMetaCache.set(cacheKey, emptyMeta);
+    return emptyMeta;
   }
 
   function fitMapToBoundaryExtent(options) {
@@ -4830,6 +4902,7 @@
     }
 
     clearHotspotFeatures();
+    const features = [];
 
     hotspots.forEach((spot) => {
       const feature = new ol.Feature({
@@ -4842,11 +4915,16 @@
       feature.set("emd_cd", spot.emdCode || "");
       feature.set("spot", spot);
       feature.setStyle(getHotspotStyle(spot, "normal"));
-      state.hotspotSource.addFeature(feature);
+      features.push(feature);
       state.hotspotData.set(spot.id, spot);
     });
 
-    applyHotspotHighlightStyles();
+    if (features.length > 0) {
+      state.hotspotSource.addFeatures(features);
+    }
+    if (state.highlightedHotspotIds && state.highlightedHotspotIds.size > 0) {
+      applyHotspotHighlightStyles();
+    }
 
     if (state.editingHotspotId && !state.hotspotData.has(state.editingHotspotId)) {
       exitHotspotEditMode(true);
@@ -4912,8 +4990,6 @@
   function getHotspotStyle(spot, emphasisMode) {
     const categoryMeta = resolveIssueCategoryMeta(spot && spot.categoryId, spot && spot.categoryLabel);
     const baseColor = categoryMeta.color || defaultIssueCategoryColor;
-    const markerColor = mixHexColorWithWhite(baseColor, 0.34);
-    const markerBorderColor = mixHexColorWithWhite(baseColor, 0.10);
     const markerIcon = categoryMeta.icon || "📍";
     const mode = emphasisMode === "focus" || emphasisMode === "dim"
       ? emphasisMode
@@ -4924,6 +5000,8 @@
       return state.hotspotStyleCache.get(cacheKey);
     }
 
+    const markerColor = mixHexColorWithWhite(baseColor, 0.34);
+    const markerBorderColor = mixHexColorWithWhite(baseColor, 0.10);
     const isDim = mode === "dim";
     const isFocus = mode === "focus";
     const normalHaloRadius = 22;
@@ -5017,7 +5095,10 @@
   function renderVisibleIssueList() {
     updateTotalIssueCountLabel();
     const filtered = applyIssueFilter(state.issues);
-    renderIssueStatsSummary(state.issues);
+    if (state.issueStatsSource !== state.issues) {
+      renderIssueStatsSummary(state.issues);
+      state.issueStatsSource = state.issues;
+    }
     renderIssueDongList(filtered);
   }
 
