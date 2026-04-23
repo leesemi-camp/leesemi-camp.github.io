@@ -63,6 +63,12 @@ cd /Users/junyeol/projects/election-map/scripts/cost-guard
    - Billing account: `roles/billing.user`
 5. Budget 생성/갱신 + Pub/Sub 연결
 
+참고:
+
+- 최신 환경에서는 Budget 연결 단계에서 Pub/Sub publisher IAM이 자동 처리되는 경우가 많습니다.
+- `billingbudgets-notification@system.gserviceaccount.com` 같은 legacy principal은 프로젝트/환경에 따라 존재하지 않을 수 있습니다.
+- 필요할 때만 `ENABLE_LEGACY_BUDGET_PUBLISHER_BINDING=true`로 강제 시도하세요(기본 `false`).
+
 ## 수동 실행
 
 배포만 먼저:

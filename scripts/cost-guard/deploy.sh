@@ -45,6 +45,7 @@ DISABLE_BILLING="${DISABLE_BILLING:-true}"
 SIMULATE_DISABLE="${SIMULATE_DISABLE:-false}"
 BUDGET_ID_ALLOWLIST="${BUDGET_ID_ALLOWLIST:-}"
 BUDGET_DISPLAY_NAME_ALLOWLIST="${BUDGET_DISPLAY_NAME_ALLOWLIST:-}"
+ENABLE_LEGACY_BUDGET_PUBLISHER_BINDING="${ENABLE_LEGACY_BUDGET_PUBLISHER_BINDING:-false}"
 if [[ -z "${BUDGET_DISPLAY_NAME_ALLOWLIST}" && -n "${BUDGET_DISPLAY_NAME:-}" ]]; then
   BUDGET_DISPLAY_NAME_ALLOWLIST="${BUDGET_DISPLAY_NAME}"
 fi
@@ -71,10 +72,18 @@ if ! gcloud pubsub topics describe "${BUDGET_TOPIC_ID}" >/dev/null 2>&1; then
   gcloud pubsub topics create "${BUDGET_TOPIC_ID}" >/dev/null
 fi
 
-echo "[4/8] Ensure Cloud Billing publisher can publish into topic"
-gcloud pubsub topics add-iam-policy-binding "${BUDGET_TOPIC_ID}" \
-  --member="serviceAccount:billingbudgets-notification@system.gserviceaccount.com" \
-  --role="roles/pubsub.publisher" >/dev/null
+echo "[4/8] Budget publisher IAM handling"
+if [[ "${ENABLE_LEGACY_BUDGET_PUBLISHER_BINDING}" == "true" ]]; then
+  echo "  - legacy binding enabled; attempting billingbudgets-notification@system.gserviceaccount.com"
+  if ! gcloud pubsub topics add-iam-policy-binding "${BUDGET_TOPIC_ID}" \
+    --member="serviceAccount:billingbudgets-notification@system.gserviceaccount.com" \
+    --role="roles/pubsub.publisher" >/dev/null 2>&1; then
+    echo "  - warning: legacy publisher binding skipped (principal not found or no longer used)."
+    echo "    Budget 연결 시 자동 권한 부여(또는 콘솔 연결) 경로를 사용합니다."
+  fi
+else
+  echo "  - skipped (default). Budget 연결 단계에서 topic IAM이 자동 처리됩니다."
+fi
 
 echo "[5/8] Ensure service account exists: ${SERVICE_ACCOUNT_EMAIL}"
 if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT_EMAIL}" >/dev/null 2>&1; then
