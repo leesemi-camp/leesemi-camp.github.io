@@ -68,6 +68,7 @@ cd /Users/junyeol/projects/election-map/scripts/cost-guard
 - 최신 환경에서는 Budget 연결 단계에서 Pub/Sub publisher IAM이 자동 처리되는 경우가 많습니다.
 - `billingbudgets-notification@system.gserviceaccount.com` 같은 legacy principal은 프로젝트/환경에 따라 존재하지 않을 수 있습니다.
 - 필요할 때만 `ENABLE_LEGACY_BUDGET_PUBLISHER_BINDING=true`로 강제 시도하세요(기본 `false`).
+- `deploy.sh`는 Pub/Sub service identity 생성과 `roles/iam.serviceAccountTokenCreator` 권한 부여를 자동으로 시도합니다.
 
 ## 수동 실행
 
