@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+import { test, expect } from "@playwright/test";
 
 test("Landing page loads", async ({ page }) => {
   // 공개 랜딩 페이지 렌더링 확인

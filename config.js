@@ -1,4 +1,4 @@
-window.APP_CONFIG = {
+const APP_CONFIG = {
   auth: {},
   firebase: {
     enabled: true,
@@ -167,3 +167,4 @@ window.APP_CONFIG = {
     visibleByDefault: false
   }
 };
+export default APP_CONFIG;

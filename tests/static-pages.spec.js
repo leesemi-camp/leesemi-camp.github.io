@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+import { test, expect } from "@playwright/test";
 
 async function disableAutoLogin(page) {
   // 자동 로그인 시도 플래그를 미리 세팅하여 리다이렉트 흐름을 제어한다.

@@ -1,8 +1,8 @@
-const { defineConfig } = require("@playwright/test");
+import { defineConfig } from "@playwright/test";
 
 const baseURL = process.env.PW_BASE_URL || "http://localhost:5173";
 
-module.exports = defineConfig({
+export default defineConfig({
   testDir: "./tests",
   timeout: 60_000,
   expect: {

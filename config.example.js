@@ -1,4 +1,4 @@
-window.APP_CONFIG = {
+const APP_CONFIG = {
   auth: {
     // 접근 권한은 Firebase custom claims(staff=true)로 제어합니다.
   },
@@ -217,3 +217,4 @@ window.APP_CONFIG = {
     visibleByDefault: false
   }
 };
+export default APP_CONFIG;

@@ -1,6 +1,6 @@
-const { test } = require("@playwright/test");
-const { loadAppConfig, buildApiRequests } = require("./helpers/config");
-const { formatRequestForLog } = require("./helpers/network");
+import { test } from "@playwright/test";
+import { loadAppConfig, buildApiRequests } from "./helpers/config.js";
+import { formatRequestForLog } from "./helpers/network.js";
 
 function resolveBaseURL(testInfo) {
   const baseURL = testInfo.project.use && testInfo.project.use.baseURL
