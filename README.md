@@ -22,6 +22,7 @@
 - [docs/getting-started.md](docs/getting-started.md): 로컬 실행/설정/권한 부여 등 온보딩
 - [docs/external-api.md](docs/external-api.md): 외부 API 및 로컬 데이터 파일 연결(설정 키 중심)
 - [docs/data-hotspots-and-routes.md](docs/data-hotspots-and-routes.md): `data/` 파일 사용처 + Firestore hotspot 관리 + route/trajectory 확장 조사(초안)
+- [docs/cost-guard-telegram.md](docs/cost-guard-telegram.md): Blaze 안전장치(예산 100% 시 billing off + 텔레그램 알림) 자동화
 
 ## 현재 포함된 기능
 

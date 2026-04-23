@@ -5,6 +5,9 @@ service-account*.json
 firebase-service-account*.json
 .env
 .env.*
+!.env.example
+!scripts/cost-guard/.env.example
+scripts/cost-guard/.env.local
 test-results
 .coverage
 coverage
