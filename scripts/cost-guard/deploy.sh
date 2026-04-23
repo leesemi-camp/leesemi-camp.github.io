@@ -58,10 +58,10 @@ PROJECT_NUMBER="$(gcloud projects describe "${GCP_PROJECT_ID}" --format='value(p
 PUBSUB_SERVICE_AGENT="service-${PROJECT_NUMBER}@gcp-sa-pubsub.iam.gserviceaccount.com"
 COMPUTE_DEFAULT_SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 
-echo "[1/8] Set active project"
+echo "[1/11] Set active project"
 gcloud config set project "${GCP_PROJECT_ID}" >/dev/null
 
-echo "[2/8] Enable required APIs"
+echo "[2/11] Enable required APIs"
 gcloud services enable \
   cloudfunctions.googleapis.com \
   run.googleapis.com \
@@ -87,13 +87,21 @@ gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
   --member="serviceAccount:${PUBSUB_SERVICE_AGENT}" \
   --role="roles/pubsub.serviceAgent" >/dev/null
 
-gcloud iam service-accounts add-iam-policy-binding "${PUBSUB_SERVICE_AGENT}" \
+if ! gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
   --member="serviceAccount:${PUBSUB_SERVICE_AGENT}" \
-  --role="roles/iam.serviceAccountTokenCreator" >/dev/null
+  --role="roles/iam.serviceAccountTokenCreator" >/dev/null 2>&1; then
+  echo "  - warning: could not grant roles/iam.serviceAccountTokenCreator at project level to ${PUBSUB_SERVICE_AGENT}."
+fi
 
-gcloud iam service-accounts add-iam-policy-binding "${COMPUTE_DEFAULT_SERVICE_ACCOUNT}" \
-  --member="serviceAccount:${PUBSUB_SERVICE_AGENT}" \
-  --role="roles/iam.serviceAccountTokenCreator" >/dev/null
+if gcloud iam service-accounts describe "${COMPUTE_DEFAULT_SERVICE_ACCOUNT}" >/dev/null 2>&1; then
+  if ! gcloud iam service-accounts add-iam-policy-binding "${COMPUTE_DEFAULT_SERVICE_ACCOUNT}" \
+    --member="serviceAccount:${PUBSUB_SERVICE_AGENT}" \
+    --role="roles/iam.serviceAccountTokenCreator" >/dev/null 2>&1; then
+    echo "  - warning: could not grant token creator on ${COMPUTE_DEFAULT_SERVICE_ACCOUNT} to ${PUBSUB_SERVICE_AGENT}."
+  fi
+else
+  echo "  - warning: compute default service account not found (${COMPUTE_DEFAULT_SERVICE_ACCOUNT}), skip per-SA token binding."
+fi
 
 echo "[5/11] Ensure baseline Eventarc trigger identity permissions"
 gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
