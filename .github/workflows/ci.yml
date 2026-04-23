@@ -11,12 +11,18 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: 'npm'
+      - name: "Install lcov"
+        run: |
+          sudo apt-get install -y -q lcov
+          lcov --version
 
       - name: "Install Dependencies, Playwright Browsers"
         run: |
@@ -24,4 +30,13 @@ jobs:
           npx playwright install --with-deps
 
       - name: "Run Playwright Tests"
-        run: npm test
+        run: |
+          npm run test:coverage
+
+      - uses: zgosalvez/github-actions-report-lcov@v7
+        if: github.event_name == 'pull_request'
+        with:
+          coverage-files: coverage/lcov.info
+          artifact-name: code-coverage-report
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          update-comment: true
