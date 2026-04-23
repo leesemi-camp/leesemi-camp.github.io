@@ -76,7 +76,7 @@ if ! gcloud pubsub topics describe "${BUDGET_TOPIC_ID}" >/dev/null 2>&1; then
   gcloud pubsub topics create "${BUDGET_TOPIC_ID}" >/dev/null
 fi
 
-echo "[4/10] Ensure Pub/Sub service identity and token permissions"
+echo "[4/11] Ensure Pub/Sub service identity and token permissions"
 if gcloud beta services identity create --service=pubsub.googleapis.com --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
   echo "  - Pub/Sub service identity created."
 else
@@ -87,11 +87,15 @@ gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
   --member="serviceAccount:${PUBSUB_SERVICE_AGENT}" \
   --role="roles/pubsub.serviceAgent" >/dev/null
 
+gcloud iam service-accounts add-iam-policy-binding "${PUBSUB_SERVICE_AGENT}" \
+  --member="serviceAccount:${PUBSUB_SERVICE_AGENT}" \
+  --role="roles/iam.serviceAccountTokenCreator" >/dev/null
+
 gcloud iam service-accounts add-iam-policy-binding "${COMPUTE_DEFAULT_SERVICE_ACCOUNT}" \
   --member="serviceAccount:${PUBSUB_SERVICE_AGENT}" \
   --role="roles/iam.serviceAccountTokenCreator" >/dev/null
 
-echo "[5/10] Ensure Eventarc trigger identity permissions"
+echo "[5/11] Ensure baseline Eventarc trigger identity permissions"
 gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
   --member="serviceAccount:${COMPUTE_DEFAULT_SERVICE_ACCOUNT}" \
   --role="roles/eventarc.eventReceiver" >/dev/null
@@ -100,7 +104,7 @@ gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
   --member="serviceAccount:${COMPUTE_DEFAULT_SERVICE_ACCOUNT}" \
   --role="roles/run.invoker" >/dev/null
 
-echo "[6/10] Budget publisher IAM handling"
+echo "[6/11] Budget publisher IAM handling"
 if [[ "${ENABLE_LEGACY_BUDGET_PUBLISHER_BINDING}" == "true" ]]; then
   echo "  - legacy binding enabled; attempting billingbudgets-notification@system.gserviceaccount.com"
   if ! gcloud pubsub topics add-iam-policy-binding "${BUDGET_TOPIC_ID}" \
@@ -113,23 +117,23 @@ else
   echo "  - skipped (default). Budget 연결 단계에서 topic IAM이 자동 처리됩니다."
 fi
 
-echo "[7/10] Ensure service account exists: ${SERVICE_ACCOUNT_EMAIL}"
+echo "[7/11] Ensure service account exists: ${SERVICE_ACCOUNT_EMAIL}"
 if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT_EMAIL}" >/dev/null 2>&1; then
   gcloud iam service-accounts create "${SERVICE_ACCOUNT_ID}" \
     --display-name="Budget Guard Telegram" >/dev/null
 fi
 
-echo "[8/10] Grant target project role to service account"
+echo "[8/11] Grant target project role to service account"
 gcloud projects add-iam-policy-binding "${TARGET_PROJECT_ID}" \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
   --role="roles/billing.projectManager" >/dev/null
 
-echo "[9/10] Grant billing account role to service account"
+echo "[9/11] Grant billing account role to service account"
 gcloud beta billing accounts add-iam-policy-binding "${BILLING_ACCOUNT_SHORT_ID}" \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
   --role="roles/billing.user" >/dev/null
 
-echo "[10/10] Deploy Cloud Run function (Gen2)"
+echo "[10/11] Deploy Cloud Run function (Gen2)"
 gcloud functions deploy "${FUNCTION_NAME}" \
   --gen2 \
   --runtime="${FUNCTION_RUNTIME}" \
@@ -142,11 +146,30 @@ gcloud functions deploy "${FUNCTION_NAME}" \
   --set-env-vars="TARGET_PROJECT_ID=${TARGET_PROJECT_ID},TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN},TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID},DISABLE_THRESHOLD=${DISABLE_THRESHOLD},DISABLE_BILLING=${DISABLE_BILLING},SIMULATE_DISABLE=${SIMULATE_DISABLE},BUDGET_ID_ALLOWLIST=${BUDGET_ID_ALLOWLIST},BUDGET_DISPLAY_NAME_ALLOWLIST=${BUDGET_DISPLAY_NAME_ALLOWLIST}" \
   >/dev/null
 
+echo "[11/11] Bind exact trigger service account permissions"
+TRIGGER_PATH="$(gcloud functions describe "${FUNCTION_NAME}" --gen2 --region="${REGION}" --format='value(eventTrigger.trigger)')"
+TRIGGER_NAME="${TRIGGER_PATH##*/}"
+TRIGGER_SERVICE_ACCOUNT="$(gcloud eventarc triggers describe "${TRIGGER_NAME}" --location="${REGION}" --format='value(serviceAccount)')"
+if [[ -z "${TRIGGER_SERVICE_ACCOUNT}" ]]; then
+  TRIGGER_SERVICE_ACCOUNT="${COMPUTE_DEFAULT_SERVICE_ACCOUNT}"
+fi
+RUN_SERVICE_NAME="$(gcloud functions describe "${FUNCTION_NAME}" --gen2 --region="${REGION}" --format='value(serviceConfig.service)')"
+
+gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
+  --member="serviceAccount:${TRIGGER_SERVICE_ACCOUNT}" \
+  --role="roles/eventarc.eventReceiver" >/dev/null
+
+gcloud run services add-iam-policy-binding "${RUN_SERVICE_NAME}" \
+  --region="${REGION}" \
+  --member="serviceAccount:${TRIGGER_SERVICE_ACCOUNT}" \
+  --role="roles/run.invoker" >/dev/null
+
 echo
 echo "Deployment complete."
 echo "- Project: ${GCP_PROJECT_ID}"
 echo "- Region: ${REGION}"
 echo "- Function: ${FUNCTION_NAME}"
+echo "- Trigger service account: ${TRIGGER_SERVICE_ACCOUNT}"
 echo "- Topic: ${TOPIC_FULL_NAME}"
 echo
 echo "Next: create/update budget connection"

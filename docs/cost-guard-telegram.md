@@ -70,6 +70,7 @@ cd /Users/junyeol/projects/election-map/scripts/cost-guard
 - `billingbudgets-notification@system.gserviceaccount.com` 같은 legacy principal은 프로젝트/환경에 따라 존재하지 않을 수 있습니다.
 - 필요할 때만 `ENABLE_LEGACY_BUDGET_PUBLISHER_BINDING=true`로 강제 시도하세요(기본 `false`).
 - `deploy.sh`는 Pub/Sub service identity 생성과 `roles/iam.serviceAccountTokenCreator` 권한 부여를 자동으로 시도합니다.
+- `deploy.sh`는 배포 직후 Eventarc trigger의 실제 service account를 조회해 `roles/run.invoker`, `roles/eventarc.eventReceiver`를 다시 보정합니다.
 
 ## 수동 실행
 
