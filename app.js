@@ -605,25 +605,7 @@
 
         const coordinate = feature.getGeometry().getCoordinates();
         setHighlightedHotspots([spot.id]);
-        const mapView = state.map.getView();
-        if (mapView) {
-          const hasPhoto = getSpotPhotoDataUrls(spot).length > 0;
-          const targetCenter = resolvePopupAwareCenterCoordinate(coordinate, {
-            hasPhoto
-          });
-          const currentZoom = mapView.getZoom();
-          const animateOptions = {
-            center: targetCenter,
-            duration: 240
-          };
-          if (Number.isFinite(currentZoom)) {
-            animateOptions.zoom = currentZoom;
-          }
-          state.suppressPopupCloseOnNextMoveStart = true;
-          mapView.animate(animateOptions, () => {
-            state.suppressPopupCloseOnNextMoveStart = false;
-          });
-        }
+        animateMapToHotspotSelection(coordinate, spot);
         openHotspotPopup(coordinate, spot);
       });
     }
@@ -1981,12 +1963,14 @@
       const kind = hitFeature.get("kind");
       if (kind === "hotspot") {
         const spot = hitFeature.get("spot");
+        const coordinate = event.coordinate;
         if (spot && spot.id) {
           setHighlightedHotspots([spot.id]);
         } else {
           clearHighlightedHotspots();
         }
-        openHotspotPopup(event.coordinate, spot);
+        animateMapToHotspotSelection(coordinate, spot);
+        openHotspotPopup(coordinate, spot);
         return;
       }
 
@@ -5550,6 +5534,32 @@
     }
 
     return [coordinateX, coordinateY + (pixelOffsetY * resolution)];
+  }
+
+  function animateMapToHotspotSelection(coordinate, spot) {
+    if (!state.map || !Array.isArray(coordinate) || coordinate.length < 2) {
+      return;
+    }
+    const mapView = state.map.getView();
+    if (!mapView) {
+      return;
+    }
+    const hasPhoto = getSpotPhotoDataUrls(spot).length > 0;
+    const targetCenter = resolvePopupAwareCenterCoordinate(coordinate, {
+      hasPhoto
+    });
+    const currentZoom = mapView.getZoom();
+    const animateOptions = {
+      center: targetCenter,
+      duration: 240
+    };
+    if (Number.isFinite(currentZoom)) {
+      animateOptions.zoom = currentZoom;
+    }
+    state.suppressPopupCloseOnNextMoveStart = true;
+    mapView.animate(animateOptions, () => {
+      state.suppressPopupCloseOnNextMoveStart = false;
+    });
   }
 
   function focusIssueGroup(groupKey) {
