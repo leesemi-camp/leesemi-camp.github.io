@@ -76,7 +76,7 @@ if ! gcloud pubsub topics describe "${BUDGET_TOPIC_ID}" >/dev/null 2>&1; then
   gcloud pubsub topics create "${BUDGET_TOPIC_ID}" >/dev/null
 fi
 
-echo "[4/9] Ensure Pub/Sub service identity and token permissions"
+echo "[4/10] Ensure Pub/Sub service identity and token permissions"
 if gcloud beta services identity create --service=pubsub.googleapis.com --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
   echo "  - Pub/Sub service identity created."
 else
@@ -91,7 +91,16 @@ gcloud iam service-accounts add-iam-policy-binding "${COMPUTE_DEFAULT_SERVICE_AC
   --member="serviceAccount:${PUBSUB_SERVICE_AGENT}" \
   --role="roles/iam.serviceAccountTokenCreator" >/dev/null
 
-echo "[5/9] Budget publisher IAM handling"
+echo "[5/10] Ensure Eventarc trigger identity permissions"
+gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
+  --member="serviceAccount:${COMPUTE_DEFAULT_SERVICE_ACCOUNT}" \
+  --role="roles/eventarc.eventReceiver" >/dev/null
+
+gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
+  --member="serviceAccount:${COMPUTE_DEFAULT_SERVICE_ACCOUNT}" \
+  --role="roles/run.invoker" >/dev/null
+
+echo "[6/10] Budget publisher IAM handling"
 if [[ "${ENABLE_LEGACY_BUDGET_PUBLISHER_BINDING}" == "true" ]]; then
   echo "  - legacy binding enabled; attempting billingbudgets-notification@system.gserviceaccount.com"
   if ! gcloud pubsub topics add-iam-policy-binding "${BUDGET_TOPIC_ID}" \
@@ -104,23 +113,23 @@ else
   echo "  - skipped (default). Budget 연결 단계에서 topic IAM이 자동 처리됩니다."
 fi
 
-echo "[6/9] Ensure service account exists: ${SERVICE_ACCOUNT_EMAIL}"
+echo "[7/10] Ensure service account exists: ${SERVICE_ACCOUNT_EMAIL}"
 if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT_EMAIL}" >/dev/null 2>&1; then
   gcloud iam service-accounts create "${SERVICE_ACCOUNT_ID}" \
     --display-name="Budget Guard Telegram" >/dev/null
 fi
 
-echo "[7/9] Grant target project role to service account"
+echo "[8/10] Grant target project role to service account"
 gcloud projects add-iam-policy-binding "${TARGET_PROJECT_ID}" \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
   --role="roles/billing.projectManager" >/dev/null
 
-echo "[8/9] Grant billing account role to service account"
+echo "[9/10] Grant billing account role to service account"
 gcloud beta billing accounts add-iam-policy-binding "${BILLING_ACCOUNT_SHORT_ID}" \
   --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
   --role="roles/billing.user" >/dev/null
 
-echo "[9/9] Deploy Cloud Run function (Gen2)"
+echo "[10/10] Deploy Cloud Run function (Gen2)"
 gcloud functions deploy "${FUNCTION_NAME}" \
   --gen2 \
   --runtime="${FUNCTION_RUNTIME}" \

@@ -62,6 +62,7 @@ cd /Users/junyeol/projects/election-map/scripts/cost-guard
    - 프로젝트: `roles/billing.projectManager`
    - Billing account: `roles/billing.user`
 5. Budget 생성/갱신 + Pub/Sub 연결
+6. Eventarc 트리거 신원(Compute default SA)에 `roles/eventarc.eventReceiver`, `roles/run.invoker` 부여
 
 참고:
 
