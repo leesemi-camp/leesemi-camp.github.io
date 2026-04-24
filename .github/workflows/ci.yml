@@ -34,7 +34,8 @@ jobs:
 
       - name: "Run Playwright Tests"
         run: |
-          npm run test:coverage
+          # runs coverage collecting project "Chromium-Coverage" together
+          npm run test
           # fixup: coverage/lcov.info contains "localhost-5173\". Remove this part for correct file mapping.
           sed -i 's/localhost-5173//g' coverage/lcov.info
 
