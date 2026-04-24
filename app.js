@@ -5813,6 +5813,39 @@ import APP_CONFIG from './config.js';
     elements.spotPhotoReprocessStatus.classList.toggle("error", Boolean(text) && Boolean(isError));
   }
 
+  async function makeOptimizedPhotos(spot) {
+    const originalPhotos = normalizeHotspotPhotoDataUrls(getSpotPhotoDataUrls(spot));
+    const currentStoragePaths = getSpotPhotoStoragePaths(spot);
+    const hasLegacyDataUrl = originalPhotos.some((photo) => isHotspotPhotoDataUrl(photo));
+    const hasMissingStoragePath = originalPhotos.some((_photo, index) => {
+      return !normalizeHotspotPhotoStoragePath(currentStoragePaths[index]);
+    });
+    const alreadyLatest = (
+      Number(spot.photoProcessingVersion || 0) >= hotspotPhotoConfig.processingVersion &&
+      !hasLegacyDataUrl &&
+      !hasMissingStoragePath
+    );
+    if (alreadyLatest) {
+      console.info("[photo-reprocess-photo]", spot && spot.id ? spot.id : "-", "이미 최신 처리 버전입니다.");
+      return [];
+    }
+    const optimizedPhotos = [];
+    for (let sourceIndex = 0; sourceIndex < originalPhotos.length; sourceIndex += 1) {
+      const source = originalPhotos[sourceIndex];
+      const preferredStoragePath = normalizeHotspotPhotoStoragePath(currentStoragePaths[sourceIndex]);
+      try {
+        const optimizedPhoto = await optimizeHotspotPhotoReference(source, {
+          preferredStoragePath
+        });
+        optimizedPhotos.push(optimizedPhoto);
+      } catch (error) {
+        console.warn("[photo-reprocess-photo]", spot && spot.id ? spot.id : "-", toMessage(error));
+        return [];
+      }
+    }
+    return optimizedPhotos;
+  }
+
   async function reprocessStoredHotspotPhotos() {
     if (!isEditMode()) {
       return;
@@ -5862,34 +5895,11 @@ import APP_CONFIG from './config.js';
         processedCount += 1;
         let uploadedStoragePaths = [];
         try {
-          const originalPhotos = normalizeHotspotPhotoDataUrls(getSpotPhotoDataUrls(spot));
-          const currentStoragePaths = getSpotPhotoStoragePaths(spot);
-          const hasLegacyDataUrl = originalPhotos.some((photo) => isHotspotPhotoDataUrl(photo));
-          const hasMissingStoragePath = originalPhotos.some((_photo, index) => {
-            return !normalizeHotspotPhotoStoragePath(currentStoragePaths[index]);
-          });
-          const alreadyLatest = (
-            Number(spot.photoProcessingVersion || 0) >= hotspotPhotoConfig.processingVersion &&
-            !hasLegacyDataUrl &&
-            !hasMissingStoragePath
-          );
-          if (alreadyLatest) {
+          // if errored or skipped, the array will be empty.
+          const optimizedPhotos = await makeOptimizedPhotos(spot);
+          if (optimizedPhotos.length === 0) {
             skippedCount += 1;
             continue;
-          }
-
-          const optimizedPhotos = [];
-          for (let sourceIndex = 0; sourceIndex < originalPhotos.length; sourceIndex += 1) {
-            const source = originalPhotos[sourceIndex];
-            const preferredStoragePath = normalizeHotspotPhotoStoragePath(currentStoragePaths[sourceIndex]);
-            try {
-              const optimizedPhoto = await optimizeHotspotPhotoReference(source, {
-                preferredStoragePath
-              });
-              optimizedPhotos.push(optimizedPhoto);
-            } catch (error) {
-              console.warn("[photo-reprocess-photo]", spot && spot.id ? spot.id : "-", toMessage(error));
-            }
           }
           const limitResult = applyHotspotPhotoDataUrlLimits(optimizedPhotos);
           const finalPhotos = limitResult.photoDataUrls;
