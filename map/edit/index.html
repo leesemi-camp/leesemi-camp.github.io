@@ -174,14 +174,23 @@
         </aside>
       </section>
       <section class="issue-helper" aria-label="현안 제보 안내">
+        <p id="issue-helper-toggle-hint" class="issue-helper-toggle-hint" aria-live="polite">
+          캐릭터를 누르면 안내를 접거나 펼칠 수 있어요.
+        </p>
+        <p class="issue-helper-contact-dock" aria-label="현안 제보 연락처">
+          <a href="sms:01081901440" class="issue-helper-contact-link issue-helper-contact-link-inline" aria-label="현안 추가 문의 문자 보내기">
+            <span class="issue-helper-contact-icon" aria-hidden="true">📱</span>
+            <span>010-8190-1440</span>
+          </a>
+          <span class="issue-helper-divider" aria-hidden="true">·</span>
+          <a href="mailto:leesemi114@gmail.com" class="issue-helper-contact-link issue-helper-contact-link-inline" aria-label="현안 추가 문의 이메일 보내기">
+            <span class="issue-helper-contact-icon" aria-hidden="true">✉️</span>
+            <span>leesemi114@gmail.com</span>
+          </a>
+        </p>
         <div id="issue-helper-bubble" class="issue-helper-bubble">
-          <p class="issue-helper-quote">이 지도에 담고 싶은 동네의 이야기가 있나요?</p>
-          <p class="issue-helper-quote">사소한 의견이라도 좋아요. 제가 잘 듣고 전달할게요!</p>
-          <p class="issue-helper-contact-row">
-            <a href="sms:01081901440" class="issue-helper-contact-link" aria-label="현안 추가 문의 문자 보내기">010-8190-1440</a>
-            <span class="issue-helper-divider" aria-hidden="true">/</span>
-            <a href="mailto:leesemi114@gmail.com" class="issue-helper-contact-link" aria-label="현안 추가 문의 이메일 보내기">leesemi114@gmail.com</a>
-          </p>
+          <p class="issue-helper-quote">동네 이야기, 들려주세요!</p>
+          <p class="issue-helper-quote">잘 듣고 전달할게요.</p>
         </div>
         <button
           id="issue-helper-toggle"
@@ -189,6 +198,7 @@
           type="button"
           aria-controls="issue-helper-bubble"
           aria-expanded="true"
+          aria-describedby="issue-helper-toggle-hint"
           aria-label="현안 안내 말풍선 접기 또는 펼치기"
         >
           <img
