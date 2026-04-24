@@ -250,7 +250,7 @@
     commonPledgeList: document.getElementById("common-pledge-list"),
     issueHelper: document.querySelector(".issue-helper"),
     issueHelperBubble: document.getElementById("issue-helper-bubble"),
-    issueHelperToggleHint: document.getElementById("issue-helper-toggle-hint"),
+    issueHelperCloseButton: document.getElementById("issue-helper-close-btn"),
     issueHelperToggleButton: document.getElementById("issue-helper-toggle"),
     toggleVehicleFlow: document.getElementById("toggle-vehicle-flow"),
     togglePedestrianFlow: document.getElementById("toggle-pedestrian-flow"),
@@ -682,93 +682,20 @@
     }
 
     if (elements.issueHelper && elements.issueHelperBubble && elements.issueHelperToggleButton) {
-      const issueHelperHintStorageKey = "issue_helper_collapsed_hint_count_v1";
-      const issueHelperHintPersistentLimit = 2;
       let isIssueHelperExpanded = !elements.issueHelper.classList.contains("issue-helper-collapsed");
-      let issueHelperHintTimer = 0;
-      let issueHelperCollapsedHintCount = 0;
-      try {
-        const rawStoredCount = window.localStorage
-          ? Number.parseInt(String(window.localStorage.getItem(issueHelperHintStorageKey) || "0"), 10)
-          : 0;
-        issueHelperCollapsedHintCount = Number.isFinite(rawStoredCount) && rawStoredCount > 0
-          ? rawStoredCount
-          : 0;
-      } catch (error) {
-        issueHelperCollapsedHintCount = 0;
-      }
-      const persistIssueHelperCollapsedHintCount = () => {
-        try {
-          if (window.localStorage) {
-            window.localStorage.setItem(issueHelperHintStorageKey, String(issueHelperCollapsedHintCount));
-          }
-        } catch (error) {
-          // Ignore storage write failures (private mode / blocked storage).
-        }
-      };
-      const clearIssueHelperHintTimer = () => {
-        if (!issueHelperHintTimer) {
-          return;
-        }
-        window.clearTimeout(issueHelperHintTimer);
-        issueHelperHintTimer = 0;
-      };
-      const setIssueHelperHintCompact = (compact) => {
-        elements.issueHelper.classList.toggle("issue-helper-hint-compact", compact);
-      };
-      const setIssueHelperHintVisible = (visible) => {
-        elements.issueHelper.classList.toggle("issue-helper-hint-faded", !visible);
-      };
-      const showIssueHelperHintTemporarily = (durationMs) => {
-        if (!elements.issueHelperToggleHint) {
-          return;
-        }
-        setIssueHelperHintVisible(true);
-        clearIssueHelperHintTimer();
-        issueHelperHintTimer = window.setTimeout(() => {
-          setIssueHelperHintVisible(false);
-          issueHelperHintTimer = 0;
-        }, durationMs);
-      };
-      const updateIssueHelperHintText = () => {
-        if (!elements.issueHelperToggleHint) {
-          return;
-        }
-        if (isIssueHelperExpanded) {
-          elements.issueHelperToggleHint.textContent = "캐릭터를 누르면 안내가 접혀요.";
-          setIssueHelperHintCompact(false);
-          return;
-        }
-        if (issueHelperCollapsedHintCount <= issueHelperHintPersistentLimit) {
-          elements.issueHelperToggleHint.textContent = "안내가 다시 열려요.";
-          setIssueHelperHintCompact(false);
-          return;
-        }
-        elements.issueHelperToggleHint.textContent = "열기";
-        setIssueHelperHintCompact(true);
-      };
       const applyIssueHelperExpandedState = () => {
         elements.issueHelper.classList.toggle("issue-helper-collapsed", !isIssueHelperExpanded);
         elements.issueHelperToggleButton.setAttribute("aria-expanded", isIssueHelperExpanded ? "true" : "false");
         elements.issueHelperBubble.setAttribute("aria-hidden", isIssueHelperExpanded ? "false" : "true");
-        updateIssueHelperHintText();
-        if (!isIssueHelperExpanded && elements.issueHelperToggleHint) {
-          clearIssueHelperHintTimer();
-          setIssueHelperHintVisible(true);
-        }
+        elements.issueHelperToggleButton.setAttribute(
+          "aria-label",
+          isIssueHelperExpanded ? "현안 안내 메시지 닫기" : "현안 안내 메시지 열기"
+        );
       };
 
       elements.issueHelperToggleButton.addEventListener("click", (event) => {
-        const wasExpanded = isIssueHelperExpanded;
         isIssueHelperExpanded = !isIssueHelperExpanded;
-        if (wasExpanded && !isIssueHelperExpanded) {
-          issueHelperCollapsedHintCount += 1;
-          persistIssueHelperCollapsedHintCount();
-        }
         applyIssueHelperExpandedState();
-        if (isIssueHelperExpanded) {
-          showIssueHelperHintTemporarily(2600);
-        }
         if (event && event.detail > 0) {
           window.setTimeout(() => {
             elements.issueHelperToggleButton.blur();
@@ -776,21 +703,20 @@
         }
       });
 
-      applyIssueHelperExpandedState();
-      if (isIssueHelperExpanded) {
-        showIssueHelperHintTemporarily(4800);
+      if (elements.issueHelperCloseButton) {
+        elements.issueHelperCloseButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!isIssueHelperExpanded) {
+            return;
+          }
+          isIssueHelperExpanded = false;
+          applyIssueHelperExpandedState();
+          elements.issueHelperToggleButton.focus({ preventScroll: true });
+        });
       }
 
-      elements.issueHelper.addEventListener("mouseenter", () => {
-        if (isIssueHelperExpanded) {
-          showIssueHelperHintTemporarily(2400);
-        }
-      });
-      elements.issueHelper.addEventListener("focusin", () => {
-        if (isIssueHelperExpanded) {
-          showIssueHelperHintTemporarily(2400);
-        }
-      });
+      applyIssueHelperExpandedState();
     }
 
     if (elements.photoLightboxCloseButton) {

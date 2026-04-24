@@ -174,23 +174,20 @@
         </aside>
       </section>
       <section class="issue-helper" aria-label="현안 제보 안내">
-        <p id="issue-helper-toggle-hint" class="issue-helper-toggle-hint" aria-live="polite">
-          캐릭터를 누르면 안내를 접거나 펼칠 수 있어요.
-        </p>
-        <p class="issue-helper-contact-dock" aria-label="현안 제보 연락처">
-          <a href="sms:01081901440" class="issue-helper-contact-link issue-helper-contact-link-inline" aria-label="현안 추가 문의 문자 보내기">
-            <span class="issue-helper-contact-icon" aria-hidden="true">📱</span>
-            <span>010-8190-1440</span>
-          </a>
-          <span class="issue-helper-divider" aria-hidden="true">·</span>
-          <a href="mailto:leesemi114@gmail.com" class="issue-helper-contact-link issue-helper-contact-link-inline" aria-label="현안 추가 문의 이메일 보내기">
-            <span class="issue-helper-contact-icon" aria-hidden="true">✉️</span>
-            <span>leesemi114@gmail.com</span>
-          </a>
-        </p>
         <div id="issue-helper-bubble" class="issue-helper-bubble">
+          <button id="issue-helper-close-btn" type="button" class="issue-helper-close-btn" aria-label="현안 안내 말풍선 닫기">×</button>
           <p class="issue-helper-quote">동네 이야기, 들려주세요!</p>
           <p class="issue-helper-quote">잘 듣고 전달할게요.</p>
+          <div class="issue-helper-contact-dock" aria-label="현안 제보 연락처">
+            <a href="sms:01081901440" class="issue-helper-contact-link issue-helper-contact-link-row" aria-label="현안 추가 문의 문자 보내기">
+              <span class="issue-helper-contact-icon" aria-hidden="true">📱</span>
+              <span>010-8190-1440</span>
+            </a>
+            <a href="mailto:leesemi114@gmail.com" class="issue-helper-contact-link issue-helper-contact-link-row" aria-label="현안 추가 문의 이메일 보내기">
+              <span class="issue-helper-contact-icon" aria-hidden="true">✉️</span>
+              <span>leesemi114@gmail.com</span>
+            </a>
+          </div>
         </div>
         <button
           id="issue-helper-toggle"
@@ -198,8 +195,7 @@
           type="button"
           aria-controls="issue-helper-bubble"
           aria-expanded="true"
-          aria-describedby="issue-helper-toggle-hint"
-          aria-label="현안 안내 말풍선 접기 또는 펼치기"
+          aria-label="현안 안내 메시지 열기 또는 닫기"
         >
           <img
             class="issue-helper-character"
@@ -214,6 +210,6 @@
       </section>
       <div id="mobile-form-backdrop" class="mobile-form-backdrop hidden" aria-hidden="true"></div>
     </section>
-  </main>
+</main>
 </body>
 </html>
