@@ -248,6 +248,10 @@
     issueStatsSummary: document.getElementById("issue-stats-summary"),
     totalIssueCount: document.getElementById("total-issue-count"),
     commonPledgeList: document.getElementById("common-pledge-list"),
+    issueHelper: document.querySelector(".issue-helper"),
+    issueHelperBubble: document.getElementById("issue-helper-bubble"),
+    issueHelperToggleHint: document.getElementById("issue-helper-toggle-hint"),
+    issueHelperToggleButton: document.getElementById("issue-helper-toggle"),
     toggleVehicleFlow: document.getElementById("toggle-vehicle-flow"),
     togglePedestrianFlow: document.getElementById("toggle-pedestrian-flow"),
     overlayStatus: document.getElementById("overlay-status"),
@@ -656,6 +660,118 @@
     if (elements.mobileFormBackdrop) {
       elements.mobileFormBackdrop.addEventListener("click", () => {
         closeSpotFormSheetForMobile();
+      });
+    }
+
+    if (elements.issueHelper && elements.issueHelperBubble && elements.issueHelperToggleButton) {
+      const issueHelperHintStorageKey = "issue_helper_collapsed_hint_count_v1";
+      const issueHelperHintPersistentLimit = 2;
+      let isIssueHelperExpanded = !elements.issueHelper.classList.contains("issue-helper-collapsed");
+      let issueHelperHintTimer = 0;
+      let issueHelperCollapsedHintCount = 0;
+      try {
+        const rawStoredCount = window.localStorage
+          ? Number.parseInt(String(window.localStorage.getItem(issueHelperHintStorageKey) || "0"), 10)
+          : 0;
+        issueHelperCollapsedHintCount = Number.isFinite(rawStoredCount) && rawStoredCount > 0
+          ? rawStoredCount
+          : 0;
+      } catch (error) {
+        issueHelperCollapsedHintCount = 0;
+      }
+      const persistIssueHelperCollapsedHintCount = () => {
+        try {
+          if (window.localStorage) {
+            window.localStorage.setItem(issueHelperHintStorageKey, String(issueHelperCollapsedHintCount));
+          }
+        } catch (error) {
+          // Ignore storage write failures (private mode / blocked storage).
+        }
+      };
+      const clearIssueHelperHintTimer = () => {
+        if (!issueHelperHintTimer) {
+          return;
+        }
+        window.clearTimeout(issueHelperHintTimer);
+        issueHelperHintTimer = 0;
+      };
+      const setIssueHelperHintCompact = (compact) => {
+        elements.issueHelper.classList.toggle("issue-helper-hint-compact", compact);
+      };
+      const setIssueHelperHintVisible = (visible) => {
+        elements.issueHelper.classList.toggle("issue-helper-hint-faded", !visible);
+      };
+      const showIssueHelperHintTemporarily = (durationMs) => {
+        if (!elements.issueHelperToggleHint) {
+          return;
+        }
+        setIssueHelperHintVisible(true);
+        clearIssueHelperHintTimer();
+        issueHelperHintTimer = window.setTimeout(() => {
+          setIssueHelperHintVisible(false);
+          issueHelperHintTimer = 0;
+        }, durationMs);
+      };
+      const updateIssueHelperHintText = () => {
+        if (!elements.issueHelperToggleHint) {
+          return;
+        }
+        if (isIssueHelperExpanded) {
+          elements.issueHelperToggleHint.textContent = "캐릭터를 누르면 안내가 접혀요.";
+          setIssueHelperHintCompact(false);
+          return;
+        }
+        if (issueHelperCollapsedHintCount <= issueHelperHintPersistentLimit) {
+          elements.issueHelperToggleHint.textContent = "안내가 다시 열려요.";
+          setIssueHelperHintCompact(false);
+          return;
+        }
+        elements.issueHelperToggleHint.textContent = "열기";
+        setIssueHelperHintCompact(true);
+      };
+      const applyIssueHelperExpandedState = () => {
+        elements.issueHelper.classList.toggle("issue-helper-collapsed", !isIssueHelperExpanded);
+        elements.issueHelperToggleButton.setAttribute("aria-expanded", isIssueHelperExpanded ? "true" : "false");
+        elements.issueHelperBubble.setAttribute("aria-hidden", isIssueHelperExpanded ? "false" : "true");
+        updateIssueHelperHintText();
+        if (!isIssueHelperExpanded && elements.issueHelperToggleHint) {
+          clearIssueHelperHintTimer();
+          setIssueHelperHintVisible(true);
+        }
+      };
+
+      elements.issueHelperToggleButton.addEventListener("click", (event) => {
+        const wasExpanded = isIssueHelperExpanded;
+        isIssueHelperExpanded = !isIssueHelperExpanded;
+        if (wasExpanded && !isIssueHelperExpanded) {
+          issueHelperCollapsedHintCount += 1;
+          persistIssueHelperCollapsedHintCount();
+        }
+        applyIssueHelperExpandedState();
+        if (isIssueHelperExpanded) {
+          showIssueHelperHintTemporarily(2600);
+        }
+        if (event && event.detail > 0) {
+          window.setTimeout(() => {
+            elements.issueHelperToggleButton.blur();
+          }, 0);
+        }
+      });
+
+      applyIssueHelperExpandedState();
+      if (isIssueHelperExpanded) {
+        showIssueHelperHintTemporarily(4800);
+      }
+
+      elements.issueHelper.addEventListener("mouseenter", () => {
+        if (isIssueHelperExpanded) {
+          showIssueHelperHintTemporarily(2400);
+        }
+      });
+      elements.issueHelper.addEventListener("focusin", () => {
+        if (isIssueHelperExpanded) {
+          showIssueHelperHintTemporarily(2400);
+        }
       });
     }
 

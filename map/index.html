@@ -46,14 +46,6 @@
                     <h2 class="topbar-title">우리동네 현안도, 이세미입니다</h2>
                     <span id="total-issue-count" class="topbar-total-issue-count">총 현안 건수: 0건</span>
                 </div>
-                <p class="topbar-message">
-                    이 지도에 담고 싶은 동네의 이야기가 있나요? 사소한 의견이라도 좋으니 제보해 주세요. 귀 기울여 듣겠습니다!
-                    <a href="sms:01081901440" class="issue-contact-link topbar-message-link"
-                       aria-label="현안 추가 문의 문자 보내기">010-8190-1440</a>
-                    <span class="topbar-message-divider" aria-hidden="true">/</span>
-                    <a href="mailto:leesemi114@gmail.com" class="issue-contact-link topbar-message-link"
-                       aria-label="현안 추가 문의 이메일 보내기">leesemi114@gmail.com</a>
-                </p>
             </div>
             <div class="topbar-actions">
                 <a href="../" class="icon-btn" aria-label="메인 랜딩으로 이동" title="메인으로">
@@ -94,6 +86,45 @@
                 <p class="muted">지도에서 동 영역을 클릭하면 해당 동 현안만 볼 수 있습니다.</p>
                 <ul id="spot-list" class="spot-list"></ul>
             </aside>
+        </section>
+        <section class="issue-helper" aria-label="현안 제보 안내">
+            <p id="issue-helper-toggle-hint" class="issue-helper-toggle-hint" aria-live="polite">
+                캐릭터를 누르면 안내를 접거나 펼칠 수 있어요.
+            </p>
+            <p class="issue-helper-contact-dock" aria-label="현안 제보 연락처">
+                <a href="sms:01081901440" class="issue-helper-contact-link issue-helper-contact-link-inline" aria-label="현안 추가 문의 문자 보내기">
+                    <span class="issue-helper-contact-icon" aria-hidden="true">📱</span>
+                    <span>010-8190-1440</span>
+                </a>
+                <span class="issue-helper-divider" aria-hidden="true">·</span>
+                <a href="mailto:leesemi114@gmail.com" class="issue-helper-contact-link issue-helper-contact-link-inline" aria-label="현안 추가 문의 이메일 보내기">
+                    <span class="issue-helper-contact-icon" aria-hidden="true">✉️</span>
+                    <span>leesemi114@gmail.com</span>
+                </a>
+            </p>
+            <div id="issue-helper-bubble" class="issue-helper-bubble">
+                <p class="issue-helper-quote">동네 이야기, 들려주세요!</p>
+                <p class="issue-helper-quote">잘 듣고 전달할게요.</p>
+            </div>
+            <button
+                id="issue-helper-toggle"
+                class="issue-helper-toggle"
+                type="button"
+                aria-controls="issue-helper-bubble"
+                aria-expanded="true"
+                aria-describedby="issue-helper-toggle-hint"
+                aria-label="현안 안내 말풍선 접기 또는 펼치기"
+            >
+                <img
+                    class="issue-helper-character"
+                    src="/assets/character/%EC%82%BC%EC%B4%9D%EC%82%AC%28%EC%98%86%292.png"
+                    alt="현안 제보를 안내하는 캐릭터"
+                    width="160"
+                    height="210"
+                    loading="lazy"
+                    decoding="async"
+                >
+            </button>
         </section>
     </section>
 </main>
