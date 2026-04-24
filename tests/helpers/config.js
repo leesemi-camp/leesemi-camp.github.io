@@ -1,19 +1,10 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
+import APP_CONFIG from "../../config.js";
 
-function loadAppConfig() {
-  const filePath = path.resolve(process.cwd(), "config.js");
-  const code = fs.readFileSync(filePath, "utf8");
-  const context = { window: {} };
-  vm.runInNewContext(code, context, { filename: "config.js" });
-  if (!context.window || !context.window.APP_CONFIG) {
-    throw new Error("APP_CONFIG not found in config.js");
-  }
-  return context.window.APP_CONFIG;
+export function loadAppConfig() {
+  return APP_CONFIG;
 }
 
-function resolveUrl(baseURL, value) {
+export function resolveUrl(baseURL, value) {
   const raw = String(value || "").trim();
   if (!raw) {
     return "";
@@ -21,7 +12,7 @@ function resolveUrl(baseURL, value) {
   return new URL(raw, baseURL).toString();
 }
 
-function resolveBoundarySources(config) {
+export function resolveBoundarySources(config) {
   const dataConfig = config && config.data ? config.data : {};
   const boundarySources = Array.isArray(dataConfig.boundarySources)
     ? dataConfig.boundarySources.filter(Boolean)
@@ -130,7 +121,7 @@ function buildPopulationRequest(config, baseURL) {
   };
 }
 
-function buildApiRequests(config, baseURL) {
+export function buildApiRequests(config, baseURL) {
   const requests = [];
   const missing = [];
 
@@ -178,9 +169,3 @@ function buildApiRequests(config, baseURL) {
   return { requests, missing };
 }
 
-module.exports = {
-  loadAppConfig,
-  resolveUrl,
-  resolveBoundarySources,
-  buildApiRequests
-};

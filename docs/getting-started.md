@@ -49,7 +49,7 @@ npx http-server . -p 5173 -c-1
 - 권한 부여 예시는 아래와 같습니다.
 
 ```bash
-node scripts/set-staff-claim.js --service-account /abs/path/service-account.json --email staff@example.com --staff true
+node scripts/set-staff-claim.cjs --service-account /abs/path/service-account.json --email staff@example.com --staff true
 ```
 
 ## 기본 경로 (Key Paths)

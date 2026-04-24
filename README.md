@@ -50,7 +50,7 @@
 8. 지도 수정 권한을 줄 계정에 Firebase custom claim을 부여
    - claim key: `staff`
    - claim value: `true`
-   - 방법: `scripts/set-staff-claim.js` 사용(아래 절차 참고)
+   - 방법: `scripts/set-staff-claim.cjs` 사용(아래 절차 참고)
 
 ### staff 권한 부여 절차 (custom claim)
 
@@ -58,9 +58,9 @@
 2. 터미널에서 `firebase-admin` 설치
    - 예: `npm i firebase-admin`
 3. 아래 명령으로 사용자 권한 부여
-   - `node scripts/set-staff-claim.js --service-account /절대경로/service-account.json --email staff@example.com --staff true`
+   - `node scripts/set-staff-claim.cjs --service-account /절대경로/service-account.json --email staff@example.com --staff true`
 4. 권한 제거가 필요하면
-   - `node scripts/set-staff-claim.js --service-account /절대경로/service-account.json --email staff@example.com --staff false`
+   - `node scripts/set-staff-claim.cjs --service-account /절대경로/service-account.json --email staff@example.com --staff false`
 5. 권한 변경 후 사용자는 로그아웃/재로그인(또는 토큰 갱신)해야 반영됩니다.
 
 ### 보안 강화 체크리스트 (권장)

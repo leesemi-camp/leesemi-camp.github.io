@@ -1,11 +1,11 @@
-const { test, expect } = require("@playwright/test");
-const {
+import { test, expect } from "@playwright/test";
+import {
   loadAppConfig,
   resolveUrl,
   resolveBoundarySources,
   buildApiRequests
-} = require("./helpers/config");
-const { maskTokens, formatRequestForLog } = require("./helpers/network");
+} from "./helpers/config.js";
+import { maskTokens, formatRequestForLog } from "./helpers/network.js";
 
 test("Config loads", () => {
   // config.js에서 기본 설정이 로드되는지 확인

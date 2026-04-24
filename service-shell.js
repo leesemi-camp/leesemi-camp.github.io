@@ -1,7 +1,7 @@
-"use strict";
+import APP_CONFIG from './config.js';
 
 (function serviceShellBootstrap() {
-  const config = window.APP_CONFIG;
+  const config = APP_CONFIG;
   const logoutButton = document.getElementById("service-logout-btn");
 
   void init();

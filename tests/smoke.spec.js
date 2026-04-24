@@ -1,4 +1,25 @@
-const { test, expect } = require("@playwright/test");
+import { test, expect } from "@playwright/test";
+import { addCoverageReport } from "monocart-reporter";
+
+// Chromium에서만 V8 커버리지를 수집한다.
+test.beforeEach(async ({ page }, testInfo) => {
+  if (testInfo.project.use.browserName === "chromium") {
+    await Promise.all([
+      page.coverage.startJSCoverage({ resetOnNavigation: false }),
+      page.coverage.startCSSCoverage({ resetOnNavigation: false })
+    ]);
+  }
+});
+
+test.afterEach(async ({ page }, testInfo) => {
+  if (testInfo.project.use.browserName === "chromium") {
+    const [jsCoverage, cssCoverage] = await Promise.all([
+      page.coverage.stopJSCoverage(),
+      page.coverage.stopCSSCoverage()
+    ]);
+    await addCoverageReport([...jsCoverage, ...cssCoverage], testInfo);
+  }
+});
 
 test("Landing page loads", async ({ page }) => {
   // 공개 랜딩 페이지 렌더링 확인
