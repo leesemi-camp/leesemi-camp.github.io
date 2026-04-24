@@ -260,7 +260,9 @@
     populationHour: document.getElementById("population-hour"),
     populationStatus: document.getElementById("population-status"),
     photoLightbox: null,
+    photoLightboxDialog: null,
     photoLightboxImage: null,
+    photoLightboxLoading: null,
     photoLightboxCloseButton: null,
     photoLightboxPrevButton: null,
     photoLightboxNextButton: null,
@@ -719,6 +721,14 @@
       });
     }
 
+    if (elements.photoLightboxImage) {
+      const handlePhotoLightboxImageSettled = () => {
+        setPhotoLightboxLoading(false);
+      };
+      elements.photoLightboxImage.addEventListener("load", handlePhotoLightboxImageSettled);
+      elements.photoLightboxImage.addEventListener("error", handlePhotoLightboxImageSettled);
+    }
+
     if (elements.photoLightbox) {
       elements.photoLightbox.addEventListener("click", (event) => {
         if (event.target === elements.photoLightbox) {
@@ -808,6 +818,10 @@
             getPhotoControlIconMarkup("prev") +
           "</button>" +
           "<img id='photo-lightbox-image' class='photo-lightbox-image' alt='확대 사진' loading='eager'>" +
+          "<div id='photo-lightbox-loading' class='photo-lightbox-loading hidden' aria-live='polite' aria-hidden='true'>" +
+            "<span class='photo-lightbox-spinner' aria-hidden='true'></span>" +
+            "<span class='photo-lightbox-loading-text'>이미지를 불러오는 중...</span>" +
+          "</div>" +
           "<button id='photo-lightbox-next-btn' type='button' class='photo-lightbox-nav photo-lightbox-nav-next' aria-label='다음 사진' title='다음'>" +
             getPhotoControlIconMarkup("next") +
           "</button>" +
@@ -817,7 +831,9 @@
     }
 
     elements.photoLightbox = lightbox;
+    elements.photoLightboxDialog = lightbox.querySelector(".photo-lightbox-dialog");
     elements.photoLightboxImage = lightbox.querySelector("#photo-lightbox-image");
+    elements.photoLightboxLoading = lightbox.querySelector("#photo-lightbox-loading");
     elements.photoLightboxCloseButton = lightbox.querySelector("#photo-lightbox-close-btn");
     elements.photoLightboxPrevButton = lightbox.querySelector("#photo-lightbox-prev-btn");
     elements.photoLightboxNextButton = lightbox.querySelector("#photo-lightbox-next-btn");
@@ -1160,6 +1176,20 @@
     document.body.classList.add("photo-lightbox-open");
   }
 
+  function setPhotoLightboxLoading(isLoading) {
+    const loading = Boolean(isLoading);
+    if (elements.photoLightboxDialog) {
+      elements.photoLightboxDialog.setAttribute("aria-busy", loading ? "true" : "false");
+    }
+    if (elements.photoLightboxLoading) {
+      elements.photoLightboxLoading.classList.toggle("hidden", !loading);
+      elements.photoLightboxLoading.setAttribute("aria-hidden", loading ? "false" : "true");
+    }
+    if (elements.photoLightboxImage) {
+      elements.photoLightboxImage.classList.toggle("photo-lightbox-image-loading", loading);
+    }
+  }
+
   function renderActivePhotoLightboxSlide() {
     if (!elements.photoLightboxImage) {
       return;
@@ -1172,8 +1202,12 @@
     const activeSlide = slides[index];
     state.activePhotoLightbox.index = index;
     state.activePhotoLightbox.slides = slides;
+    setPhotoLightboxLoading(true);
     elements.photoLightboxImage.src = activeSlide.src;
     elements.photoLightboxImage.alt = activeSlide.alt;
+    if (elements.photoLightboxImage.complete) {
+      setPhotoLightboxLoading(false);
+    }
 
     const hasMultiple = slides.length > 1;
     if (elements.photoLightboxPrevButton) {
@@ -1224,6 +1258,7 @@
     if (elements.photoLightboxImage) {
       elements.photoLightboxImage.removeAttribute("src");
     }
+    setPhotoLightboxLoading(false);
     state.activePhotoLightbox = {
       slideshowId: "",
       index: 0,
