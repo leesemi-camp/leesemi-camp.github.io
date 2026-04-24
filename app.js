@@ -248,6 +248,9 @@
     issueStatsSummary: document.getElementById("issue-stats-summary"),
     totalIssueCount: document.getElementById("total-issue-count"),
     commonPledgeList: document.getElementById("common-pledge-list"),
+    issueHelper: document.querySelector(".issue-helper"),
+    issueHelperBubble: document.getElementById("issue-helper-bubble"),
+    issueHelperToggleButton: document.getElementById("issue-helper-toggle"),
     toggleVehicleFlow: document.getElementById("toggle-vehicle-flow"),
     togglePedestrianFlow: document.getElementById("toggle-pedestrian-flow"),
     overlayStatus: document.getElementById("overlay-status"),
@@ -675,6 +678,27 @@
       elements.mobileFormBackdrop.addEventListener("click", () => {
         closeSpotFormSheetForMobile();
       });
+    }
+
+    if (elements.issueHelper && elements.issueHelperBubble && elements.issueHelperToggleButton) {
+      let isIssueHelperExpanded = !elements.issueHelper.classList.contains("issue-helper-collapsed");
+      const applyIssueHelperExpandedState = () => {
+        elements.issueHelper.classList.toggle("issue-helper-collapsed", !isIssueHelperExpanded);
+        elements.issueHelperToggleButton.setAttribute("aria-expanded", isIssueHelperExpanded ? "true" : "false");
+        elements.issueHelperBubble.setAttribute("aria-hidden", isIssueHelperExpanded ? "false" : "true");
+      };
+
+      elements.issueHelperToggleButton.addEventListener("click", (event) => {
+        isIssueHelperExpanded = !isIssueHelperExpanded;
+        applyIssueHelperExpandedState();
+        if (event && event.detail > 0) {
+          window.setTimeout(() => {
+            elements.issueHelperToggleButton.blur();
+          }, 0);
+        }
+      });
+
+      applyIssueHelperExpandedState();
     }
 
     if (elements.photoLightboxCloseButton) {
