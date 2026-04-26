@@ -65,6 +65,7 @@ import APP_CONFIG from './config.js';
     issueListMode: "dong",
     activeDongName: "",
     spotPhotoDataUrls: [],
+    spotPhotoProcessingInProgress: false,
     photoSlideshowSerial: 0,
     photoSlideshows: new Map(),
     activePhotoLightbox: {
@@ -79,6 +80,7 @@ import APP_CONFIG from './config.js';
     unsubscribeHotspots: null,
     editingHotspotId: null,
     resolvingCurrentLocation: false,
+    hotspotSubmitInProgress: false,
     selectedCoordFeature: null,
     autoCenteredToCurrentLocation: false,
     suppressPopupCloseOnNextMoveStart: false
@@ -241,6 +243,7 @@ import APP_CONFIG from './config.js';
     spotPhotoRemoveButton: document.getElementById("spot-photo-remove-btn"),
     spotPhotoReprocessButton: document.getElementById("spot-photo-reprocess-btn"),
     spotPhotoReprocessStatus: document.getElementById("spot-photo-reprocess-status"),
+    spotSaveStatus: document.getElementById("spot-save-status"),
     spotList: document.getElementById("spot-list"),
     issueViewDongButton: document.getElementById("issue-view-dong-btn"),
     clearDongFilterButton: document.getElementById("clear-dong-filter-btn"),
@@ -5858,13 +5861,27 @@ import APP_CONFIG from './config.js';
     if (!elements.spotPhotoFileInput) {
       return;
     }
+    if (state.spotPhotoProcessingInProgress) {
+      setSpotSaveStatus("사진을 처리하는 중입니다. 완료될 때까지 잠시만 기다려 주세요.", false);
+      return;
+    }
     const files = Array.from(elements.spotPhotoFileInput.files || []);
     if (files.length === 0) {
       return;
     }
+    state.spotPhotoProcessingInProgress = true;
+    setSpotPhotoProcessingUi(
+      true,
+      "사진 1 / " + String(files.length) + " 처리 중입니다. 워터마크와 크기를 조정하고 있습니다."
+    );
     try {
       const optimizedDataUrls = [];
-      for (const file of files) {
+      for (let index = 0; index < files.length; index += 1) {
+        setSpotSaveStatus(
+          "사진 " + String(index + 1) + " / " + String(files.length) + " 처리 중입니다. 워터마크와 크기를 조정하고 있습니다.",
+          false
+        );
+        const file = files[index];
         const optimizedDataUrl = await optimizeHotspotPhotoFile(file);
         optimizedDataUrls.push(optimizedDataUrl);
       }
@@ -5876,6 +5893,8 @@ import APP_CONFIG from './config.js';
     } catch (error) {
       window.alert("사진 처리 실패: " + toMessage(error));
     } finally {
+      state.spotPhotoProcessingInProgress = false;
+      setSpotPhotoProcessingUi(false, "");
       clearSpotPhotoFileInput();
     }
   }
@@ -5934,6 +5953,66 @@ import APP_CONFIG from './config.js';
     elements.spotPhotoReprocessStatus.textContent = text;
     elements.spotPhotoReprocessStatus.classList.toggle("hidden", !text);
     elements.spotPhotoReprocessStatus.classList.toggle("error", Boolean(text) && Boolean(isError));
+  }
+
+  function getSpotSubmitIdleText() {
+    return state.editingHotspotId ? "수정 저장" : "현안 저장";
+  }
+
+  function countHotspotPhotoUploads(photoRefs) {
+    return normalizeHotspotPhotoDataUrls(photoRefs)
+      .slice(0, hotspotPhotoConfig.maxPhotoCount)
+      .filter((photoRef) => isHotspotPhotoDataUrl(photoRef))
+      .length;
+  }
+
+  function buildHotspotSavingMessage(uploadCount) {
+    const count = Number(uploadCount) || 0;
+    if (count > 0) {
+      return "사진 " + String(count) + "장을 업로드한 뒤 현안을 저장합니다. 완료될 때까지 잠시만 기다려 주세요.";
+    }
+    return "현안 내용을 저장하는 중입니다. 완료될 때까지 잠시만 기다려 주세요.";
+  }
+
+  function setSpotSaveStatus(message, isError) {
+    if (!elements.spotSaveStatus) {
+      return;
+    }
+    const text = String(message || "").trim();
+    elements.spotSaveStatus.textContent = text;
+    elements.spotSaveStatus.classList.toggle("hidden", !text);
+    elements.spotSaveStatus.classList.toggle("error", Boolean(text) && Boolean(isError));
+  }
+
+  function setHotspotSubmitUi(isSaving, message, isError) {
+    const saving = Boolean(isSaving);
+    if (elements.form) {
+      elements.form.classList.toggle("is-saving", saving);
+      if (saving) {
+        elements.form.setAttribute("aria-busy", "true");
+      } else {
+        elements.form.removeAttribute("aria-busy");
+      }
+    }
+    if (elements.spotSubmitButton) {
+      elements.spotSubmitButton.disabled = saving;
+      elements.spotSubmitButton.classList.toggle("is-loading", saving);
+      elements.spotSubmitButton.textContent = saving ? "저장 중" : getSpotSubmitIdleText();
+    }
+    setSpotSaveStatus(message, isError);
+  }
+
+  function setSpotPhotoProcessingUi(isProcessing, message) {
+    const processing = Boolean(isProcessing);
+    if (elements.form) {
+      elements.form.classList.toggle("is-processing", processing);
+    }
+    if (elements.spotSubmitButton && !state.hotspotSubmitInProgress) {
+      elements.spotSubmitButton.disabled = processing;
+      elements.spotSubmitButton.classList.toggle("is-loading", processing);
+      elements.spotSubmitButton.textContent = processing ? "사진 처리 중" : getSpotSubmitIdleText();
+    }
+    setSpotSaveStatus(message, false);
   }
 
   async function makeOptimizedPhotos(spot) {
@@ -6686,17 +6765,30 @@ import APP_CONFIG from './config.js';
     throw new Error("이미지 데이터 형식이 올바르지 않습니다.");
   }
 
-  async function persistHotspotPhotoRefs(spotId, photoRefs, existingSpot) {
+  async function persistHotspotPhotoRefs(spotId, photoRefs, existingSpot, onPhotoUploadProgress) {
     const normalized = normalizeHotspotPhotoDataUrls(photoRefs);
     const limited = normalized.slice(0, hotspotPhotoConfig.maxPhotoCount);
     const existingPathQueue = buildSpotPhotoStoragePathQueue(existingSpot);
+    const uploadTotal = countHotspotPhotoUploads(limited);
+    const reportPhotoUploadProgress = typeof onPhotoUploadProgress === "function"
+      ? onPhotoUploadProgress
+      : null;
     const photoUrls = [];
     const photoStoragePaths = [];
     const uploadedStoragePaths = [];
+    let uploadedCount = 0;
 
     for (const photoRef of limited) {
       if (isHotspotPhotoDataUrl(photoRef)) {
+        if (reportPhotoUploadProgress) {
+          reportPhotoUploadProgress({
+            currentIndex: uploadedCount + 1,
+            uploadedCount,
+            total: uploadTotal
+          });
+        }
         const uploaded = await uploadHotspotPhotoDataUrlToStorage(spotId, photoRef);
+        uploadedCount += 1;
         photoUrls.push(uploaded.url);
         photoStoragePaths.push(uploaded.path);
         uploadedStoragePaths.push(uploaded.path);
@@ -6725,139 +6817,180 @@ import APP_CONFIG from './config.js';
     if (!isEditMode()) {
       return;
     }
+    if (state.hotspotSubmitInProgress) {
+      setSpotSaveStatus("이미 저장 중입니다. 완료될 때까지 잠시만 기다려 주세요.", false);
+      return;
+    }
     if (!state.currentUser) {
       window.alert("로그인 상태가 아닙니다.");
       return;
     }
-
-    const lat = Number(elements.latInput.value);
-    const lng = Number(elements.lngInput.value);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      window.alert("지도에서 좌표를 먼저 선택하세요.");
+    if (state.spotPhotoProcessingInProgress) {
+      setSpotSaveStatus("사진을 처리하는 중입니다. 완료된 뒤 다시 저장해 주세요.", false);
       return;
     }
 
-    const formData = new FormData(elements.form);
-    const title = String(formData.get("title") || "").trim();
-    const memo = String(formData.get("memo") || "").trim();
-    const level = Number(formData.get("level") || 3);
-    const categoryId = String(formData.get("categoryId") || "").trim();
-    const issueRefId = normalizeIssueCatalogId(formData.get("issueRefId"));
-    const issueCatalogConfig = getIssueCatalogConfig();
-    const catalogIssue = issueRefId && state.issueCatalogMap.has(issueRefId)
-      ? state.issueCatalogMap.get(issueRefId)
-      : null;
-
-    if (issueCatalogConfig.enabled && issueCatalogConfig.requireSelection && !catalogIssue) {
-      window.alert("연동 현안을 먼저 선택하세요.");
-      return;
-    }
-
-    const resolvedTitle = String(catalogIssue && catalogIssue.title ? catalogIssue.title : title).trim();
-    const resolvedMemo = String(catalogIssue && catalogIssue.memo ? catalogIssue.memo : memo).trim();
-    const photoLimitResult = applyHotspotPhotoDataUrlLimits(
-      normalizeHotspotPhotoDataUrls(formData.get("photoDataUrls"))
-    );
-    const photoDataUrls = photoLimitResult.photoDataUrls;
-    if (photoLimitResult.trimmedByCount) {
-      window.alert("사진은 최대 " + String(hotspotPhotoConfig.maxPhotoCount) + "장까지 첨부할 수 있습니다.");
-    }
-    const resolvedCategoryId = normalizeCategoryId(
-      categoryId ||
-      (catalogIssue ? catalogIssue.categoryId : "")
-    );
-    const categoryLabel = resolveCategoryLabel(
-      resolvedCategoryId,
-      catalogIssue ? catalogIssue.categoryLabel : ""
-    );
-
-    if (!resolvedTitle) {
-      window.alert("현안명을 입력하세요.");
-      return;
-    }
-
-    const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
-    const selectedDongKey = String(formData.get("dongKey") || DONG_AUTO_KEY).trim() || DONG_AUTO_KEY;
-    const isCommonSelection = selectedDongKey === DONG_COMMON_KEY;
-    const selectedDongMeta = resolveDongMetaByKey(selectedDongKey);
-    const usingManualDong = Boolean(selectedDongMeta) && !isCommonSelection;
-    const finalDongNameRaw = isCommonSelection
-      ? DONG_COMMON_NAME
-      : usingManualDong
-      ? String(selectedDongMeta.dongName || "").trim()
-      : String(boundaryMeta.dongName || "").trim();
-    const finalDongName = resolveMergedDongName(finalDongNameRaw);
-    const finalEmdCode = isCommonSelection
-      ? ""
-      : usingManualDong
-      ? normalizeEmdCode(selectedDongMeta.emdCode)
-      : normalizeEmdCode(boundaryMeta.emdCode);
-    const finalDongKey = isCommonSelection
-      ? DONG_COMMON_KEY
-      : buildDongKey("", finalDongName);
-
-    if (!finalDongName) {
-      window.alert("동을 판별하지 못했습니다. '동 선택'에서 직접 지정하세요.");
-      return;
-    }
-
-    const collectionName = getIssueCollectionName();
-    const editingSpotId = state.editingHotspotId;
-    const collectionRef = state.db.collection(collectionName);
-    const targetDocRef = editingSpotId
-      ? collectionRef.doc(editingSpotId)
-      : collectionRef.doc();
-    const targetSpotId = String(targetDocRef.id || "").trim();
-    const existingSpot = editingSpotId ? state.hotspotData.get(editingSpotId) : null;
-    let uploadedStoragePaths = [];
-
+    state.hotspotSubmitInProgress = true;
+    let submitUiLocked = false;
+    let unlockStatusMessage = "";
+    let unlockStatusIsError = false;
     try {
-      const persistedPhotos = await persistHotspotPhotoRefs(targetSpotId, photoDataUrls, existingSpot);
-      uploadedStoragePaths = persistedPhotos.uploadedStoragePaths;
-      const payload = {
-        title: resolvedTitle,
-        memo: resolvedMemo,
-        level: level >= 1 && level <= 5 ? level : 3,
-        categoryId: issueCategories[resolvedCategoryId] ? resolvedCategoryId : "",
-        categoryLabel,
-        issueRefId: catalogIssue ? catalogIssue.id : issueRefId,
-        lat,
-        lng,
-        dongName: finalDongName,
-        emdCode: finalEmdCode || "",
-        dongSelectionMode: isCommonSelection ? "common" : usingManualDong ? "manual" : "auto",
-        dongKey: finalDongKey,
-        photoUrls: persistedPhotos.photoUrls,
-        photoUrl: persistedPhotos.photoUrls[0] || "",
-        photoStoragePaths: persistedPhotos.photoStoragePaths,
-        photoProcessingVersion: hotspotPhotoConfig.processingVersion,
-        updatedBy: normalizeEmail(state.currentUser.email),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      };
-
-      if (editingSpotId) {
-        payload.photoDataUrls = firebase.firestore.FieldValue.delete();
-        payload.photoDataUrl = firebase.firestore.FieldValue.delete();
-        payload.photo_data_urls = firebase.firestore.FieldValue.delete();
-        payload.photo_data_url = firebase.firestore.FieldValue.delete();
-        await targetDocRef.update(payload);
-      } else {
-        await targetDocRef.set(payload);
+      const lat = Number(elements.latInput.value);
+      const lng = Number(elements.lngInput.value);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        window.alert("지도에서 좌표를 먼저 선택하세요.");
+        return;
       }
 
-      const removedStoragePaths = collectRemovedSpotPhotoStoragePaths(
-        existingSpot,
-        persistedPhotos.photoStoragePaths
+      const formData = new FormData(elements.form);
+      const title = String(formData.get("title") || "").trim();
+      const memo = String(formData.get("memo") || "").trim();
+      const level = Number(formData.get("level") || 3);
+      const categoryId = String(formData.get("categoryId") || "").trim();
+      const issueRefId = normalizeIssueCatalogId(formData.get("issueRefId"));
+      const issueCatalogConfig = getIssueCatalogConfig();
+      const catalogIssue = issueRefId && state.issueCatalogMap.has(issueRefId)
+        ? state.issueCatalogMap.get(issueRefId)
+        : null;
+
+      if (issueCatalogConfig.enabled && issueCatalogConfig.requireSelection && !catalogIssue) {
+        window.alert("연동 현안을 먼저 선택하세요.");
+        return;
+      }
+
+      const resolvedTitle = String(catalogIssue && catalogIssue.title ? catalogIssue.title : title).trim();
+      const resolvedMemo = String(catalogIssue && catalogIssue.memo ? catalogIssue.memo : memo).trim();
+      const photoLimitResult = applyHotspotPhotoDataUrlLimits(
+        normalizeHotspotPhotoDataUrls(formData.get("photoDataUrls"))
       );
-      if (removedStoragePaths.length > 0) {
-        void deleteSpotPhotoStoragePaths(removedStoragePaths);
+      const photoDataUrls = photoLimitResult.photoDataUrls;
+      if (photoLimitResult.trimmedByCount) {
+        window.alert("사진은 최대 " + String(hotspotPhotoConfig.maxPhotoCount) + "장까지 첨부할 수 있습니다.");
       }
-      exitHotspotEditMode(true);
-    } catch (error) {
-      if (uploadedStoragePaths.length > 0) {
-        await deleteSpotPhotoStoragePaths(uploadedStoragePaths);
+      const resolvedCategoryId = normalizeCategoryId(
+        categoryId ||
+        (catalogIssue ? catalogIssue.categoryId : "")
+      );
+      const categoryLabel = resolveCategoryLabel(
+        resolvedCategoryId,
+        catalogIssue ? catalogIssue.categoryLabel : ""
+      );
+
+      if (!resolvedTitle) {
+        window.alert("현안명을 입력하세요.");
+        return;
       }
-      window.alert("현안 저장 실패: " + toMessage(error));
+
+      const boundaryMeta = resolveBoundaryMetaForLonLat(lng, lat);
+      const selectedDongKey = String(formData.get("dongKey") || DONG_AUTO_KEY).trim() || DONG_AUTO_KEY;
+      const isCommonSelection = selectedDongKey === DONG_COMMON_KEY;
+      const selectedDongMeta = resolveDongMetaByKey(selectedDongKey);
+      const usingManualDong = Boolean(selectedDongMeta) && !isCommonSelection;
+      const finalDongNameRaw = isCommonSelection
+        ? DONG_COMMON_NAME
+        : usingManualDong
+        ? String(selectedDongMeta.dongName || "").trim()
+        : String(boundaryMeta.dongName || "").trim();
+      const finalDongName = resolveMergedDongName(finalDongNameRaw);
+      const finalEmdCode = isCommonSelection
+        ? ""
+        : usingManualDong
+        ? normalizeEmdCode(selectedDongMeta.emdCode)
+        : normalizeEmdCode(boundaryMeta.emdCode);
+      const finalDongKey = isCommonSelection
+        ? DONG_COMMON_KEY
+        : buildDongKey("", finalDongName);
+
+      if (!finalDongName) {
+        window.alert("동을 판별하지 못했습니다. '동 선택'에서 직접 지정하세요.");
+        return;
+      }
+
+      const photoUploadCount = countHotspotPhotoUploads(photoDataUrls);
+      setHotspotSubmitUi(true, buildHotspotSavingMessage(photoUploadCount), false);
+      submitUiLocked = true;
+
+      const collectionName = getIssueCollectionName();
+      const editingSpotId = state.editingHotspotId;
+      const collectionRef = state.db.collection(collectionName);
+      const targetDocRef = editingSpotId
+        ? collectionRef.doc(editingSpotId)
+        : collectionRef.doc();
+      const targetSpotId = String(targetDocRef.id || "").trim();
+      const existingSpot = editingSpotId ? state.hotspotData.get(editingSpotId) : null;
+      let uploadedStoragePaths = [];
+
+      try {
+        const persistedPhotos = await persistHotspotPhotoRefs(
+          targetSpotId,
+          photoDataUrls,
+          existingSpot,
+          (progress) => {
+            const total = Number(progress && progress.total ? progress.total : 0);
+            const currentIndex = Number(progress && progress.currentIndex ? progress.currentIndex : 0);
+            if (total > 0 && currentIndex > 0) {
+              setSpotSaveStatus(
+                "사진 " + String(currentIndex) + " / " + String(total) + " 업로드 중입니다. 완료될 때까지 잠시만 기다려 주세요.",
+                false
+              );
+            }
+          }
+        );
+        uploadedStoragePaths = persistedPhotos.uploadedStoragePaths;
+        setSpotSaveStatus("현안 내용을 저장하는 중입니다.", false);
+        const payload = {
+          title: resolvedTitle,
+          memo: resolvedMemo,
+          level: level >= 1 && level <= 5 ? level : 3,
+          categoryId: issueCategories[resolvedCategoryId] ? resolvedCategoryId : "",
+          categoryLabel,
+          issueRefId: catalogIssue ? catalogIssue.id : issueRefId,
+          lat,
+          lng,
+          dongName: finalDongName,
+          emdCode: finalEmdCode || "",
+          dongSelectionMode: isCommonSelection ? "common" : usingManualDong ? "manual" : "auto",
+          dongKey: finalDongKey,
+          photoUrls: persistedPhotos.photoUrls,
+          photoUrl: persistedPhotos.photoUrls[0] || "",
+          photoStoragePaths: persistedPhotos.photoStoragePaths,
+          photoProcessingVersion: hotspotPhotoConfig.processingVersion,
+          updatedBy: normalizeEmail(state.currentUser.email),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        if (editingSpotId) {
+          payload.photoDataUrls = firebase.firestore.FieldValue.delete();
+          payload.photoDataUrl = firebase.firestore.FieldValue.delete();
+          payload.photo_data_urls = firebase.firestore.FieldValue.delete();
+          payload.photo_data_url = firebase.firestore.FieldValue.delete();
+          await targetDocRef.update(payload);
+        } else {
+          await targetDocRef.set(payload);
+        }
+
+        const removedStoragePaths = collectRemovedSpotPhotoStoragePaths(
+          existingSpot,
+          persistedPhotos.photoStoragePaths
+        );
+        if (removedStoragePaths.length > 0) {
+          void deleteSpotPhotoStoragePaths(removedStoragePaths);
+        }
+        setSpotSaveStatus("저장 완료. 목록을 갱신하는 중입니다.", false);
+        exitHotspotEditMode(true);
+      } catch (error) {
+        if (uploadedStoragePaths.length > 0) {
+          await deleteSpotPhotoStoragePaths(uploadedStoragePaths);
+        }
+        unlockStatusMessage = "저장에 실패했습니다. 내용을 확인한 뒤 다시 시도하세요.";
+        unlockStatusIsError = true;
+        window.alert("현안 저장 실패: " + toMessage(error));
+      }
+    } finally {
+      state.hotspotSubmitInProgress = false;
+      if (submitUiLocked) {
+        setHotspotSubmitUi(false, unlockStatusMessage, unlockStatusIsError);
+      }
     }
   }
 
@@ -6892,6 +7025,7 @@ import APP_CONFIG from './config.js';
     }
     setSpotPhotoDataUrls(getSpotPhotoDataUrls(spot));
     setSpotPhotoReprocessStatus("", false);
+    setSpotSaveStatus("", false);
     clearSpotPhotoFileInput();
     if (issueRefSelect) {
       syncIssueCatalogSelectOptions(spot.issueRefId || "");
@@ -6942,6 +7076,7 @@ import APP_CONFIG from './config.js';
       }
       setSpotPhotoDataUrls([]);
       setSpotPhotoReprocessStatus("", false);
+      setSpotSaveStatus("", false);
       clearSpotPhotoFileInput();
       if (elements.spotIssueRefSelect) {
         syncIssueCatalogSelectOptions("");
