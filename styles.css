@@ -448,6 +448,18 @@ p {
   margin-top: 14px;
 }
 
+#spot-form.is-saving input:not([type="hidden"]),
+#spot-form.is-processing input:not([type="hidden"]),
+#spot-form.is-saving select,
+#spot-form.is-processing select,
+#spot-form.is-saving textarea,
+#spot-form.is-processing textarea,
+#spot-form.is-saving .btn-secondary,
+#spot-form.is-processing .btn-secondary {
+  opacity: 0.68;
+  pointer-events: none;
+}
+
 label {
   font-size: 13px;
   color: var(--muted);
@@ -520,6 +532,21 @@ textarea {
 }
 
 .spot-photo-reprocess-status.error {
+  color: #b44730;
+}
+
+.spot-save-status {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #eef6ff;
+  color: #24527c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.spot-save-status.error {
+  background: #fff1ed;
   color: #b44730;
 }
 
@@ -724,6 +751,33 @@ textarea {
   background: var(--primary-hover);
 }
 
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn-primary:disabled:hover {
+  background: var(--primary);
+}
+
+.btn-primary.is-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-primary.is-loading::after {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #ffffff;
+  border-radius: 999px;
+  animation: button-spin 0.8s linear infinite;
+}
+
 .btn-secondary {
   background: #eff3f8;
   color: #223450;
@@ -742,6 +796,12 @@ textarea {
 
 .form-actions .btn-primary {
   flex: 1;
+}
+
+@keyframes button-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .list-title {
