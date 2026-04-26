@@ -44,7 +44,7 @@ function parseArgs(argv) {
 
 function printUsageAndExit() {
   console.error(
-    "Usage: node scripts/set-staff-claim.js " +
+    "Usage: node scripts/set-staff-claim.cjs " +
     "--service-account /abs/path/service-account.json " +
     "--email staff@example.com " +
     "[--staff true|false]"

@@ -146,7 +146,7 @@ p {
 
 .issue-helper {
   --issue-helper-offset: calc(max(16px, env(safe-area-inset-bottom)) + 32px);
-  --issue-helper-panel-width: min(292px, calc(100vw - 140px));
+  --issue-helper-panel-width: min(268px, calc(100vw - 140px));
   position: fixed;
   right: var(--issue-helper-offset);
   bottom: var(--issue-helper-offset);
@@ -166,8 +166,8 @@ p {
   box-shadow:
     0 10px 22px rgba(10, 31, 58, 0.14),
     0 3px 8px rgba(10, 31, 58, 0.08);
-  padding: 10px 34px 8px 10px;
-  line-height: 1.36;
+  padding: 8px 34px 6px 10px;
+  line-height: 1.3;
   max-height: 220px;
   overflow: hidden;
   transform-origin: right bottom;
@@ -224,16 +224,17 @@ p {
 .issue-helper-quote {
   margin: 0;
   font-size: 13px;
+  font-weight: 700;
   color: #2f496b;
 }
 
 .issue-helper-contact-dock {
-  margin: 7px 0 0;
+  margin: 5px 0 0;
   font-size: 12px;
   display: grid;
   width: 100%;
-  gap: 4px;
-  padding-top: 6px;
+  gap: 3px;
+  padding-top: 5px;
   border-top: 1px solid #d5e2f2;
 }
 
@@ -1703,7 +1704,7 @@ body.photo-lightbox-open {
 
   .issue-helper {
     --issue-helper-offset: calc(10px + env(safe-area-inset-bottom) + 22px);
-    --issue-helper-panel-width: min(220px, calc(100vw - 112px));
+    --issue-helper-panel-width: min(204px, calc(100vw - 112px));
     right: var(--issue-helper-offset);
     bottom: var(--issue-helper-offset);
     gap: 8px;
@@ -1711,18 +1712,18 @@ body.photo-lightbox-open {
 
   .issue-helper-bubble {
     border-radius: 14px;
-    padding: 9px 30px 7px 9px;
+    padding: 8px 30px 6px 8px;
   }
 
   .issue-helper-quote,
   .issue-helper-contact-dock {
-    font-size: 12px;
+    font-size: 11.5px;
   }
 
   .issue-helper-contact-dock {
-    margin-top: 6px;
-    padding-top: 5px;
-    gap: 4px;
+    margin-top: 4px;
+    padding-top: 4px;
+    gap: 3px;
   }
 
   .issue-helper-close-btn {
@@ -1741,19 +1742,19 @@ body.photo-lightbox-open {
 @media (max-width: 540px) {
   .issue-helper {
     --issue-helper-offset: calc(8px + env(safe-area-inset-bottom) + 20px);
-    --issue-helper-panel-width: min(196px, calc(100vw - 96px));
+    --issue-helper-panel-width: min(184px, calc(100vw - 96px));
     right: var(--issue-helper-offset);
     bottom: var(--issue-helper-offset);
   }
 
   .issue-helper-bubble {
-    padding: 8px 28px 6px 7px;
+    padding: 7px 28px 5px 7px;
   }
 
   .issue-helper-contact-dock {
-    margin-top: 5px;
-    gap: 4px;
-    padding-top: 4px;
+    margin-top: 4px;
+    gap: 3px;
+    padding-top: 3px;
   }
 
   .issue-helper-contact-link-row {

@@ -8,15 +8,24 @@ on:
       - "docs/**"
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: 'npm'
+      - name: "Install lcov"
+        run: |
+          sudo apt-get install -y -q lcov
+          lcov --version
 
       - name: "Install Dependencies, Playwright Browsers"
         run: |
@@ -24,4 +33,21 @@ jobs:
           npx playwright install --with-deps
 
       - name: "Run Playwright Tests"
-        run: npm test
+        run: |
+          # runs coverage collecting project "Chromium-Coverage" together
+          npm run test
+          # fixup: coverage/lcov.info contains "localhost-5173\". Remove this part for correct file mapping.
+          sed -i 's/localhost-5173//g' coverage/lcov.info
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request'
+        with:
+          name: "coverage-pr-${{ github.event.number }}"
+          path: coverage
+          retention-days: 3
+
+      - uses: kefasjw/lcov-pull-request-report@v1
+        continue-on-error: true # todo: check GitHub token permissions
+        with:
+          lcov-file: coverage/lcov.info
+          github-token: ${{ github.token }}

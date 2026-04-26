@@ -17,7 +17,7 @@ function formatRequestForLog(request) {
   return method + " " + maskedUrl;
 }
 
-module.exports = {
+export {
   maskTokens,
   formatRequestForLog
 };
