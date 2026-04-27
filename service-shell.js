@@ -97,6 +97,22 @@ import APP_CONFIG from './config.js';
   }
 
   function redirectToLauncher() {
+    if (typeof window !== "undefined" && navigator.webdriver && window.__disableServiceShellRedirect === true) {
+      window.__serviceShellRedirectUrl = "/system/";
+      return;
+    }
     window.location.replace("/system/");
   }
+
+  function exposeServiceShellTestHooks() {
+    if (typeof window === "undefined" || !navigator.webdriver) {
+      return;
+    }
+    window.__serviceShellTestHooks = {
+      hasStaffClaim,
+      initOptionalAppCheck
+    };
+  }
+
+  exposeServiceShellTestHooks();
 })();
