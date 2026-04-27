@@ -377,4 +377,22 @@ import APP_CONFIG from './config.js';
       // no-op
     }
   }
+
+  function exposeLauncherTestHooks() {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.__launcherTestHooks = {
+      escapeHtml,
+      resolveToneClass,
+      toAuthErrorMessage,
+      normalizeEmail,
+      hasStaffClaim,
+      buildMissingSessionMessage,
+      readAutoLoginAttemptFlag,
+      writeAutoLoginAttemptFlag
+    };
+  }
+
+  exposeLauncherTestHooks();
 })();

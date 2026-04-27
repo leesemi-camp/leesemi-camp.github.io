@@ -32,6 +32,11 @@ async function disableAutoLogin(page) {
   });
 }
 
+// Firebase SDK 요청을 차단한다.
+async function blockFirebaseSdk(page) {
+  await page.route("**/firebase-*-compat.js", (route) => route.abort());
+}
+
 test("Launcher error section is visible on missing session", async ({ page }) => {
   // 세션 없을 때 에러 섹션이 표시됨
   await disableAutoLogin(page);
@@ -90,4 +95,68 @@ test("Launcher error message mentions Authorized domains check", async ({ page }
   await expect(page.locator("#launcher-error")).toBeVisible();
   const messageText = await page.locator("#launcher-error-message").textContent();
   expect(messageText).toContain("Firebase Authentication Authorized domains");
+});
+
+test("Launcher service buttons include tone classes and new tab link", async ({ page }) => {
+  // 서비스 버튼에 톤 클래스와 새 탭 링크 속성이 반영됨
+  await disableAutoLogin(page);
+  await page.goto("/system/");
+  await expect(page.locator("#launcher-error")).toBeVisible();
+
+  await expect(page.locator("#service-buttons .tone-sage")).toHaveCount(1);
+  await expect(page.locator("#service-buttons .tone-sand")).toHaveCount(1);
+
+  const blogLink = page.locator("#service-buttons .service-link", { hasText: "블로그 글 작성 도우미" });
+  await expect(blogLink).toHaveAttribute("target", "_blank");
+  await expect(blogLink).toHaveAttribute("rel", /noopener/);
+});
+
+test("Launcher test hooks expose auth error messages", async ({ page }) => {
+  // 로그인 에러 메시지 매핑 함수가 정상 동작함
+  await disableAutoLogin(page);
+  await page.goto("/system/");
+  await page.waitForFunction(() => window.__launcherTestHooks);
+
+  const messages = await page.evaluate(() => {
+    const hooks = window.__launcherTestHooks;
+    return {
+      closed: hooks.toAuthErrorMessage({ code: "auth/popup-closed-by-user" }),
+      blocked: hooks.toAuthErrorMessage({ code: "auth/popup-blocked" }),
+      domain: hooks.toAuthErrorMessage({ code: "auth/unauthorized-domain" })
+    };
+  });
+
+  expect(messages.closed).toContain("로그인 창이 닫혀");
+  expect(messages.blocked).toContain("팝업");
+  expect(messages.domain).toContain("Authorized domains");
+});
+
+test("Launcher test hooks read/write auto login flag", async ({ page }) => {
+  // 자동 로그인 플래그 읽기/쓰기 동작 확인
+  await disableAutoLogin(page);
+  await page.goto("/system/");
+  await page.waitForFunction(() => window.__launcherTestHooks);
+
+  const result = await page.evaluate(() => {
+    const hooks = window.__launcherTestHooks;
+    hooks.writeAutoLoginAttemptFlag(true);
+    const first = hooks.readAutoLoginAttemptFlag();
+    hooks.writeAutoLoginAttemptFlag(false);
+    const second = hooks.readAutoLoginAttemptFlag();
+    return { first, second };
+  });
+
+  expect(result.first).toBe(true);
+  expect(result.second).toBe(false);
+});
+
+test("Launcher shows init failure when Firebase SDK is blocked", async ({ page }) => {
+  // Firebase SDK 로드 실패 시 초기화 실패 메시지가 표시됨
+  await disableAutoLogin(page);
+  await blockFirebaseSdk(page);
+  await page.goto("/system/");
+
+  await expect(page.locator("#launcher-error")).toBeVisible();
+  const messageText = await page.locator("#launcher-error-message").textContent();
+  expect(messageText).toContain("Firebase SDK 로드에 실패했습니다");
 });

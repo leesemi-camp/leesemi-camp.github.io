@@ -32,6 +32,18 @@ async function disableAutoLogin(page) {
   });
 }
 
+async function disableServiceShellRedirect(page) {
+  // 서비스 셸 리다이렉트를 막아 테스트 훅 접근을 보장한다.
+  await page.addInitScript(() => {
+    window.__disableServiceShellRedirect = true;
+  });
+}
+
+async function blockFirebaseSdk(page) {
+  // Firebase SDK 요청을 차단한다.
+  await page.route("**/firebase-*-compat.js", (route) => route.abort());
+}
+
 test("Party dialer redirects to login", async ({ page }) => {
   // 인증되지 않은 상태에서 시스템 로그인 화면으로 이동하는지 확인
   await disableAutoLogin(page);
@@ -46,4 +58,30 @@ test("Sponsor dialer redirects to login", async ({ page }) => {
   await page.goto("/sponsor-dialer/");
   await expect(page).toHaveURL(/\/system\/$/);
   await expect(page.locator("#launcher-error")).toBeVisible();
+});
+
+test("Service shell exposes staff claim helper", async ({ page }) => {
+  // 서비스 셸 유틸 함수가 노출되고 리다이렉트 호출이 기록됨
+  await disableServiceShellRedirect(page);
+  await blockFirebaseSdk(page);
+  await page.goto("/party-dialer/");
+
+  await page.waitForFunction(() => window.__serviceShellTestHooks);
+  const result = await page.evaluate(() => {
+    const hooks = window.__serviceShellTestHooks;
+    hooks.initOptionalAppCheck();
+    return {
+      claimTrue: hooks.hasStaffClaim({ staff: true }),
+      claimString: hooks.hasStaffClaim({ staff: "true" }),
+      claimNumber: hooks.hasStaffClaim({ staff: 1 }),
+      claimFalse: hooks.hasStaffClaim({ staff: false }),
+      redirectUrl: window.__serviceShellRedirectUrl || ""
+    };
+  });
+
+  expect(result.claimTrue).toBe(true);
+  expect(result.claimString).toBe(true);
+  expect(result.claimNumber).toBe(true);
+  expect(result.claimFalse).toBe(false);
+  expect(result.redirectUrl).toBe("/system/");
 });

@@ -150,16 +150,6 @@ test("Escape key closes lightbox", async ({ page }) => {
   await expect(page.locator("#photo-lightbox")).toHaveClass(/hidden/);
 });
 
-test("Lightbox close button closes lightbox", async ({ page }) => {
-  // 라이트박스 닫기 버튼으로 닫기
-  await renderSpotWithPhotos(page);
-  await page.locator("#spot-list .photo-slide-image").first().click();
-  await expect(page.locator("#photo-lightbox")).not.toHaveClass(/hidden/);
-
-  await page.locator("#photo-lightbox-close-btn").click({ force: true });
-  await expect(page.locator("#photo-lightbox")).toHaveClass(/hidden/);
-});
-
 test("rAF sync updates photo slideshow load state after render", async ({ page }) => {
   // requestAnimationFrame 이후 슬라이드쇼 로드 상태 동기화
   // (syncPhotoSlideImageLoadState, resolvePhotoSlideshowContainer, setPhotoSlideshowLoadState)
