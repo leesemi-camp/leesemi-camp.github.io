@@ -97,7 +97,7 @@ import APP_CONFIG from './config.js';
   }
 
   function redirectToLauncher() {
-    if (typeof window !== "undefined" && window.__disableServiceShellRedirect === true) {
+    if (typeof window !== "undefined" && navigator.webdriver && window.__disableServiceShellRedirect === true) {
       window.__serviceShellRedirectUrl = "/system/";
       return;
     }
@@ -105,7 +105,7 @@ import APP_CONFIG from './config.js';
   }
 
   function exposeServiceShellTestHooks() {
-    if (typeof window === "undefined") {
+    if (typeof window === "undefined" || !navigator.webdriver) {
       return;
     }
     window.__serviceShellTestHooks = {

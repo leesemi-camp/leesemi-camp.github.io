@@ -5327,7 +5327,7 @@ import APP_CONFIG from './config.js';
   }
 
   function exposeSpotListTestHooks() {
-    if (typeof window === "undefined") {
+    if (typeof window === "undefined" || !navigator.webdriver) {
       return;
     }
     window.__spotListTestHooks = {

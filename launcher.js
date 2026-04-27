@@ -379,7 +379,7 @@ import APP_CONFIG from './config.js';
   }
 
   function exposeLauncherTestHooks() {
-    if (typeof window === "undefined") {
+    if (typeof window === "undefined" || !navigator.webdriver) {
       return;
     }
     window.__launcherTestHooks = {
