@@ -5319,7 +5319,13 @@ import APP_CONFIG from './config.js';
       return;
     }
     window.__spotListTestHooks = {
-      renderHotspotList
+      renderHotspotList,
+      renderIssueStatsSummary,
+      renderIssueDongList,
+      renderVisibleIssueListWithData(issues) {
+        state.issues = Array.isArray(issues) ? issues : [];
+        renderVisibleIssueList();
+      }
     };
   }
 
