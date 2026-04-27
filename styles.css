@@ -287,7 +287,7 @@ p {
 }
 
 .issue-helper-character {
-  width: 116px;
+  width: 140px;
   height: auto;
   display: block;
   filter: drop-shadow(0 8px 10px rgba(8, 25, 47, 0.16));
@@ -1735,7 +1735,7 @@ body.photo-lightbox-open {
   }
 
   .issue-helper-character {
-    width: 90px;
+    width: 108px;
   }
 }
 
@@ -1766,7 +1766,7 @@ body.photo-lightbox-open {
   }
 
   .issue-helper-character {
-    width: 80px;
+    width: 96px;
   }
 }
 
