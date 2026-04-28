@@ -1,4 +1,4 @@
-# 선거사무원 지도 대시보드 (GitHub Pages + OSM/OpenLayers)
+# 선거사무원 지도 대시보드 (GitHub Pages + OSM Korea/OpenLayers)
 
 선거구 동 경계와 현장 혼잡 지점을 공유하기 위한 기본 골격입니다.
 
@@ -27,16 +27,17 @@
 ## 현재 포함된 기능
 
 1. 선거사무원만 로그인 허용 (Firebase Auth + custom claim `staff`)
-2. OSM 타일 + OpenLayers 지도 연동
+2. OSM Korea 군사시설 제외 타일 + OpenLayers 지도 연동
 3. 동 경계(GeoJSON/WFS XML) 표시
 4. 혼잡 지점 마커 등록/공유(Firestore, 열람 화면은 1회 조회 / 수정 화면은 실시간 동기화)
 5. 교통 오버레이(차량 통행/보행 유동, 원격 JSON/GeoJSON) (코드상 구현 / UI는 정리 필요)
 6. 수도권 생활이동 시간대 인구 오버레이(행정동 기준) (코드상 구현 / UI는 정리 필요)
 
-## 1) OSM/OpenLayers 준비
+## 1) OSM Korea/OpenLayers 준비
 
-1. 별도 API 키 없이 기본 OSM 타일을 사용합니다.
-2. 대규모 트래픽이 예상되면 자체 타일 서버 또는 상용 타일 제공자 사용을 검토하세요.
+1. 기본 지도는 `https://tiles.osm.kr/hot/{z}/{x}/{y}.png` 타일을 사용합니다.
+2. 이 타일은 OSM Korea의 군사시설 제외 한반도 지도 타일입니다.
+3. 타일 서버 부하가 우려되거나 대규모 트래픽이 예상되면 자체 타일 서버 또는 상용 타일 제공자 사용을 검토하세요.
 
 ## 2) Firebase 준비
 
