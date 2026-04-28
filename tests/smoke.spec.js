@@ -36,6 +36,32 @@ test("Map view renders", async ({ page }) => {
   await expect(page.locator("#spot-list")).toBeAttached();
 });
 
+test("Helper shadow is layered", async ({ page }) => {
+  // 캐릭터 PNG의 알파 채널이 사각 그림자를 만들지 않도록 이미지 필터를 쓰지 않는다.
+  await page.goto("/map/");
+
+  const shadowStyles = await page.locator(".issue-helper-toggle").evaluate((toggle) => {
+    const image = toggle.querySelector(".issue-helper-character");
+    const imageStyle = image ? window.getComputedStyle(image) : null;
+    const bodyShadowStyle = window.getComputedStyle(toggle, "::before");
+    const baseShadowStyle = window.getComputedStyle(toggle, "::after");
+
+    return {
+      imageFilter: imageStyle ? imageStyle.filter : "",
+      bodyShadowContent: bodyShadowStyle.content,
+      bodyShadowPosition: bodyShadowStyle.position,
+      bodyShadowMask: bodyShadowStyle.webkitMaskImage || bodyShadowStyle.maskImage,
+      baseShadowBackground: baseShadowStyle.backgroundImage
+    };
+  });
+
+  expect(shadowStyles.imageFilter).toBe("none");
+  expect(shadowStyles.bodyShadowContent).not.toBe("none");
+  expect(shadowStyles.bodyShadowPosition).toBe("absolute");
+  expect(shadowStyles.bodyShadowMask).toContain("03_thumbs_up.png");
+  expect(shadowStyles.baseShadowBackground).toContain("radial-gradient");
+});
+
 test("Map spot memo state", async ({ page }) => {
   // 메모 유무에 따른 카드 렌더링과 패딩 확인
   await page.goto("/map/");

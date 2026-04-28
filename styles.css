@@ -269,6 +269,8 @@ p {
 
 .issue-helper-toggle {
   appearance: none;
+  position: relative;
+  isolation: isolate;
   border: 0;
   background: transparent;
   padding: 0;
@@ -281,6 +283,66 @@ p {
   transition: transform 0.18s ease;
 }
 
+.issue-helper-toggle::before {
+  /* Draw shadow from a separate alpha mask to avoid browser-specific img filter artifacts. */
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 8% 3% 3% 8%;
+  border-radius: 48% 45% 43% 50% / 47% 51% 45% 52%;
+  background: radial-gradient(
+    ellipse at 58% 58%,
+    rgba(8, 25, 47, 0.2) 0%,
+    rgba(8, 25, 47, 0.12) 48%,
+    rgba(8, 25, 47, 0) 76%
+  );
+  filter: blur(8px);
+  opacity: 0.78;
+  pointer-events: none;
+  transform: translate(5px, 8px) scale(0.98);
+  transform-origin: center bottom;
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+@supports ((-webkit-mask-image: linear-gradient(#000, #000)) or (mask-image: linear-gradient(#000, #000))) {
+  .issue-helper-toggle::before {
+    inset: 0;
+    border-radius: 0;
+    background: rgba(8, 25, 47, 0.24);
+    mask-image: url("/assets/character/03_thumbs_up.png");
+    mask-position: center;
+    mask-repeat: no-repeat;
+    mask-size: contain;
+    -webkit-mask-image: url("/assets/character/03_thumbs_up.png");
+    -webkit-mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    opacity: 0.72;
+  }
+}
+
+.issue-helper-toggle::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 20%;
+  right: 14%;
+  bottom: 2%;
+  height: 16%;
+  border-radius: 999px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(8, 25, 47, 0.28) 0%,
+    rgba(8, 25, 47, 0.14) 44%,
+    rgba(8, 25, 47, 0) 75%
+  );
+  filter: blur(6px);
+  pointer-events: none;
+  transform: translateY(14%) scaleX(0.98);
+  transform-origin: center;
+  transition: transform 0.24s ease;
+}
+
 .issue-helper-toggle:focus-visible {
   outline: 3px solid rgba(25, 69, 127, 0.35);
   outline-offset: 3px;
@@ -290,9 +352,10 @@ p {
   width: 140px;
   height: auto;
   display: block;
-  filter: drop-shadow(0 8px 10px rgba(8, 25, 47, 0.16));
+  position: relative;
+  z-index: 1;
   transform-origin: center bottom;
-  transition: transform 0.24s ease, filter 0.24s ease, opacity 0.2s ease;
+  transition: transform 0.24s ease, opacity 0.2s ease;
 }
 
 .issue-helper:not(.issue-helper-collapsed):hover .issue-helper-bubble,
@@ -307,7 +370,17 @@ p {
 .issue-helper:hover .issue-helper-character,
 .issue-helper:focus-within .issue-helper-character {
   transform: rotate(-5deg) scale(1.04);
-  filter: drop-shadow(0 10px 14px rgba(8, 25, 47, 0.2));
+}
+
+.issue-helper:hover .issue-helper-toggle::before,
+.issue-helper:focus-within .issue-helper-toggle::before {
+  opacity: 0.82;
+  transform: translate(7px, 10px) scale(1);
+}
+
+.issue-helper:hover .issue-helper-toggle::after,
+.issue-helper:focus-within .issue-helper-toggle::after {
+  transform: translateY(20%) scaleX(1.06);
 }
 
 .issue-helper:hover .issue-helper-toggle,
