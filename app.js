@@ -301,7 +301,7 @@ import APP_CONFIG from './config.js';
       renderCommonPledges();
       initPopulationMonthOptions();
       initPopulationHourOptions();
-      setStatus("인증 초기화 중...");
+      setStatus("초기화 중...");
       initFirebase(config.firebase.config);
       if (isEditMode()) {
         state.auth.onAuthStateChanged((user) => {
@@ -710,7 +710,9 @@ import APP_CONFIG from './config.js';
     }
 
     if (elements.photoLightboxCloseButton) {
-      elements.photoLightboxCloseButton.addEventListener("click", () => {
+      elements.photoLightboxCloseButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
         closePhotoLightbox();
       });
     }
@@ -737,6 +739,16 @@ import APP_CONFIG from './config.js';
 
     if (elements.photoLightbox) {
       elements.photoLightbox.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) {
+          return;
+        }
+        if (target.closest("#photo-lightbox-close-btn")) {
+          event.preventDefault();
+          event.stopPropagation();
+          closePhotoLightbox();
+          return;
+        }
         if (event.target === elements.photoLightbox) {
           closePhotoLightbox();
         }
@@ -5356,11 +5368,17 @@ import APP_CONFIG from './config.js';
   }
 
   function exposeSpotListTestHooks() {
-    if (typeof window === "undefined") {
+    if (typeof window === "undefined" || !navigator.webdriver) {
       return;
     }
     window.__spotListTestHooks = {
-      renderHotspotList
+      renderHotspotList,
+      renderIssueStatsSummary,
+      renderIssueDongList,
+      renderVisibleIssueListWithData(issues) {
+        state.issues = Array.isArray(issues) ? issues : [];
+        renderVisibleIssueList();
+      }
     };
   }
 
