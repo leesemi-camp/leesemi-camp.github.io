@@ -20,7 +20,14 @@ const APP_CONFIG = {
     }
   },
   map: {
-    provider: "osm",
+    provider: "osm-kr",
+    // OSM Korea의 군사시설 제외 타일 서버를 사용합니다.
+    tileUrl: "https://tiles.osm.kr/hot/{z}/{x}/{y}.png",
+    tileMaxZoom: 19,
+    tileAttributions: [
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+      'Tiles: <a href="https://osm.kr/">OpenStreetMap Korea</a>'
+    ],
     defaultCenter: { lat: 37.5665, lng: 126.9780 },
     defaultZoom: 13
   },

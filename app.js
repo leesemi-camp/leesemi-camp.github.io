@@ -190,6 +190,9 @@ import APP_CONFIG from './config.js';
       })
     })
   ];
+  const defaultTileAttributions = [
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+  ];
 
   const boundaryStrokeColor = (config.data && config.data.boundaryStrokeColor)
     ? String(config.data.boundaryStrokeColor)
@@ -2017,7 +2020,7 @@ import APP_CONFIG from './config.js';
       target: elements.map,
       layers: [
         new ol.layer.Tile({
-          source: new ol.source.OSM()
+          source: createBaseTileSource()
         }),
         state.populationLayer,
         state.overlayLayers.vehicle,
@@ -2134,6 +2137,44 @@ import APP_CONFIG from './config.js';
     });
 
     void refreshCurrentLocationIndicator();
+  }
+
+  function createBaseTileSource() {
+    const mapConfig = config.map && typeof config.map === "object"
+      ? config.map
+      : {};
+    const tileUrl = String(mapConfig.tileUrl || "").trim();
+    if (!tileUrl) {
+      return new ol.source.OSM();
+    }
+
+    const sourceOptions = {
+      url: tileUrl,
+      attributions: resolveTileAttributions(mapConfig.tileAttributions)
+    };
+    const tileMaxZoom = readPositiveNumber(mapConfig.tileMaxZoom, null);
+    if (tileMaxZoom !== null) {
+      sourceOptions.maxZoom = tileMaxZoom;
+    }
+    return new ol.source.XYZ(sourceOptions);
+  }
+
+  function resolveTileAttributions(rawAttributions) {
+    if (Array.isArray(rawAttributions)) {
+      const attributions = rawAttributions
+        .map((attribution) => String(attribution || "").trim())
+        .filter(Boolean);
+      if (attributions.length > 0) {
+        return attributions;
+      }
+    }
+    if (typeof rawAttributions === "string") {
+      const attribution = rawAttributions.trim();
+      if (attribution) {
+        return attribution;
+      }
+    }
+    return defaultTileAttributions;
   }
 
   function revealMapViewport() {

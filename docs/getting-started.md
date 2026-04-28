@@ -2,13 +2,13 @@
 
 ## 프로젝트 요약 (Project Overview)
 
-이 저장소는 GitHub Pages 기반 정적 웹 앱(Static Web App)이며, 지도 화면은 OpenLayers + OSM(OpenStreetMap) 타일을 사용하고, 인증/데이터는 Firebase Auth/Firestore로 처리합니다. 주요 설정은 `config.js`에 모여 있습니다.
+이 저장소는 GitHub Pages 기반 정적 웹 앱(Static Web App)이며, 지도 화면은 OpenLayers + OSM Korea의 군사시설 제외 OpenStreetMap 타일을 사용하고, 인증/데이터는 Firebase Auth/Firestore로 처리합니다. 주요 설정은 `config.js`에 모여 있습니다.
 
 ## 기술 스택 (Tech Stack)
 
 - 정적 웹 프론트엔드: HTML/CSS/JavaScript
 - 지도 엔진: OpenLayers (OL)
-- 지도 타일: OSM(OpenStreetMap) Tiles
+- 지도 타일: OSM Korea 군사시설 제외 타일 (`tiles.osm.kr`)
 - 인증: Firebase Auth (Google Sign-In, Custom Claim `staff`)
 - 데이터 저장: Firebase Firestore
 - 보안 옵션: Firebase App Check (reCAPTCHA v3)

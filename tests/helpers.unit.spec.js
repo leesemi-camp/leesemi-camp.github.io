@@ -12,6 +12,8 @@ test("Config loads", () => {
   const config = loadAppConfig();
   expect(config).toBeTruthy();
   expect(config.map).toBeTruthy();
+  expect(config.map.provider).toBe("osm-kr");
+  expect(config.map.tileUrl).toBe("https://tiles.osm.kr/hot/{z}/{x}/{y}.png");
   expect(config.data).toBeTruthy();
   expect(Array.isArray(config.data.boundarySources)).toBeTruthy();
 });
