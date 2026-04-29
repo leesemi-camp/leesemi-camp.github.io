@@ -6,6 +6,8 @@ on:
     branches-ignore:
       - "gh-pages"
       - "docs/**"
+    paths-ignore:
+      - "data/hotspots.public.json"
   pull_request:
 
 permissions:

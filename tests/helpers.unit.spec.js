@@ -66,6 +66,7 @@ test("API request wiring uses tokens and params", () => {
   const config = {
     data: {
       boundarySources: ["/a.geojson", "/b.geojson"],
+      hotspotSnapshotPath: "/hotspots.public.json",
       issueCatalog: {
         apiUrl: "/issues",
         token: "abc",
@@ -110,6 +111,9 @@ test("API request wiring uses tokens and params", () => {
   expect(byName["boundarySources[1]"].url).toBe(
     "https://example.com/b.geojson"
   );
+  expect(byName["data.hotspotSnapshotPath"].url).toBe(
+    "https://example.com/hotspots.public.json"
+  );
 
   const issueUrl = new URL(byName["data.issueCatalog"].url);
   expect(issueUrl.pathname).toBe("/issues");
@@ -150,6 +154,7 @@ test("API request wiring reports missing keys", () => {
   const { missing } = buildApiRequests(config, "https://example.com/");
   expect(missing).toEqual([
     "data.issueCatalog.apiUrl",
+    "data.hotspotSnapshotPath",
     "trafficOverlays.vehicle.url",
     "trafficOverlays.pedestrian.url",
     "mobilityPopulation.dataPath"

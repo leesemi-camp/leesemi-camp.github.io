@@ -56,6 +56,20 @@ function buildIssueCatalogRequest(config, baseURL) {
   };
 }
 
+function buildHotspotSnapshotRequest(config, baseURL) {
+  const dataConfig = config && config.data ? config.data : {};
+  const snapshotPath = String(dataConfig.hotspotSnapshotPath || "").trim();
+  if (!snapshotPath) {
+    return null;
+  }
+  return {
+    name: "data.hotspotSnapshotPath",
+    url: resolveUrl(baseURL, snapshotPath),
+    options: { method: "GET", headers: {} },
+    tokens: []
+  };
+}
+
 function buildOverlayRequest(config, baseURL, kind) {
   const traffic = config && config.trafficOverlays ? config.trafficOverlays : {};
   const entry = traffic && typeof traffic[kind] === "object" ? traffic[kind] : {};
@@ -143,6 +157,13 @@ export function buildApiRequests(config, baseURL) {
     requests.push(issueCatalogRequest);
   } else {
     missing.push("data.issueCatalog.apiUrl");
+  }
+
+  const hotspotSnapshotRequest = buildHotspotSnapshotRequest(config, baseURL);
+  if (hotspotSnapshotRequest) {
+    requests.push(hotspotSnapshotRequest);
+  } else {
+    missing.push("data.hotspotSnapshotPath");
   }
 
   const vehicleRequest = buildOverlayRequest(config, baseURL, "vehicle");

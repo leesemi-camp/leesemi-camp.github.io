@@ -26,10 +26,26 @@ async function blockFirestore(page) {
   await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
 }
 
+async function mockEmptyHotspotSnapshot(page) {
+  await page.route("**/data/hotspots.public.json", (route) => {
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        source: "test",
+        collection: "crowd_hotspots",
+        count: 0,
+        hotspots: []
+      })
+    });
+  });
+}
+
 test("Spot list shows empty message when Firestore is offline", async ({ page }) => {
   // Firestore 오프라인 시 현안 없음 메시지 확인
   // (renderVisibleIssueList, renderIssueDongList, applyIssueFilter 커버리지)
   await blockFirestore(page);
+  await mockEmptyHotspotSnapshot(page);
   await page.goto("/map/");
   await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
   const emptyMsg = await page.locator("#spot-list li.empty").first().textContent();
@@ -39,6 +55,7 @@ test("Spot list shows empty message when Firestore is offline", async ({ page })
 test("Total issue count shows 0 when Firestore is offline", async ({ page }) => {
   // Firestore 오프라인 시 총 현안 건수 0건 표시 (updateTotalIssueCountLabel 커버리지)
   await blockFirestore(page);
+  await mockEmptyHotspotSnapshot(page);
   await page.goto("/map/");
   await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
   const countEl = page.locator("#total-issue-count");
@@ -49,6 +66,7 @@ test("Total issue count shows 0 when Firestore is offline", async ({ page }) => 
 test("Issue stats shows empty state when Firestore is offline", async ({ page }) => {
   // Firestore 오프라인 시 현안 통계 빈 상태 (renderIssueStatsSummary([]) 커버리지)
   await blockFirestore(page);
+  await mockEmptyHotspotSnapshot(page);
   await page.goto("/map/");
   await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
   const statsEl = page.locator("#issue-stats-summary");
@@ -60,6 +78,7 @@ test("Issue stats shows empty state when Firestore is offline", async ({ page })
 test("App shell is still visible when Firestore is offline", async ({ page }) => {
   // Firestore 장애 시에도 앱 셸이 표시 유지 (view mode는 auth 없이 showAppShell 호출)
   await blockFirestore(page);
+  await mockEmptyHotspotSnapshot(page);
   await page.goto("/map/");
   await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
   await expect(page.locator("#app-shell")).toBeVisible();
@@ -68,10 +87,27 @@ test("App shell is still visible when Firestore is offline", async ({ page }) =>
 test("Common pledge list is rendered when Firestore is offline", async ({ page }) => {
   // Firestore 오프라인 시 공통 현안 목록 렌더링 확인
   await blockFirestore(page);
+  await mockEmptyHotspotSnapshot(page);
   await page.goto("/map/");
   await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
   // 공통 현안은 config.data.commonPledges 에서 렌더링됨
   const pledgeList = page.locator("#common-pledge-list");
   const itemCount = await pledgeList.locator("li").count();
   expect(itemCount).toBeGreaterThan(0);
+});
+
+test("View mode does not request Firestore", async ({ page }) => {
+  // 공개 열람 화면은 Firestore 대신 정적 JSON 스냅샷만 사용한다.
+  const firestoreRequests = [];
+  page.on("request", (request) => {
+    if (request.url().includes("firestore.googleapis.com")) {
+      firestoreRequests.push(request.url());
+    }
+  });
+  const snapshotResponse = page.waitForResponse((response) => {
+    return response.url().includes("/data/hotspots.public.json") && response.ok();
+  });
+  await page.goto("/map/");
+  await snapshotResponse;
+  expect(firestoreRequests).toHaveLength(0);
 });

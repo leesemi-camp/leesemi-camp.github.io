@@ -127,7 +127,9 @@ const APP_CONFIG = {
       // true면 좌표 저장 시 연동 현안 선택을 필수화
       requireSelection: false
     },
-    issueCollection: "crowd_hotspots"
+    // 공개 열람 화면(/map/)은 Firestore 대신 이 정적 JSON 스냅샷을 읽습니다.
+    issueCollection: "crowd_hotspots",
+    hotspotSnapshotPath: "/data/hotspots.public.json"
   },
   trafficOverlays: {
     // View-T Open API 토큰키(쿼리 파라미터) 사용 시 입력

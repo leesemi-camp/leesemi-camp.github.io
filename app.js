@@ -301,16 +301,14 @@ import APP_CONFIG from './config.js';
       renderCommonPledges();
       initPopulationMonthOptions();
       initPopulationHourOptions();
-      setStatus("초기화 중...");
-      initFirebase(config.firebase.config);
       if (isEditMode()) {
+        setStatus("인증 초기화 중...");
+        initFirebase(config.firebase.config);
         state.auth.onAuthStateChanged((user) => {
           void onAuthStateChanged(user);
         });
       } else {
-        state.auth.onAuthStateChanged((user) => {
-          state.currentUser = user || null;
-        });
+        setStatus("초기화 중...");
         showAppShell();
         await ensureMapReady();
         await loadBoundaries();
@@ -4576,17 +4574,18 @@ import APP_CONFIG from './config.js';
   }
 
   function subscribeHotspots() {
+    stopHotspotSubscription();
+    if (!isEditMode()) {
+      void loadHotspotsFromPublicSnapshot();
+      return;
+    }
+
     if (!state.db) {
       return;
     }
 
-    stopHotspotSubscription();
     const collectionName = getIssueCollectionName();
     const collectionRef = state.db.collection(collectionName);
-    if (!isEditMode()) {
-      void loadHotspotsOnce(collectionRef);
-      return;
-    }
 
     state.unsubscribeHotspots = collectionRef.onSnapshot(
       (snapshot) => {
@@ -4623,11 +4622,59 @@ import APP_CONFIG from './config.js';
     }
   }
 
+  async function loadHotspotsFromPublicSnapshot() {
+    try {
+      const snapshotPath = getHotspotSnapshotPath();
+      const response = await fetch(snapshotPath, { cache: "no-cache" });
+      if (!response.ok) {
+        throw new Error("현안 스냅샷 로드 실패 (" + String(response.status) + ")");
+      }
+      const payload = await response.json();
+      const records = normalizeHotspotSnapshotRecords(payload);
+      await processHotspotRecords(records);
+    } catch (error) {
+      clearHotspotFeatures();
+      state.issues = [];
+      renderCommonPledges();
+      renderVisibleIssueList();
+      console.warn("[hotspot-snapshot-load]", toMessage(error));
+    }
+  }
+
+  function normalizeHotspotSnapshotRecords(payload) {
+    const rawItems = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload && payload.hotspots)
+        ? payload.hotspots
+        : [];
+    return rawItems
+      .filter((item) => item && typeof item === "object")
+      .map((item) => {
+        const id = String(item.id || item.docId || item.documentId || "").trim();
+        return {
+          id,
+          data: item
+        };
+      });
+  }
+
   async function processHotspotSnapshot(snapshot) {
+    const records = [];
+    snapshot.forEach((doc) => {
+      records.push({
+        id: doc.id,
+        data: doc.data() || {}
+      });
+    });
+    await processHotspotRecords(records);
+  }
+
+  async function processHotspotRecords(records) {
     await ensureIssueCatalogLoaded();
     const hotspots = [];
-    snapshot.forEach((doc) => {
-      const value = doc.data() || {};
+    const list = Array.isArray(records) ? records : [];
+    list.forEach((record) => {
+      const value = record && typeof record.data === "object" ? record.data : {};
       const lat = Number(value.lat);
       const lng = Number(value.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -4704,7 +4751,7 @@ import APP_CONFIG from './config.js';
       );
 
       hotspots.push({
-        id: doc.id,
+        id: String(record && record.id ? record.id : value.id || "").trim(),
         issueRefId,
         title: String(
           (catalogIssue ? catalogIssue.title : "") ||
@@ -4778,6 +4825,13 @@ import APP_CONFIG from './config.js';
       return config.data.hotspotCollection.trim();
     }
     return "crowd_hotspots";
+  }
+
+  function getHotspotSnapshotPath() {
+    if (config.data && typeof config.data.hotspotSnapshotPath === "string" && config.data.hotspotSnapshotPath.trim()) {
+      return config.data.hotspotSnapshotPath.trim();
+    }
+    return "/data/hotspots.public.json";
   }
 
   function applyIssueFilter(hotspots) {
