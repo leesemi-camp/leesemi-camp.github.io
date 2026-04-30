@@ -23,6 +23,19 @@ test.afterEach(async ({ page }, testInfo) => {
 
 async function blockFirestore(page) {
   await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
+  await page.route("**/data/hotspots.public.json", (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        source: "firestore",
+        collection: "crowd_hotspots",
+        count: 0,
+        hotspots: []
+      })
+    });
+  });
 }
 
 // 현안 목록을 렌더링하고 테스트 훅이 준비될 때까지 대기한다.

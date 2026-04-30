@@ -24,13 +24,26 @@ test.afterEach(async ({ page }, testInfo) => {
 // Firestore 요청을 차단하여 슬라이드쇼가 재렌더링되지 않도록 한다.
 async function blockFirestore(page) {
   await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
+  await page.route("**/data/hotspots.public.json", (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        source: "firestore",
+        collection: "crowd_hotspots",
+        count: 0,
+        hotspots: []
+      })
+    });
+  });
 }
 
 // 두 장의 사진을 가진 현안으로 슬라이드쇼를 렌더링한다.
 async function renderSpotWithPhotos(page) {
   await blockFirestore(page);
   await page.goto("/map/");
-  // Firestore 에러 경로가 완료될 때까지 대기 (빈 목록이 렌더링된 이후에 덮어쓰기 방지)
+  // 빈 스냅샷 로딩이 완료될 때까지 대기한다.
   await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
   await page.evaluate(() => {
     window.__spotListTestHooks.renderHotspotList([
@@ -55,7 +68,7 @@ async function renderSpotWithPhotos(page) {
 async function renderSpotWithSinglePhoto(page) {
   await blockFirestore(page);
   await page.goto("/map/");
-  // Firestore 에러 경로가 완료될 때까지 대기
+  // 빈 스냅샷 로딩이 완료될 때까지 대기한다.
   await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
   await page.evaluate(() => {
     window.__spotListTestHooks.renderHotspotList([
