@@ -13,6 +13,7 @@
   "scripts": {
     "serve": "npx serve . -l 5173",
     "export:hotspots": "node scripts/export-hotspots-public-json.mjs",
+    "validate:hotspots": "node scripts/validate-hotspots-public-json.mjs",
     "test": "playwright test",
     "test:coverage": "playwright test --project=Chromium-Coverage"
   }

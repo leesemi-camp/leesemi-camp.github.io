@@ -1,20 +1,48 @@
 name: Export Public Hotspots
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/export-hotspots.yml"
+      - "scripts/export-hotspots-public-json.mjs"
+      - "data/hotspots.public.json"
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: export-public-hotspots
+  group: export-public-hotspots-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  export:
+  export-dry-run:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Export Firestore hotspots to temp file
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: node scripts/export-hotspots-public-json.mjs --out /tmp/hotspots.public.json
+
+      - name: Validate public snapshot
+        run: node scripts/validate-hotspots-public-json.mjs /tmp/hotspots.public.json
+
+  export:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,6 +58,9 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
         run: node scripts/export-hotspots-public-json.mjs
+
+      - name: Validate public snapshot
+        run: node scripts/validate-hotspots-public-json.mjs
 
       - name: Commit snapshot
         run: |
