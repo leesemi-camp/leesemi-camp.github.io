@@ -55,7 +55,7 @@ test("Edit page status text contains login prompt", async ({ page }) => {
   await expect(page.locator("#login-panel")).toBeVisible();
   await page.waitForFunction(() => {
     const el = document.getElementById("status-text");
-    return el && el.textContent.trim().length > 0 && el.textContent.trim() !== "초기화 중...";
+    return el && el.textContent.includes("로그인이 필요합니다");
   }, { timeout: 15000 });
   const statusText = await page.locator("#status-text").textContent();
   expect(statusText).toContain("로그인이 필요합니다");

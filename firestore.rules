@@ -7,12 +7,128 @@ service cloud.firestore {
     }
 
     match /crowd_hotspots/{docId} {
-      allow read: if true;
-      allow create, update, delete: if isStaff();
+      allow read: if isStaff();
+      allow create, update: if isStaff() && isValidHotspotWrite();
+      allow delete: if isStaff();
     }
 
     match /{document=**} {
       allow read, write: if false;
+    }
+
+    function hasNoLegacyPhotoData() {
+      return !request.resource.data.keys().hasAny([
+        "photoDataUrls",
+        "photoDataUrl",
+        "photo_data_urls",
+        "photo_data_url"
+      ]);
+    }
+
+    function hasOnlyAllowedHotspotFields() {
+      return request.resource.data.keys().hasOnly([
+        "title",
+        "memo",
+        "level",
+        "categoryId",
+        "categoryLabel",
+        "category_id",
+        "category_label",
+        "issueRefId",
+        "issue_id",
+        "lat",
+        "lng",
+        "dongName",
+        "dong_name",
+        "emdCode",
+        "emd_cd",
+        "dongSelectionMode",
+        "dongKey",
+        "groupLabel",
+        "group_label",
+        "issueGroupLabel",
+        "issue_group_label",
+        "photoUrls",
+        "photoUrl",
+        "photo_urls",
+        "photo_url",
+        "photoStoragePaths",
+        "photo_storage_paths",
+        "photoProcessingVersion",
+        "photo_processing_version",
+        "createdBy",
+        "createdAt",
+        "updatedBy",
+        "updatedAt"
+      ]);
+    }
+
+    function optionalString(field, maxLength) {
+      return !(field in request.resource.data)
+        || (request.resource.data[field] is string
+          && request.resource.data[field].size() <= maxLength);
+    }
+
+    function optionalList(field, maxLength) {
+      return !(field in request.resource.data)
+        || (request.resource.data[field] is list
+          && request.resource.data[field].size() <= maxLength);
+    }
+
+    function optionalTimestamp(field) {
+      return !(field in request.resource.data)
+        || request.resource.data[field] is timestamp;
+    }
+
+    function optionalNumberRange(field, minValue, maxValue) {
+      return !(field in request.resource.data)
+        || (request.resource.data[field] is number
+          && request.resource.data[field] >= minValue
+          && request.resource.data[field] <= maxValue);
+    }
+
+    function isValidHotspotWrite() {
+      return request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 80
+        && hasOnlyAllowedHotspotFields()
+        && optionalString("memo", 500)
+        && optionalNumberRange("level", 1, 5)
+        && request.resource.data.lat is number
+        && request.resource.data.lat >= -90
+        && request.resource.data.lat <= 90
+        && request.resource.data.lng is number
+        && request.resource.data.lng >= -180
+        && request.resource.data.lng <= 180
+        && optionalString("categoryId", 80)
+        && optionalString("categoryLabel", 80)
+        && optionalString("category_id", 80)
+        && optionalString("category_label", 80)
+        && optionalString("issueRefId", 120)
+        && optionalString("issue_id", 120)
+        && optionalString("dongName", 80)
+        && optionalString("dong_name", 80)
+        && optionalString("emdCode", 20)
+        && optionalString("emd_cd", 20)
+        && optionalString("dongSelectionMode", 20)
+        && optionalString("dongKey", 120)
+        && optionalString("groupLabel", 120)
+        && optionalString("group_label", 120)
+        && optionalString("issueGroupLabel", 120)
+        && optionalString("issue_group_label", 120)
+        && optionalString("photoUrl", 2048)
+        && optionalString("photo_url", 2048)
+        && optionalList("photoUrls", 8)
+        && optionalList("photo_urls", 8)
+        && optionalList("photoStoragePaths", 8)
+        && optionalList("photo_storage_paths", 8)
+        && optionalNumberRange("photoProcessingVersion", 0, 100)
+        && optionalNumberRange("photo_processing_version", 0, 100)
+        && optionalString("createdBy", 254)
+        && optionalTimestamp("createdAt")
+        && optionalString("updatedBy", 254)
+        && optionalTimestamp("updatedAt")
+        && hasNoLegacyPhotoData();
     }
   }
 }

@@ -29,7 +29,7 @@
 1. 선거사무원만 로그인 허용 (Firebase Auth + custom claim `staff`)
 2. OSM Korea 군사시설 제외 타일 + OpenLayers 지도 연동
 3. 동 경계(GeoJSON/WFS XML) 표시
-4. 혼잡 지점 마커 등록/공유(Firestore, 열람 화면은 1회 조회 / 수정 화면은 실시간 동기화)
+4. 혼잡 지점 마커 등록/공유(수정 화면은 Firestore 원본, 공개 열람 화면은 정적 JSON 스냅샷)
 5. 교통 오버레이(차량 통행/보행 유동, 원격 JSON/GeoJSON) (코드상 구현 / UI는 정리 필요)
 6. 수도권 생활이동 시간대 인구 오버레이(행정동 기준) (코드상 구현 / UI는 정리 필요)
 
@@ -78,6 +78,10 @@
    - 정적 페이지 특성상 `config.js` 값은 사용자 브라우저에 공개됩니다.
    - 토큰이 필요한 호출은 Cloud Functions/Cloud Run/Worker 프록시에서 처리하고,
      토큰은 Secret Manager 등 서버측 비밀 저장소에 보관하세요.
+4. 공개 현안 데이터는 Firestore 직접 읽기가 아니라 `data.hotspotSnapshotPath`의 정적 JSON으로 제공합니다.
+   - `/map/`은 Firebase SDK를 초기화하지 않고 `data/hotspots.public.json`만 읽습니다.
+   - `/map/edit/`은 staff 계정만 Firestore 원본을 읽고 수정합니다.
+   - 사진은 JSON에 base64로 넣지 않고 Firebase Storage URL만 싣습니다.
 
 ## 3) 설정 파일 입력
 
@@ -101,6 +105,11 @@
    - `enabled: true`로 켜면 `/map/edit`에 `연동 현안 선택(시트)` 드롭다운이 표시됩니다.
    - 저장 시 좌표는 Firestore에 저장하고, 제목/분류/내용은 연동 API 데이터를 우선 사용합니다.
    - 핵심 필드: `apiUrl`, `sourceType`, `rowPath`, `idField`, `titleField`, `categoryIdField`
+6. 공개 현안 스냅샷 경로
+   - 기본값: `config.js > data.hotspotSnapshotPath = "/data/hotspots.public.json"`
+   - 생성: `npm run export:hotspots`
+   - GitHub Actions: `.github/workflows/export-hotspots.yml`가 5분마다 Firestore 원본을 읽어 변경 시 스냅샷을 커밋합니다.
+   - 저장소 Secret: `FIREBASE_SERVICE_ACCOUNT_JSON`에 Firebase 서비스 계정 JSON을 등록해야 합니다.
 
 ## 4) GitHub Pages 배포
 
@@ -175,5 +184,5 @@ mobilityPopulation: {
 ## 운영 시 주의사항
 
 - GitHub Pages는 정적 호스팅이라 페이지 자체 URL은 공개될 수 있습니다.
-- 현재 템플릿은 인증되지 않은 사용자가 데이터(Firestore)를 읽지 못하도록 보호합니다.
+- 현재 템플릿은 인증되지 않은 사용자가 원본 데이터(Firestore)를 읽지 못하도록 보호하고, 공개 페이지에는 정적 JSON 스냅샷만 노출합니다.
 - "페이지 자체 접근까지 완전히 차단"이 필요하면 Cloudflare Access 같은 별도 게이트를 앞단에 두는 것을 권장합니다.

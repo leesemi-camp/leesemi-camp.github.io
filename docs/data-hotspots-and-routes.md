@@ -22,6 +22,7 @@
 | `data/hasanundong.wfs.xml` | WFS XML | `data.boundarySources` | 사용 | 간접 |
 | `data/dong-boundaries.sample.geojson` | GeoJSON | (fallback) | 기본 설정에서는 미사용(경계가 비어있을 때만) | 단위테스트 fallback 경로로 사용 |
 | `data/pangyo-focused-month-hour.csv` | CSV | `mobilityPopulation.dataPath` | **현재 UI로는 미사용**(토글 DOM 없음) | 사용(엔드포인트 테스트) |
+| `data/hotspots.public.json` | JSON | `data.hotspotSnapshotPath` | 사용(`/map/` 공개 현안 스냅샷) | 사용(엔드포인트 테스트) |
 | `data/capital-mobility.sample.csv` | CSV | (샘플) | 미사용 | 미사용 |
 | `data/capital-mobility-grid.sample.csv` | CSV | (샘플) | 미사용 | 미사용 |
 
@@ -49,7 +50,9 @@
   - 컬렉션명은 `config.js > data.issueCollection`(또는 `data.hotspotCollection`)로 변경 가능
   - 결정 로직: `app.js#L3757 getIssueCollectionName()`
 - Firestore 보안 규칙: `firestore.rules`
-  - `crowd_hotspots`는 **read: true(공개)**, **write(create/update/delete): staff만**
+  - `crowd_hotspots`는 **read/write/delete 모두 staff만**
+  - 공개 열람 화면은 Firestore를 직접 읽지 않고 `data/hotspots.public.json`을 읽습니다.
+  - `scripts/export-hotspots-public-json.mjs`와 `.github/workflows/export-hotspots.yml`가 5분 간격으로 공개 스냅샷을 갱신합니다.
 
 ### 2.2 문서(레코드) 스키마(현재 클라이언트가 쓰는 필드)
 
@@ -78,8 +81,9 @@
 
 ### 2.3 읽기/표시(열람) 파이프라인
 
-- 구독: `app.js#L3623 subscribeHotspots()`가 `onSnapshot`으로 실시간 구독
-- 정규화: `app.js#L3649 processHotspotSnapshot(snapshot)`
+- 공개 열람(`/map/`): `config.js > data.hotspotSnapshotPath`의 정적 JSON을 `fetch()`합니다.
+- 편집(`/map/edit/`): staff 로그인 성공 후 `onSnapshot`으로 Firestore 원본을 실시간 구독합니다.
+- 정규화: `app.js`의 hotspot record 처리 흐름
   - 좌표 유효성 체크 후, 외부 카탈로그/경계 데이터로 `dongName`/`emdCode`를 보강
   - 정렬: `compareHotspotByTitle`
 - 렌더:
@@ -97,6 +101,19 @@
   - 동 자동 판별: `resolveBoundaryMetaForLonLat(lng, lat)`가 경계 폴리곤 intersects로 판별
 - 삭제
   - `deleteHotspot(spotId)` → confirm → `doc(id).delete()`
+
+### 2.5 공개 JSON 스냅샷
+
+- 파일: `data/hotspots.public.json`
+- 생성 명령: `npm run export:hotspots`
+- 자동화: GitHub Actions `Export Public Hotspots`
+  - 스케줄: `*/5 * * * *`
+  - GitHub Secret: `FIREBASE_SERVICE_ACCOUNT_JSON`
+  - 변경이 있을 때만 `data/hotspots.public.json`을 커밋합니다.
+- 이미지 처리:
+  - JSON에는 base64 이미지 데이터를 넣지 않습니다.
+  - `photoUrls`/`photoUrl`에 Firebase Storage URL만 저장합니다.
+  - Storage write는 staff만 가능하고, 규칙에서 JPEG/2MB 이하로 제한합니다.
 
 ---
 

@@ -64,10 +64,23 @@ test("Helper shadow is layered", async ({ page }) => {
 
 test("Map spot memo state", async ({ page }) => {
   // 메모 유무에 따른 카드 렌더링과 패딩 확인
-  // Firestore를 차단하여 구독 업데이트가 테스트 렌더링을 덮어쓰지 않도록 한다.
+  // 공개 스냅샷을 비워 테스트 렌더링을 덮어쓰지 않도록 한다.
   await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
+  await page.route("**/data/hotspots.public.json", (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        source: "firestore",
+        collection: "crowd_hotspots",
+        count: 0,
+        hotspots: []
+      })
+    });
+  });
   await page.goto("/map/");
-  // Firestore 오프라인 처리가 완료되고 빈 목록이 렌더링될 때까지 대기한다.
+  // 빈 스냅샷 로딩이 완료되고 빈 목록이 렌더링될 때까지 대기한다.
   await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
   await page.waitForFunction(() => {
     return (

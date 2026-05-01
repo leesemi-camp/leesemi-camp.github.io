@@ -109,7 +109,8 @@ const APP_CONFIG = {
       lockFormFields: true,
       requireSelection: false
     },
-    issueCollection: "crowd_hotspots"
+    issueCollection: "crowd_hotspots",
+    hotspotSnapshotPath: "/data/hotspots.public.json"
   },
   trafficOverlays: {
     enabled: true,
