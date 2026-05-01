@@ -7,7 +7,7 @@ on:
       - "scripts/export-hotspots-public-json.mjs"
       - "data/hotspots.public.json"
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "0 9 * * *" # AM 09:00 every day
   workflow_dispatch:
 
 permissions:
@@ -22,47 +22,41 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
 
-      - name: Export Firestore hotspots to temp file
+      - name: "Export Firestore hotspots to temp file"
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
         run: node scripts/export-hotspots-public-json.mjs --out /tmp/hotspots.public.json
 
-      - name: Validate public snapshot
+      - name: "Validate public hotspot snapshot"
         run: node scripts/validate-hotspots-public-json.mjs /tmp/hotspots.public.json
 
   export:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: true
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
 
-      - name: Export Firestore hotspots
+      - name: "Export Firestore hotspots"
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
         run: node scripts/export-hotspots-public-json.mjs
 
-      - name: Validate public snapshot
+      - name: "Validate public hotspot snapshot"
         run: node scripts/validate-hotspots-public-json.mjs
 
-      - name: Commit snapshot
+      - name: "Commit snapshot"
         run: |
           if git diff --quiet -- data/hotspots.public.json; then
             echo "No hotspot snapshot changes."
@@ -72,4 +66,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/hotspots.public.json
           git commit -m "Update public hotspot snapshot"
-          git push
+          if ! git push origin HEAD:${{ github.ref_name }}; then
+            echo "Failed to push hotspot snapshot to branch '${{ github.ref_name }}'. The branch may be protected, out of date, or the workflow token may lack permission."
+            exit 1
+          fi
+        shell: bash
