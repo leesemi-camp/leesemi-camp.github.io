@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-04-29T15:22:32.668Z",
+  "generatedAt": "2026-05-02T16:27:21.752Z",
   "source": "firestore",
   "collection": "crowd_hotspots",
-  "count": 61,
+  "count": 62,
   "hotspots": [
     {
       "id": "zGu99pgxdB7gbir8wasx",
@@ -401,6 +401,26 @@
       "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2F3JFyQjsDg6stou0vOpgF%2F1776953175607-cb893a42829335af.jpg?alt=media&token=071f300b-f6cf-4b45-bfc6-a417556d4dd8",
       "photoProcessingVersion": 3,
       "updatedAt": "2026-04-23T14:06:22.935Z"
+    },
+    {
+      "id": "IXrjBKBvnYfcc10gD4e5",
+      "issueRefId": "",
+      "title": "[지붕놀이터] 경부고속도로/대왕판교로 밑 놀이터",
+      "memo": "",
+      "level": 3,
+      "categoryId": "education_childcare",
+      "categoryLabel": "🏫 교육·보육",
+      "lat": 37.388273,
+      "lng": 127.10227,
+      "dongName": "판교동",
+      "emdCode": "41135108",
+      "dongSelectionMode": "auto",
+      "dongKey": "name:판교동",
+      "groupLabel": "",
+      "photoUrls": [],
+      "photoUrl": "",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-05-02T15:18:26.993Z"
     },
     {
       "id": "mlj96JyhhV3oMir9Wt7c",
