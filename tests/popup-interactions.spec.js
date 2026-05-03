@@ -174,21 +174,17 @@ test("Escape closes map popup before dong filter", async ({ page }) => {
   });
   await page.evaluate(() => {
     window.__spotListTestHooks.renderVisibleIssueListWithData([
-      { id: "popup-p", title: "판교 팝업 현안", categoryId: "traffic_parking", dongName: "판교동" },
-      { id: "popup-u", title: "운중 팝업 현안", categoryId: "environment_park", dongName: "운중동" }
+      { id: "popup-p", title: "판교 팝업 현안", categoryId: "traffic_parking", dongName: "판교동", lat: 37.394, lng: 127.111 },
+      { id: "popup-u", title: "운중 팝업 현안", categoryId: "environment_park", dongName: "운중동", lat: 37.391, lng: 127.079 }
     ]);
     window.__spotListTestHooks.setActiveDongFilter("판교동");
-    const popup = document.querySelector("#map-popup");
-    if (popup) {
-      popup.innerHTML = "<strong>테스트 현안</strong><div>내용: Esc 닫기 검증</div>";
-      popup.classList.remove("hidden", "map-popup-closing");
-      popup.setAttribute("aria-hidden", "false");
-      popup.style.pointerEvents = "auto";
-    }
   });
 
   const popup = page.locator("#map-popup");
   const clearBtn = page.locator("#clear-dong-filter-btn");
+  const focusBtn = page.locator("[data-action='focus-group']").first();
+  await expect(focusBtn).toBeVisible();
+  await focusBtn.click();
   await expect(popup).not.toHaveClass(/hidden/);
   await expect(popup).toHaveAttribute("aria-hidden", "false");
   await expect(clearBtn).not.toHaveClass(/hidden/);
