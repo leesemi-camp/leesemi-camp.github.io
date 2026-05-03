@@ -160,8 +160,8 @@ test("Escape clears active dong filter", async ({ page }) => {
   await expect(spotList).toContainText("운중 현안");
 });
 
-test("Escape closes map popup before dong filter", async ({ page }) => {
-  // 팝업이 떠 있으면 첫 Esc는 팝업만 닫고, 다음 Esc에서 동 필터를 해제함
+test("Escape closes dong popup and clears dong filter together", async ({ page }) => {
+  // 동 선택으로 열린 팝업이 있으면 Esc 한 번으로 팝업과 동 필터를 함께 닫음
   await blockFirestore(page);
   await page.goto("/map/");
   await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
@@ -201,10 +201,47 @@ test("Escape closes map popup before dong filter", async ({ page }) => {
   expect(closingState.ariaHidden).toBe("true");
   expect(closingState.hidden || closingState.closing).toBe(true);
   await expect(popup).toHaveClass(/hidden/);
-  await expect(clearBtn).not.toHaveClass(/hidden/);
+  await expect(clearBtn).toHaveClass(/hidden/);
+});
 
-  await page.keyboard.press("Escape");
+test("Map popup close button uses close animation", async ({ page }) => {
+  // 팝업 닫기 버튼도 Escape와 같은 닫힘 애니메이션 경로를 사용함
+  await blockFirestore(page);
+  await page.goto("/map/");
+  await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
+  await page.waitForFunction(() => {
+    return (
+      window.__spotListTestHooks &&
+      typeof window.__spotListTestHooks.renderVisibleIssueListWithData === "function" &&
+      typeof window.__spotListTestHooks.setActiveDongFilter === "function"
+    );
+  });
+  await page.evaluate(() => {
+    window.__spotListTestHooks.renderVisibleIssueListWithData([
+      { id: "popup-close-p", title: "판교 닫기 현안", categoryId: "traffic_parking", dongName: "판교동", lat: 37.394, lng: 127.111 },
+      { id: "popup-close-u", title: "운중 닫기 현안", categoryId: "environment_park", dongName: "운중동", lat: 37.391, lng: 127.079 }
+    ]);
+    window.__spotListTestHooks.setActiveDongFilter("판교동");
+  });
 
+  const popup = page.locator("#map-popup");
+  const clearBtn = page.locator("#clear-dong-filter-btn");
+  await page.locator("[data-action='focus-group']").first().click();
+  await expect(popup).not.toHaveClass(/hidden/);
+  await expect(popup.locator("[data-action='close-popup']")).toBeVisible();
+
+  await popup.locator("[data-action='close-popup']").click();
+
+  const closingState = await popup.evaluate((element) => {
+    return {
+      hidden: element.classList.contains("hidden"),
+      closing: element.classList.contains("map-popup-closing"),
+      ariaHidden: element.getAttribute("aria-hidden")
+    };
+  });
+  expect(closingState.ariaHidden).toBe("true");
+  expect(closingState.hidden || closingState.closing).toBe(true);
+  await expect(popup).toHaveClass(/hidden/);
   await expect(clearBtn).toHaveClass(/hidden/);
 });
 

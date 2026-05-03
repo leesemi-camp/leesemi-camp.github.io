@@ -54,6 +54,25 @@ test("Issue helper close button collapses the bubble", async ({ page }) => {
   expect(ariaExpanded).toBe("false");
 });
 
+test("Issue helper close button uses closing state", async ({ page }) => {
+  // 닫기 버튼 클릭 시 즉시 사라지지 않고 닫힘 상태를 거친다.
+  await page.goto("/map/");
+  await page.waitForSelector("#issue-helper-close-btn");
+  await page.locator("#issue-helper-close-btn").click({ force: true });
+
+  const helper = page.locator(".issue-helper");
+  const bubble = page.locator("#issue-helper-bubble");
+  const closeState = await helper.evaluate((element) => {
+    return {
+      closing: element.classList.contains("issue-helper-closing"),
+      collapsed: element.classList.contains("issue-helper-collapsed")
+    };
+  });
+  expect(await bubble.getAttribute("aria-hidden")).toBe("true");
+  expect(closeState.closing || closeState.collapsed).toBe(true);
+  await expect(helper).toHaveClass(/issue-helper-collapsed/);
+});
+
 test("Issue helper collapsed class applied after close", async ({ page }) => {
   // 닫기 후 issue-helper-collapsed 클래스가 적용됨
   await page.goto("/map/");
