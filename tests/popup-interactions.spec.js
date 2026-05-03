@@ -118,6 +118,98 @@ test("Clear dong filter button is hidden initially", async ({ page }) => {
   await expect(clearBtn).toHaveClass(/hidden/);
 });
 
+test("Escape clears active dong filter", async ({ page }) => {
+  // Esc 키를 누르면 활성 동 필터가 해제되고 전체 목록으로 돌아감
+  await blockFirestore(page);
+  await page.goto("/map/");
+  await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
+  await page.waitForFunction(() => {
+    return (
+      window.__spotListTestHooks &&
+      typeof window.__spotListTestHooks.renderVisibleIssueListWithData === "function" &&
+      typeof window.__spotListTestHooks.setActiveDongFilter === "function"
+    );
+  });
+  await page.evaluate(() => {
+    window.__spotListTestHooks.renderVisibleIssueListWithData([
+      { id: "esc-p", title: "판교 현안", categoryId: "traffic_parking", dongName: "판교동" },
+      { id: "esc-u", title: "운중 현안", categoryId: "environment_park", dongName: "운중동" }
+    ]);
+    window.__spotListTestHooks.setActiveDongFilter("판교동");
+  });
+
+  const clearBtn = page.locator("#clear-dong-filter-btn");
+  const dongBtn = page.locator("#issue-view-dong-btn");
+  const spotList = page.locator("#spot-list");
+  await expect(clearBtn).not.toHaveClass(/hidden/);
+  await expect(dongBtn).toContainText("판교동");
+  await expect(spotList).toContainText("판교 현안");
+  await expect(spotList).not.toContainText("운중 현안");
+
+  await page.keyboard.press("Escape");
+
+  const listState = await spotList.evaluate((element) => {
+    return {
+      refreshing: element.classList.contains("spot-list-refreshing")
+    };
+  });
+  expect(listState.refreshing).toBe(true);
+  await expect(clearBtn).toHaveClass(/hidden/);
+  await expect(dongBtn).toHaveText("동별 보기");
+  await expect(spotList).toContainText("판교 현안");
+  await expect(spotList).toContainText("운중 현안");
+});
+
+test("Escape closes map popup before dong filter", async ({ page }) => {
+  // 팝업이 떠 있으면 첫 Esc는 팝업만 닫고, 다음 Esc에서 동 필터를 해제함
+  await blockFirestore(page);
+  await page.goto("/map/");
+  await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
+  await page.waitForFunction(() => {
+    return (
+      window.__spotListTestHooks &&
+      typeof window.__spotListTestHooks.renderVisibleIssueListWithData === "function" &&
+      typeof window.__spotListTestHooks.setActiveDongFilter === "function" &&
+      typeof window.__spotListTestHooks.openMapPopupForTest === "function"
+    );
+  });
+  await page.evaluate(() => {
+    window.__spotListTestHooks.renderVisibleIssueListWithData([
+      { id: "popup-p", title: "판교 팝업 현안", categoryId: "traffic_parking", dongName: "판교동" },
+      { id: "popup-u", title: "운중 팝업 현안", categoryId: "environment_park", dongName: "운중동" }
+    ]);
+    window.__spotListTestHooks.setActiveDongFilter("판교동");
+  });
+  await page.waitForFunction(() => window.__spotListTestHooks.openMapPopupForTest());
+
+  const popup = page.locator("#map-popup");
+  const clearBtn = page.locator("#clear-dong-filter-btn");
+  await expect(popup).not.toHaveClass(/hidden/);
+  await expect(popup).toHaveAttribute("aria-hidden", "false");
+  await expect(clearBtn).not.toHaveClass(/hidden/);
+
+  await page.keyboard.press("Escape");
+
+  const closingState = await popup.evaluate((element) => {
+    return {
+      hidden: element.classList.contains("hidden"),
+      closing: element.classList.contains("map-popup-closing"),
+      ariaHidden: element.getAttribute("aria-hidden")
+    };
+  });
+  expect(closingState).toEqual({
+    hidden: false,
+    closing: true,
+    ariaHidden: "true"
+  });
+  await expect(popup).toHaveClass(/hidden/);
+  await expect(clearBtn).not.toHaveClass(/hidden/);
+
+  await page.keyboard.press("Escape");
+
+  await expect(clearBtn).toHaveClass(/hidden/);
+});
+
 test("Issue view dong button is present and active by default", async ({ page }) => {
   // '동별 보기' 버튼이 초기에 활성화된 상태로 표시됨
   await page.goto("/map/");

@@ -976,6 +976,22 @@ textarea {
   gap: 8px;
 }
 
+.spot-list.spot-list-refreshing {
+  animation: spot-list-refresh 0.22s ease-out;
+}
+
+@keyframes spot-list-refresh {
+  from {
+    opacity: 0.72;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .spot-item {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -1366,6 +1382,8 @@ body.photo-lightbox-open {
 .map-popup {
   position: absolute;
   transform: translate(-50%, calc(-100% - 10px));
+  transform-origin: 50% 100%;
+  opacity: 1;
   min-width: 200px;
   max-width: 260px;
   background: #ffffff;
@@ -1376,6 +1394,16 @@ body.photo-lightbox-open {
   color: #1b2d47;
   box-shadow: 0 10px 30px rgba(5, 23, 48, 0.18);
   pointer-events: auto;
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+  will-change: opacity, transform;
+}
+
+.map-popup.map-popup-closing {
+  transform: translate(-50%, calc(-100% - 4px)) scale(0.98);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .map-popup-photo-wrap {
@@ -1440,6 +1468,8 @@ body.photo-lightbox-open {
   justify-content: center;
   padding: 20px;
   background: rgba(8, 20, 38, 0.72);
+  opacity: 1;
+  transition: opacity 0.18s ease;
 }
 
 .photo-lightbox-dialog {
@@ -1450,6 +1480,21 @@ body.photo-lightbox-open {
   overflow: hidden;
   box-shadow: 0 20px 48px rgba(3, 14, 29, 0.45);
   background: #0b1a2f;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.photo-lightbox.photo-lightbox-closing {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.photo-lightbox.photo-lightbox-closing .photo-lightbox-dialog {
+  opacity: 0.96;
+  transform: translateY(6px) scale(0.985);
 }
 
 .photo-lightbox-image {
@@ -1851,7 +1896,14 @@ body.photo-lightbox-open {
 
   .issue-helper-bubble,
   .issue-helper-character,
-  .issue-helper-contact-dock {
+  .issue-helper-contact-dock,
+  .map-popup,
+  .photo-lightbox,
+  .photo-lightbox-dialog {
     transition: none;
+  }
+
+  .spot-list.spot-list-refreshing {
+    animation: none;
   }
 }

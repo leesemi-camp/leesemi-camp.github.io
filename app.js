@@ -73,6 +73,7 @@ import APP_CONFIG from './config.js';
       index: 0,
       slides: []
     },
+    photoLightboxCloseTimer: null,
     overlayStyleCache: {
       vehicle: new Map(),
       pedestrian: new Map()
@@ -83,7 +84,9 @@ import APP_CONFIG from './config.js';
     hotspotSubmitInProgress: false,
     selectedCoordFeature: null,
     autoCenteredToCurrentLocation: false,
-    suppressPopupCloseOnNextMoveStart: false
+    suppressPopupCloseOnNextMoveStart: false,
+    mapPopupCloseTimer: null,
+    spotListRefreshTimer: null
   };
 
   const DONG_AUTO_KEY = "__auto__";
@@ -212,6 +215,9 @@ import APP_CONFIG from './config.js';
     ? config.mobilityPopulation
     : {};
   const mobileLayoutQuery = window.matchMedia ? window.matchMedia("(max-width: 980px)") : null;
+  const MAP_POPUP_CLOSE_ANIMATION_MS = 160;
+  const PHOTO_LIGHTBOX_CLOSE_ANIMATION_MS = 180;
+  const SPOT_LIST_REFRESH_ANIMATION_MS = 220;
 
   const elements = {
     loginPanel: document.getElementById("login-panel"),
@@ -646,7 +652,7 @@ import APP_CONFIG from './config.js';
 
     if (elements.clearDongFilterButton) {
       elements.clearDongFilterButton.addEventListener("click", () => {
-        setActiveDongFilter("");
+        clearActiveDongView();
       });
     }
 
@@ -778,11 +784,24 @@ import APP_CONFIG from './config.js';
     }, true);
 
     window.addEventListener("keydown", (event) => {
-      if (!isPhotoLightboxVisible()) {
+      if (event.key === "Escape") {
+        if (isPhotoLightboxVisible()) {
+          closePhotoLightbox();
+          return;
+        }
+        if (shouldIgnoreGlobalEscape(event)) {
+          return;
+        }
+        if (closePopup()) {
+          event.preventDefault();
+          return;
+        }
+        if (clearActiveDongView()) {
+          event.preventDefault();
+        }
         return;
       }
-      if (event.key === "Escape") {
-        closePhotoLightbox();
+      if (!isPhotoLightboxVisible()) {
         return;
       }
       if (event.key === "ArrowLeft") {
@@ -1186,8 +1205,9 @@ import APP_CONFIG from './config.js';
       index: wrapPhotoSlideIndex(initialIndex, slides.length),
       slides
     };
+    clearPhotoLightboxCloseTimer();
     renderActivePhotoLightboxSlide();
-    elements.photoLightbox.classList.remove("hidden");
+    elements.photoLightbox.classList.remove("hidden", "photo-lightbox-closing");
     elements.photoLightbox.setAttribute("aria-hidden", "false");
     document.body.classList.add("photo-lightbox-open");
   }
@@ -1243,7 +1263,7 @@ import APP_CONFIG from './config.js';
   }
 
   function movePhotoLightbox(delta) {
-    if (!isPhotoLightboxVisible()) {
+    if (!isPhotoLightboxVisible() || isPhotoLightboxClosing()) {
       return;
     }
     const slides = normalizePhotoSlides(state.activePhotoLightbox && state.activePhotoLightbox.slides);
@@ -1265,26 +1285,62 @@ import APP_CONFIG from './config.js';
     }
   }
 
-  function closePhotoLightbox() {
+  function closePhotoLightbox(options) {
     if (!elements.photoLightbox) {
-      return;
+      return false;
     }
-    elements.photoLightbox.classList.add("hidden");
+    if (elements.photoLightbox.classList.contains("hidden") || isPhotoLightboxClosing()) {
+      return false;
+    }
+
+    const immediate = Boolean(options && options.immediate);
+    elements.photoLightbox.classList.add("photo-lightbox-closing");
     elements.photoLightbox.setAttribute("aria-hidden", "true");
-    if (elements.photoLightboxImage) {
-      elements.photoLightboxImage.removeAttribute("src");
-    }
-    setPhotoLightboxLoading(false);
-    state.activePhotoLightbox = {
-      slideshowId: "",
-      index: 0,
-      slides: []
+
+    const finishClose = () => {
+      if (!elements.photoLightbox) {
+        return;
+      }
+      elements.photoLightbox.classList.add("hidden");
+      elements.photoLightbox.classList.remove("photo-lightbox-closing");
+      if (elements.photoLightboxImage) {
+        elements.photoLightboxImage.removeAttribute("src");
+      }
+      setPhotoLightboxLoading(false);
+      state.activePhotoLightbox = {
+        slideshowId: "",
+        index: 0,
+        slides: []
+      };
+      document.body.classList.remove("photo-lightbox-open");
+      state.photoLightboxCloseTimer = null;
     };
-    document.body.classList.remove("photo-lightbox-open");
+
+    if (immediate || prefersReducedMotion()) {
+      clearPhotoLightboxCloseTimer();
+      finishClose();
+      return true;
+    }
+
+    clearPhotoLightboxCloseTimer();
+    state.photoLightboxCloseTimer = window.setTimeout(finishClose, PHOTO_LIGHTBOX_CLOSE_ANIMATION_MS);
+    return true;
   }
 
   function isPhotoLightboxVisible() {
     return Boolean(elements.photoLightbox && !elements.photoLightbox.classList.contains("hidden"));
+  }
+
+  function isPhotoLightboxClosing() {
+    return Boolean(elements.photoLightbox && elements.photoLightbox.classList.contains("photo-lightbox-closing"));
+  }
+
+  function clearPhotoLightboxCloseTimer() {
+    if (!state.photoLightboxCloseTimer) {
+      return;
+    }
+    window.clearTimeout(state.photoLightboxCloseTimer);
+    state.photoLightboxCloseTimer = null;
   }
 
   function handleMapPopupClickThrough(mapBrowserEvent) {
@@ -4845,7 +4901,7 @@ import APP_CONFIG from './config.js';
     });
   }
 
-  function setActiveDongFilter(dongName) {
+  function setActiveDongFilter(dongName, options) {
     const normalized = resolveMergedDongName(dongName);
     if (state.activeDongName === normalized) {
       return;
@@ -4854,6 +4910,54 @@ import APP_CONFIG from './config.js';
     updateDongFilterUi();
     updateBoundaryHighlightStyles();
     renderVisibleIssueList();
+    if (options && options.animateList) {
+      animateSpotListRefresh();
+    }
+  }
+
+  function clearActiveDongView() {
+    if (!state.activeDongName) {
+      return false;
+    }
+    closePopup();
+    clearHighlightedHotspots();
+    setActiveDongFilter("", {
+      animateList: true
+    });
+    return true;
+  }
+
+  function animateSpotListRefresh() {
+    if (!elements.spotList || prefersReducedMotion()) {
+      return;
+    }
+    if (state.spotListRefreshTimer) {
+      window.clearTimeout(state.spotListRefreshTimer);
+      state.spotListRefreshTimer = null;
+    }
+    elements.spotList.classList.remove("spot-list-refreshing");
+    void elements.spotList.offsetWidth;
+    elements.spotList.classList.add("spot-list-refreshing");
+    state.spotListRefreshTimer = window.setTimeout(() => {
+      if (elements.spotList) {
+        elements.spotList.classList.remove("spot-list-refreshing");
+      }
+      state.spotListRefreshTimer = null;
+    }, SPOT_LIST_REFRESH_ANIMATION_MS);
+  }
+
+  function shouldIgnoreGlobalEscape(event) {
+    const target = event && event.target;
+    if (!(target instanceof Element)) {
+      return false;
+    }
+    if (target.closest("[contenteditable='true']")) {
+      return true;
+    }
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+      return true;
+    }
+    return false;
   }
 
   function updateDongFilterUi() {
@@ -5429,6 +5533,23 @@ import APP_CONFIG from './config.js';
       renderHotspotList,
       renderIssueStatsSummary,
       renderIssueDongList,
+      setActiveDongFilter,
+      openMapPopupForTest() {
+        if (!state.popupOverlay || !elements.mapPopup) {
+          return false;
+        }
+        const view = state.map && typeof state.map.getView === "function"
+          ? state.map.getView()
+          : null;
+        const center = view && typeof view.getCenter === "function"
+          ? view.getCenter()
+          : null;
+        openPopup(
+          center || [0, 0],
+          "<strong>테스트 현안</strong><div>내용: Esc 닫기 검증</div>"
+        );
+        return true;
+      },
       renderVisibleIssueListWithData(issues) {
         state.issues = Array.isArray(issues) ? issues : [];
         renderVisibleIssueList();
@@ -7598,24 +7719,69 @@ import APP_CONFIG from './config.js';
     if (!state.popupOverlay || !elements.mapPopup) {
       return;
     }
+    clearMapPopupCloseTimer();
+    clearPhotoSlideshowsByPrefix("map-popup-");
     elements.mapPopup.innerHTML = html;
     schedulePhotoSlideshowsSync(elements.mapPopup);
     elements.mapPopup.style.pointerEvents = "auto";
+    elements.mapPopup.classList.remove("hidden", "map-popup-closing");
+    elements.mapPopup.setAttribute("aria-hidden", "false");
     const popupPhoto = elements.mapPopup.querySelector(".map-popup-photo");
     if (popupPhoto instanceof HTMLImageElement) {
       popupPhoto.style.cursor = "zoom-in";
     }
-    elements.mapPopup.classList.remove("hidden");
     state.popupOverlay.setPosition(coordinate);
   }
 
-  function closePopup() {
+  function closePopup(options) {
     if (!state.popupOverlay || !elements.mapPopup) {
+      return false;
+    }
+    if (elements.mapPopup.classList.contains("hidden") || elements.mapPopup.classList.contains("map-popup-closing")) {
+      return false;
+    }
+
+    const immediate = Boolean(options && options.immediate);
+    elements.mapPopup.classList.add("map-popup-closing");
+    elements.mapPopup.setAttribute("aria-hidden", "true");
+    elements.mapPopup.style.pointerEvents = "none";
+
+    const finishClose = () => {
+      if (!elements.mapPopup || !state.popupOverlay) {
+        return;
+      }
+      elements.mapPopup.classList.add("hidden");
+      elements.mapPopup.classList.remove("map-popup-closing");
+      elements.mapPopup.innerHTML = "";
+      clearPhotoSlideshowsByPrefix("map-popup-");
+      state.popupOverlay.setPosition(undefined);
+      state.mapPopupCloseTimer = null;
+    };
+
+    if (immediate || prefersReducedMotion()) {
+      clearMapPopupCloseTimer();
+      finishClose();
+      return true;
+    }
+
+    clearMapPopupCloseTimer();
+    state.mapPopupCloseTimer = window.setTimeout(finishClose, MAP_POPUP_CLOSE_ANIMATION_MS);
+    return true;
+  }
+
+  function clearMapPopupCloseTimer() {
+    if (!state.mapPopupCloseTimer) {
       return;
     }
-    elements.mapPopup.classList.add("hidden");
-    clearPhotoSlideshowsByPrefix("map-popup-");
-    state.popupOverlay.setPosition(undefined);
+    window.clearTimeout(state.mapPopupCloseTimer);
+    state.mapPopupCloseTimer = null;
+  }
+
+  function prefersReducedMotion() {
+    return Boolean(
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
   }
 
   async function resolveStaffAccess(user) {
