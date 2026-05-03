@@ -159,8 +159,19 @@ test("Escape key closes lightbox", async ({ page }) => {
   await page.locator("#spot-list .photo-slide-image").first().click();
   await expect(page.locator("#photo-lightbox")).not.toHaveClass(/hidden/);
 
+  const lightbox = page.locator("#photo-lightbox");
   await page.keyboard.press("Escape");
-  await expect(page.locator("#photo-lightbox")).toHaveClass(/hidden/);
+
+  const closingState = await lightbox.evaluate((element) => {
+    return {
+      hidden: element.classList.contains("hidden"),
+      closing: element.classList.contains("photo-lightbox-closing"),
+      ariaHidden: element.getAttribute("aria-hidden")
+    };
+  });
+  expect(closingState.ariaHidden).toBe("true");
+  expect(closingState.hidden || closingState.closing).toBe(true);
+  await expect(lightbox).toHaveClass(/hidden/);
 });
 
 test("rAF sync updates photo slideshow load state after render", async ({ page }) => {
