@@ -86,7 +86,9 @@ import APP_CONFIG from './config.js';
     autoCenteredToCurrentLocation: false,
     suppressPopupCloseOnNextMoveStart: false,
     mapPopupCloseTimer: null,
-    spotListRefreshTimer: null
+    mapPopupDismissClearsDongFilter: false,
+    spotListRefreshTimer: null,
+    issueHelperCloseTimer: null
   };
 
   const DONG_AUTO_KEY = "__auto__";
@@ -218,6 +220,7 @@ import APP_CONFIG from './config.js';
   const MAP_POPUP_CLOSE_ANIMATION_MS = 160;
   const PHOTO_LIGHTBOX_CLOSE_ANIMATION_MS = 180;
   const SPOT_LIST_REFRESH_ANIMATION_MS = 220;
+  const ISSUE_HELPER_CLOSE_ANIMATION_MS = 180;
 
   const elements = {
     loginPanel: document.getElementById("login-panel"),
@@ -468,6 +471,12 @@ import APP_CONFIG from './config.js';
         const actionButton = target.closest("[data-action]");
         if (actionButton) {
           const action = String(actionButton.getAttribute("data-action") || "");
+          if (action === "close-popup") {
+            event.preventDefault();
+            event.stopPropagation();
+            dismissMapPopup();
+            return;
+          }
           if (action === "edit-spot" || action === "delete-spot") {
             const spotId = String(actionButton.getAttribute("data-spot-id") || "").trim();
             if (!spotId) {
@@ -677,14 +686,39 @@ import APP_CONFIG from './config.js';
 
     if (elements.issueHelper && elements.issueHelperBubble && elements.issueHelperToggleButton) {
       let isIssueHelperExpanded = !elements.issueHelper.classList.contains("issue-helper-collapsed");
-      const applyIssueHelperExpandedState = () => {
-        elements.issueHelper.classList.toggle("issue-helper-collapsed", !isIssueHelperExpanded);
+      const clearIssueHelperCloseTimer = () => {
+        if (!state.issueHelperCloseTimer) {
+          return;
+        }
+        window.clearTimeout(state.issueHelperCloseTimer);
+        state.issueHelperCloseTimer = null;
+      };
+      const finishIssueHelperClose = () => {
+        elements.issueHelper.classList.add("issue-helper-collapsed");
+        elements.issueHelper.classList.remove("issue-helper-closing");
+        state.issueHelperCloseTimer = null;
+      };
+      const applyIssueHelperExpandedState = (options) => {
+        const immediate = Boolean(options && options.immediate);
         elements.issueHelperToggleButton.setAttribute("aria-expanded", isIssueHelperExpanded ? "true" : "false");
         elements.issueHelperBubble.setAttribute("aria-hidden", isIssueHelperExpanded ? "false" : "true");
         elements.issueHelperToggleButton.setAttribute(
           "aria-label",
           isIssueHelperExpanded ? "현안 안내 메시지 닫기" : "현안 안내 메시지 열기"
         );
+
+        clearIssueHelperCloseTimer();
+        if (isIssueHelperExpanded) {
+          elements.issueHelper.classList.remove("issue-helper-collapsed", "issue-helper-closing");
+          return;
+        }
+        if (immediate || prefersReducedMotion()) {
+          finishIssueHelperClose();
+          return;
+        }
+        elements.issueHelper.classList.remove("issue-helper-collapsed");
+        elements.issueHelper.classList.add("issue-helper-closing");
+        state.issueHelperCloseTimer = window.setTimeout(finishIssueHelperClose, ISSUE_HELPER_CLOSE_ANIMATION_MS);
       };
 
       elements.issueHelperToggleButton.addEventListener("click", (event) => {
@@ -710,7 +744,7 @@ import APP_CONFIG from './config.js';
         });
       }
 
-      applyIssueHelperExpandedState();
+      applyIssueHelperExpandedState({ immediate: true });
     }
 
     if (elements.photoLightboxCloseButton) {
@@ -792,7 +826,7 @@ import APP_CONFIG from './config.js';
         if (shouldIgnoreGlobalEscape(event)) {
           return;
         }
-        if (closePopup()) {
+        if (dismissMapPopup()) {
           event.preventDefault();
           return;
         }
@@ -5963,7 +5997,10 @@ import APP_CONFIG from './config.js';
     openPopup(
       coordinate,
       "<strong>" + safeDong + "</strong>" +
-      "<div>현안 건수: " + String(safeCount) + "건</div>"
+      "<div>현안 건수: " + String(safeCount) + "건</div>",
+      {
+        dismissClearsDongFilter: true
+      }
     );
   }
 
@@ -7699,13 +7736,18 @@ import APP_CONFIG from './config.js';
     );
   }
 
-  function openPopup(coordinate, html) {
+  function openPopup(coordinate, html, options) {
     if (!state.popupOverlay || !elements.mapPopup) {
       return;
     }
     clearMapPopupCloseTimer();
     clearPhotoSlideshowsByPrefix("map-popup-");
-    elements.mapPopup.innerHTML = html;
+    state.mapPopupDismissClearsDongFilter = Boolean(options && options.dismissClearsDongFilter);
+    elements.mapPopup.innerHTML =
+      "<button type='button' class='map-popup-close' data-action='close-popup' aria-label='현안 팝업 닫기' title='닫기'>" +
+        getPhotoControlIconMarkup("close") +
+      "</button>" +
+      "<div class='map-popup-body'>" + String(html || "") + "</div>";
     schedulePhotoSlideshowsSync(elements.mapPopup);
     elements.mapPopup.style.pointerEvents = "auto";
     elements.mapPopup.classList.remove("hidden", "map-popup-closing");
@@ -7739,6 +7781,7 @@ import APP_CONFIG from './config.js';
       elements.mapPopup.innerHTML = "";
       clearPhotoSlideshowsByPrefix("map-popup-");
       state.popupOverlay.setPosition(undefined);
+      state.mapPopupDismissClearsDongFilter = false;
       state.mapPopupCloseTimer = null;
     };
 
@@ -7750,6 +7793,21 @@ import APP_CONFIG from './config.js';
 
     clearMapPopupCloseTimer();
     state.mapPopupCloseTimer = window.setTimeout(finishClose, MAP_POPUP_CLOSE_ANIMATION_MS);
+    return true;
+  }
+
+  function dismissMapPopup(options) {
+    const shouldClearDongFilter = Boolean(state.mapPopupDismissClearsDongFilter && state.activeDongName);
+    const didClose = closePopup(options);
+    if (!didClose) {
+      return false;
+    }
+    if (shouldClearDongFilter) {
+      clearHighlightedHotspots();
+      setActiveDongFilter("", {
+        animateList: true
+      });
+    }
     return true;
   }
 

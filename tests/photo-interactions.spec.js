@@ -174,6 +174,27 @@ test("Escape key closes lightbox", async ({ page }) => {
   await expect(lightbox).toHaveClass(/hidden/);
 });
 
+test("Lightbox close button uses close animation", async ({ page }) => {
+  // 닫기 버튼으로 라이트박스를 닫아도 Escape와 같은 닫힘 상태를 거친다.
+  await renderSpotWithPhotos(page);
+  await page.locator("#spot-list .photo-slide-image").first().click();
+  await expect(page.locator("#photo-lightbox")).not.toHaveClass(/hidden/);
+
+  const lightbox = page.locator("#photo-lightbox");
+  await page.locator("#photo-lightbox-close-btn").click();
+
+  const closingState = await lightbox.evaluate((element) => {
+    return {
+      hidden: element.classList.contains("hidden"),
+      closing: element.classList.contains("photo-lightbox-closing"),
+      ariaHidden: element.getAttribute("aria-hidden")
+    };
+  });
+  expect(closingState.ariaHidden).toBe("true");
+  expect(closingState.hidden || closingState.closing).toBe(true);
+  await expect(lightbox).toHaveClass(/hidden/);
+});
+
 test("rAF sync updates photo slideshow load state after render", async ({ page }) => {
   // requestAnimationFrame 이후 슬라이드쇼 로드 상태 동기화
   // (syncPhotoSlideImageLoadState, resolvePhotoSlideshowContainer, setPhotoSlideshowLoadState)
