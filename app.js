@@ -52,6 +52,7 @@ import APP_CONFIG from './config.js';
     hotspotData: new Map(),
     hotspotStyleCache: new Map(),
     highlightedHotspotIds: new Set(),
+    selectedHotspotId: "",
     availableDongs: [],
     availableDongMap: new Map(),
     issueCatalogLoaded: false,
@@ -630,7 +631,9 @@ import APP_CONFIG from './config.js';
         }
 
         const coordinate = feature.getGeometry().getCoordinates();
-        setHighlightedHotspots([spot.id]);
+        setHighlightedHotspots([spot.id], {
+          selectedHotspotId: spot.id
+        });
         animateMapToHotspotSelection(coordinate, spot);
         openHotspotPopup(coordinate, spot);
       });
@@ -2185,7 +2188,9 @@ import APP_CONFIG from './config.js';
         const spot = hitFeature.get("spot");
         const coordinate = event.coordinate;
         if (spot && spot.id) {
-          setHighlightedHotspots([spot.id]);
+          setHighlightedHotspots([spot.id], {
+            selectedHotspotId: spot.id
+          });
         } else {
           clearHighlightedHotspots();
         }
@@ -5206,19 +5211,24 @@ import APP_CONFIG from './config.js';
     state.hotspotData.clear();
   }
 
-  function setHighlightedHotspots(spotIds) {
+  function setHighlightedHotspots(spotIds, options) {
     const ids = Array.isArray(spotIds)
       ? spotIds.map((id) => String(id || "").trim()).filter(Boolean)
       : [];
     state.highlightedHotspotIds = new Set(ids);
+    const selectedHotspotId = String(options && options.selectedHotspotId || "").trim();
+    state.selectedHotspotId = selectedHotspotId && state.highlightedHotspotIds.has(selectedHotspotId)
+      ? selectedHotspotId
+      : "";
     applyHotspotHighlightStyles();
   }
 
   function clearHighlightedHotspots() {
-    if (!state.highlightedHotspotIds || state.highlightedHotspotIds.size === 0) {
+    if ((!state.highlightedHotspotIds || state.highlightedHotspotIds.size === 0) && !state.selectedHotspotId) {
       return;
     }
     state.highlightedHotspotIds = new Set();
+    state.selectedHotspotId = "";
     applyHotspotHighlightStyles();
   }
 
@@ -5244,6 +5254,9 @@ import APP_CONFIG from './config.js';
       highlightSet = new Set(Array.from(highlightSet).filter((id) => presentIds.has(id)));
     }
     state.highlightedHotspotIds = highlightSet;
+    if (state.selectedHotspotId && !highlightSet.has(state.selectedHotspotId)) {
+      state.selectedHotspotId = "";
+    }
     const hasHighlight = highlightSet.size > 0;
 
     features.forEach((feature) => {
@@ -5264,12 +5277,11 @@ import APP_CONFIG from './config.js';
     const highlightSet = state.highlightedHotspotIds instanceof Set
       ? state.highlightedHotspotIds
       : new Set();
-    const isSingleSelection = highlightSet.size === 1;
     elements.spotList.querySelectorAll("[data-spot-id]").forEach((item) => {
       const spotId = String(item.getAttribute("data-spot-id") || "").trim();
       const isHighlighted = Boolean(spotId && highlightSet.has(spotId));
       item.classList.toggle("spot-item-highlighted", isHighlighted);
-      item.classList.toggle("spot-item-selected", isHighlighted && isSingleSelection);
+      item.classList.toggle("spot-item-selected", Boolean(isHighlighted && state.selectedHotspotId === spotId));
     });
   }
 
@@ -5549,7 +5561,7 @@ import APP_CONFIG from './config.js';
         ? state.highlightedHotspotIds
         : new Set();
       const isHighlighted = Boolean(spotId && highlightSet.has(spotId));
-      const isSelected = Boolean(isHighlighted && highlightSet.size === 1);
+      const isSelected = Boolean(isHighlighted && state.selectedHotspotId === spotId);
       const spotItemClassName =
         "spot-item" +
         (memo ? "" : " spot-item--no-memo") +
@@ -5604,6 +5616,9 @@ import APP_CONFIG from './config.js';
       },
       getHighlightedHotspotIds() {
         return Array.from(state.highlightedHotspotIds || []);
+      },
+      getSelectedHotspotId() {
+        return state.selectedHotspotId || "";
       }
     };
   }

@@ -289,6 +289,7 @@ test("Closing hotspot popup clears selected hotspot highlight", async ({ page })
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.setActiveDongFilter === "function" &&
       typeof window.__spotListTestHooks.getHighlightedHotspotIds === "function" &&
+      typeof window.__spotListTestHooks.getSelectedHotspotId === "function" &&
       document.querySelector("#spot-list [data-group-key]")
     );
   });
@@ -310,6 +311,9 @@ test("Closing hotspot popup clears selected hotspot highlight", async ({ page })
   await expect.poll(() => {
     return page.evaluate(() => window.__spotListTestHooks.getHighlightedHotspotIds());
   }).toEqual(["selected-popup"]);
+  await expect.poll(() => {
+    return page.evaluate(() => window.__spotListTestHooks.getSelectedHotspotId());
+  }).toBe("selected-popup");
   await waitForMapPopupToSettle(page);
 
   await popup.locator("[data-action='close-popup']").click();
@@ -317,9 +321,48 @@ test("Closing hotspot popup clears selected hotspot highlight", async ({ page })
   await expect.poll(() => {
     return page.evaluate(() => window.__spotListTestHooks.getHighlightedHotspotIds());
   }).toEqual([]);
+  await expect.poll(() => {
+    return page.evaluate(() => window.__spotListTestHooks.getSelectedHotspotId());
+  }).toBe("");
   await expect(spotItem).not.toHaveClass(/spot-item-selected/);
   await expect(clearBtn).not.toHaveClass(/hidden/);
   await expect(popup).toHaveClass(/hidden/);
+});
+
+test("Dong group highlight does not select single hotspot card", async ({ page }) => {
+  // 동별 묶음에 현안이 하나뿐이어도 단일 팝업 선택 상태와 구분됨
+  await blockFirestore(page, [
+    {
+      id: "single-dong",
+      title: "단일 동 현안",
+      categoryId: "traffic_parking",
+      dongName: "판교동",
+      lat: 37.394,
+      lng: 127.111
+    }
+  ]);
+  await page.goto("/map/");
+  await page.waitForFunction(() => {
+    return (
+      window.__spotListTestHooks &&
+      typeof window.__spotListTestHooks.getHighlightedHotspotIds === "function" &&
+      typeof window.__spotListTestHooks.getSelectedHotspotId === "function" &&
+      document.querySelector("#spot-list [data-group-key]")
+    );
+  });
+
+  await page.locator("[data-action='focus-group']").first().click();
+
+  const spotItem = page.locator("#spot-list [data-spot-id='single-dong']");
+  await expect(spotItem).toBeVisible();
+  await expect(spotItem).toHaveClass(/spot-item-highlighted/);
+  await expect(spotItem).not.toHaveClass(/spot-item-selected/);
+  await expect.poll(() => {
+    return page.evaluate(() => window.__spotListTestHooks.getHighlightedHotspotIds());
+  }).toEqual(["single-dong"]);
+  await expect.poll(() => {
+    return page.evaluate(() => window.__spotListTestHooks.getSelectedHotspotId());
+  }).toBe("");
 });
 
 test("Issue view dong button is present and active by default", async ({ page }) => {
