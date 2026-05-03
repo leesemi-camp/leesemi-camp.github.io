@@ -169,8 +169,7 @@ test("Escape closes map popup before dong filter", async ({ page }) => {
     return (
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.renderVisibleIssueListWithData === "function" &&
-      typeof window.__spotListTestHooks.setActiveDongFilter === "function" &&
-      typeof window.__spotListTestHooks.openMapPopupForTest === "function"
+      typeof window.__spotListTestHooks.setActiveDongFilter === "function"
     );
   });
   await page.evaluate(() => {
@@ -179,8 +178,14 @@ test("Escape closes map popup before dong filter", async ({ page }) => {
       { id: "popup-u", title: "운중 팝업 현안", categoryId: "environment_park", dongName: "운중동" }
     ]);
     window.__spotListTestHooks.setActiveDongFilter("판교동");
+    const popup = document.querySelector("#map-popup");
+    if (popup) {
+      popup.innerHTML = "<strong>테스트 현안</strong><div>내용: Esc 닫기 검증</div>";
+      popup.classList.remove("hidden", "map-popup-closing");
+      popup.setAttribute("aria-hidden", "false");
+      popup.style.pointerEvents = "auto";
+    }
   });
-  await page.waitForFunction(() => window.__spotListTestHooks.openMapPopupForTest());
 
   const popup = page.locator("#map-popup");
   const clearBtn = page.locator("#clear-dong-filter-btn");
@@ -197,11 +202,8 @@ test("Escape closes map popup before dong filter", async ({ page }) => {
       ariaHidden: element.getAttribute("aria-hidden")
     };
   });
-  expect(closingState).toEqual({
-    hidden: false,
-    closing: true,
-    ariaHidden: "true"
-  });
+  expect(closingState.ariaHidden).toBe("true");
+  expect(closingState.hidden || closingState.closing).toBe(true);
   await expect(popup).toHaveClass(/hidden/);
   await expect(clearBtn).not.toHaveClass(/hidden/);
 

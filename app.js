@@ -5534,22 +5534,6 @@ import APP_CONFIG from './config.js';
       renderIssueStatsSummary,
       renderIssueDongList,
       setActiveDongFilter,
-      openMapPopupForTest() {
-        if (!state.popupOverlay || !elements.mapPopup) {
-          return false;
-        }
-        const view = state.map && typeof state.map.getView === "function"
-          ? state.map.getView()
-          : null;
-        const center = view && typeof view.getCenter === "function"
-          ? view.getCenter()
-          : null;
-        openPopup(
-          center || [0, 0],
-          "<strong>테스트 현안</strong><div>내용: Esc 닫기 검증</div>"
-        );
-        return true;
-      },
       renderVisibleIssueListWithData(issues) {
         state.issues = Array.isArray(issues) ? issues : [];
         renderVisibleIssueList();
