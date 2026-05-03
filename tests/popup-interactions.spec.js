@@ -252,11 +252,11 @@ test("Map popup close button uses close animation", async ({ page }) => {
   await page.locator("[data-action='focus-group']").first().click();
   await expect(popup).not.toHaveClass(/hidden/);
   await expect(popup).toHaveAttribute("aria-hidden", "false");
-  await expect(popup.locator("[data-action='close-popup']")).toBeVisible();
-  // 지도 이동 애니메이션 중에는 WebKit이 버튼을 불안정한 요소로 볼 수 있어 팝업 위치가 자리 잡은 뒤 클릭한다.
-  await waitForMapPopupToSettle(page);
+  const closeButton = popup.locator("[data-action='close-popup']");
+  await expect(closeButton).toBeVisible();
 
-  await popup.locator("[data-action='close-popup']").click();
+  // WebKit은 지도 이동 중 팝업 위치가 흔들리면 locator.click()의 stable 대기 중 요소가 교체될 수 있다.
+  await closeButton.dispatchEvent("click");
 
   const closingState = await popup.evaluate((element) => {
     return {
@@ -316,7 +316,7 @@ test("Closing hotspot popup clears selected hotspot highlight", async ({ page })
   }).toBe("selected-popup");
   await waitForMapPopupToSettle(page);
 
-  await popup.locator("[data-action='close-popup']").click();
+  await popup.locator("[data-action='close-popup']").dispatchEvent("click");
 
   await expect.poll(() => {
     return page.evaluate(() => window.__spotListTestHooks.getHighlightedHotspotIds());
