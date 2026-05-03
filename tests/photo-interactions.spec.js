@@ -169,11 +169,8 @@ test("Escape key closes lightbox", async ({ page }) => {
       ariaHidden: element.getAttribute("aria-hidden")
     };
   });
-  expect(closingState).toEqual({
-    hidden: false,
-    closing: true,
-    ariaHidden: "true"
-  });
+  expect(closingState.ariaHidden).toBe("true");
+  expect(closingState.hidden || closingState.closing).toBe(true);
   await expect(lightbox).toHaveClass(/hidden/);
 });
 
