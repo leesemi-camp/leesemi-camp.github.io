@@ -1015,6 +1015,10 @@ textarea {
   padding: 10px;
   cursor: pointer;
   background: #fcfdff;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .spot-item--no-memo {
@@ -1051,6 +1055,21 @@ textarea {
 
 .spot-item:hover {
   background: #f4f8fd;
+}
+
+.spot-item-highlighted {
+  border-color: #9fb9d8;
+  background: #f5f9ff;
+}
+
+.spot-item-selected {
+  border-color: #5d8fc9;
+  background: #eef6ff;
+  box-shadow: 0 0 0 2px rgba(40, 101, 170, 0.16);
+}
+
+.spot-item-selected:hover {
+  background: #e8f3ff;
 }
 
 .spot-item-top {

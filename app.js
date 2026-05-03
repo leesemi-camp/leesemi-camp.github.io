@@ -52,6 +52,7 @@ import APP_CONFIG from './config.js';
     hotspotData: new Map(),
     hotspotStyleCache: new Map(),
     highlightedHotspotIds: new Set(),
+    selectedHotspotId: "",
     availableDongs: [],
     availableDongMap: new Map(),
     issueCatalogLoaded: false,
@@ -87,6 +88,7 @@ import APP_CONFIG from './config.js';
     suppressPopupCloseOnNextMoveStart: false,
     mapPopupCloseTimer: null,
     mapPopupDismissClearsDongFilter: false,
+    mapPopupClearsHotspotSelection: false,
     spotListRefreshTimer: null,
     issueHelperCloseTimer: null
   };
@@ -629,7 +631,9 @@ import APP_CONFIG from './config.js';
         }
 
         const coordinate = feature.getGeometry().getCoordinates();
-        setHighlightedHotspots([spot.id]);
+        setHighlightedHotspots([spot.id], {
+          selectedHotspotId: spot.id
+        });
         animateMapToHotspotSelection(coordinate, spot);
         openHotspotPopup(coordinate, spot);
       });
@@ -2184,7 +2188,9 @@ import APP_CONFIG from './config.js';
         const spot = hitFeature.get("spot");
         const coordinate = event.coordinate;
         if (spot && spot.id) {
-          setHighlightedHotspots([spot.id]);
+          setHighlightedHotspots([spot.id], {
+            selectedHotspotId: spot.id
+          });
         } else {
           clearHighlightedHotspots();
         }
@@ -5205,24 +5211,30 @@ import APP_CONFIG from './config.js';
     state.hotspotData.clear();
   }
 
-  function setHighlightedHotspots(spotIds) {
+  function setHighlightedHotspots(spotIds, options) {
     const ids = Array.isArray(spotIds)
       ? spotIds.map((id) => String(id || "").trim()).filter(Boolean)
       : [];
     state.highlightedHotspotIds = new Set(ids);
+    const selectedHotspotId = String(options && options.selectedHotspotId || "").trim();
+    state.selectedHotspotId = selectedHotspotId && state.highlightedHotspotIds.has(selectedHotspotId)
+      ? selectedHotspotId
+      : "";
     applyHotspotHighlightStyles();
   }
 
   function clearHighlightedHotspots() {
-    if (!state.highlightedHotspotIds || state.highlightedHotspotIds.size === 0) {
+    if ((!state.highlightedHotspotIds || state.highlightedHotspotIds.size === 0) && !state.selectedHotspotId) {
       return;
     }
     state.highlightedHotspotIds = new Set();
+    state.selectedHotspotId = "";
     applyHotspotHighlightStyles();
   }
 
   function applyHotspotHighlightStyles() {
     if (!state.hotspotSource) {
+      syncSpotListHighlightState();
       return;
     }
     const features = state.hotspotSource.getFeatures();
@@ -5242,6 +5254,9 @@ import APP_CONFIG from './config.js';
       highlightSet = new Set(Array.from(highlightSet).filter((id) => presentIds.has(id)));
     }
     state.highlightedHotspotIds = highlightSet;
+    if (state.selectedHotspotId && !highlightSet.has(state.selectedHotspotId)) {
+      state.selectedHotspotId = "";
+    }
     const hasHighlight = highlightSet.size > 0;
 
     features.forEach((feature) => {
@@ -5251,6 +5266,22 @@ import APP_CONFIG from './config.js';
         ? (highlightSet.has(spotId) ? "focus" : "dim")
         : "normal";
       feature.setStyle(getHotspotStyle(spot, emphasisMode));
+    });
+    syncSpotListHighlightState();
+  }
+
+  function syncSpotListHighlightState() {
+    if (!elements.spotList) {
+      return;
+    }
+    const highlightSet = state.highlightedHotspotIds instanceof Set
+      ? state.highlightedHotspotIds
+      : new Set();
+    elements.spotList.querySelectorAll("[data-spot-id]").forEach((item) => {
+      const spotId = String(item.getAttribute("data-spot-id") || "").trim();
+      const isHighlighted = Boolean(spotId && highlightSet.has(spotId));
+      item.classList.toggle("spot-item-highlighted", isHighlighted);
+      item.classList.toggle("spot-item-selected", Boolean(isHighlighted && state.selectedHotspotId === spotId));
     });
   }
 
@@ -5525,7 +5556,17 @@ import APP_CONFIG from './config.js';
           loading: "lazy"
         })
         : "";
-      const spotItemClassName = "spot-item" + (memo ? "" : " spot-item--no-memo");
+      const spotId = String(spot.id || "").trim();
+      const highlightSet = state.highlightedHotspotIds instanceof Set
+        ? state.highlightedHotspotIds
+        : new Set();
+      const isHighlighted = Boolean(spotId && highlightSet.has(spotId));
+      const isSelected = Boolean(isHighlighted && state.selectedHotspotId === spotId);
+      const spotItemClassName =
+        "spot-item" +
+        (memo ? "" : " spot-item--no-memo") +
+        (isHighlighted ? " spot-item-highlighted" : "") +
+        (isSelected ? " spot-item-selected" : "");
       const dongName = escapeHtml(formatSpotDongLabel(spot));
       const categoryLabel = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
       const categoryMeta = resolveIssueCategoryMeta(spot.categoryId, spot.categoryLabel);
@@ -5557,6 +5598,7 @@ import APP_CONFIG from './config.js';
 
     elements.spotList.innerHTML = items.join("");
     schedulePhotoSlideshowsSync(elements.spotList);
+    syncSpotListHighlightState();
   }
 
   function exposeSpotListTestHooks() {
@@ -5571,6 +5613,12 @@ import APP_CONFIG from './config.js';
       renderVisibleIssueListWithData(issues) {
         state.issues = Array.isArray(issues) ? issues : [];
         renderVisibleIssueList();
+      },
+      getHighlightedHotspotIds() {
+        return Array.from(state.highlightedHotspotIds || []);
+      },
+      getSelectedHotspotId() {
+        return state.selectedHotspotId || "";
       }
     };
   }
@@ -7710,7 +7758,10 @@ import APP_CONFIG from './config.js';
       "<div>소속 동: " + safeDong + "</div>" +
       "<div>내용: " + safeMemo + "</div>" +
       editorInfo +
-      popupActions
+      popupActions,
+      {
+        clearsHotspotSelection: true
+      }
     );
   }
 
@@ -7743,6 +7794,7 @@ import APP_CONFIG from './config.js';
     clearMapPopupCloseTimer();
     clearPhotoSlideshowsByPrefix("map-popup-");
     state.mapPopupDismissClearsDongFilter = Boolean(options && options.dismissClearsDongFilter);
+    state.mapPopupClearsHotspotSelection = Boolean(options && options.clearsHotspotSelection);
     elements.mapPopup.innerHTML =
       "<button type='button' class='map-popup-close' data-action='close-popup' aria-label='현안 팝업 닫기' title='닫기'>" +
         getPhotoControlIconMarkup("close") +
@@ -7768,9 +7820,13 @@ import APP_CONFIG from './config.js';
     }
 
     const immediate = Boolean(options && options.immediate);
+    const shouldClearHotspotSelection = Boolean(state.mapPopupClearsHotspotSelection);
     elements.mapPopup.classList.add("map-popup-closing");
     elements.mapPopup.setAttribute("aria-hidden", "true");
     elements.mapPopup.style.pointerEvents = "none";
+    if (shouldClearHotspotSelection) {
+      clearHighlightedHotspots();
+    }
 
     const finishClose = () => {
       if (!elements.mapPopup || !state.popupOverlay) {
@@ -7782,6 +7838,7 @@ import APP_CONFIG from './config.js';
       clearPhotoSlideshowsByPrefix("map-popup-");
       state.popupOverlay.setPosition(undefined);
       state.mapPopupDismissClearsDongFilter = false;
+      state.mapPopupClearsHotspotSelection = false;
       state.mapPopupCloseTimer = null;
     };
 

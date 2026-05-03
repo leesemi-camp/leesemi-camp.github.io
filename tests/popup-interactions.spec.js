@@ -21,7 +21,7 @@ test.afterEach(async ({ page }, testInfo) => {
   }
 });
 
-async function blockFirestore(page) {
+async function blockFirestore(page, hotspots = []) {
   await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
   await page.route("**/data/hotspots.public.json", (route) => {
     route.fulfill({
@@ -31,8 +31,8 @@ async function blockFirestore(page) {
         generatedAt: "2026-01-01T00:00:00.000Z",
         source: "firestore",
         collection: "crowd_hotspots",
-        count: 0,
-        hotspots: []
+        count: hotspots.length,
+        hotspots
       })
     });
   });
@@ -252,11 +252,11 @@ test("Map popup close button uses close animation", async ({ page }) => {
   await page.locator("[data-action='focus-group']").first().click();
   await expect(popup).not.toHaveClass(/hidden/);
   await expect(popup).toHaveAttribute("aria-hidden", "false");
-  await expect(popup.locator("[data-action='close-popup']")).toBeVisible();
-  // 지도 이동 애니메이션 중에는 WebKit이 버튼을 불안정한 요소로 볼 수 있어 팝업 위치가 자리 잡은 뒤 클릭한다.
-  await waitForMapPopupToSettle(page);
+  const closeButton = popup.locator("[data-action='close-popup']");
+  await expect(closeButton).toBeVisible();
 
-  await popup.locator("[data-action='close-popup']").click();
+  // WebKit은 지도 이동 중 팝업 위치가 흔들리면 locator.click()의 stable 대기 중 요소가 교체될 수 있다.
+  await closeButton.dispatchEvent("click");
 
   const closingState = await popup.evaluate((element) => {
     return {
@@ -269,6 +269,100 @@ test("Map popup close button uses close animation", async ({ page }) => {
   expect(closingState.hidden || closingState.closing).toBe(true);
   await expect(popup).toHaveClass(/hidden/);
   await expect(clearBtn).toHaveClass(/hidden/);
+});
+
+test("Closing hotspot popup clears selected hotspot highlight", async ({ page }) => {
+  // 단일 현안 팝업을 닫으면 선택된 지도 아이콘과 목록 카드 강조가 함께 해제됨
+  await blockFirestore(page, [
+    {
+      id: "selected-popup",
+      title: "선택 해제 현안",
+      categoryId: "traffic_parking",
+      dongName: "판교동",
+      lat: 37.394,
+      lng: 127.111
+    }
+  ]);
+  await page.goto("/map/");
+  await page.waitForFunction(() => {
+    return (
+      window.__spotListTestHooks &&
+      typeof window.__spotListTestHooks.setActiveDongFilter === "function" &&
+      typeof window.__spotListTestHooks.getHighlightedHotspotIds === "function" &&
+      typeof window.__spotListTestHooks.getSelectedHotspotId === "function" &&
+      document.querySelector("#spot-list [data-group-key]")
+    );
+  });
+  await page.evaluate(() => {
+    window.__spotListTestHooks.setActiveDongFilter("판교동");
+  });
+
+  const popup = page.locator("#map-popup");
+  const clearBtn = page.locator("#clear-dong-filter-btn");
+  const spotItem = page.locator("#spot-list [data-spot-id='selected-popup']");
+  await expect(spotItem).toBeVisible();
+  await expect(clearBtn).not.toHaveClass(/hidden/);
+
+  await spotItem.click();
+
+  await expect(popup).not.toHaveClass(/hidden/);
+  await expect(popup).toHaveAttribute("aria-hidden", "false");
+  await expect(spotItem).toHaveClass(/spot-item-selected/);
+  await expect.poll(() => {
+    return page.evaluate(() => window.__spotListTestHooks.getHighlightedHotspotIds());
+  }).toEqual(["selected-popup"]);
+  await expect.poll(() => {
+    return page.evaluate(() => window.__spotListTestHooks.getSelectedHotspotId());
+  }).toBe("selected-popup");
+  await waitForMapPopupToSettle(page);
+
+  await popup.locator("[data-action='close-popup']").dispatchEvent("click");
+
+  await expect.poll(() => {
+    return page.evaluate(() => window.__spotListTestHooks.getHighlightedHotspotIds());
+  }).toEqual([]);
+  await expect.poll(() => {
+    return page.evaluate(() => window.__spotListTestHooks.getSelectedHotspotId());
+  }).toBe("");
+  await expect(spotItem).not.toHaveClass(/spot-item-selected/);
+  await expect(clearBtn).not.toHaveClass(/hidden/);
+  await expect(popup).toHaveClass(/hidden/);
+});
+
+test("Dong group highlight does not select single hotspot card", async ({ page }) => {
+  // 동별 묶음에 현안이 하나뿐이어도 단일 팝업 선택 상태와 구분됨
+  await blockFirestore(page, [
+    {
+      id: "single-dong",
+      title: "단일 동 현안",
+      categoryId: "traffic_parking",
+      dongName: "판교동",
+      lat: 37.394,
+      lng: 127.111
+    }
+  ]);
+  await page.goto("/map/");
+  await page.waitForFunction(() => {
+    return (
+      window.__spotListTestHooks &&
+      typeof window.__spotListTestHooks.getHighlightedHotspotIds === "function" &&
+      typeof window.__spotListTestHooks.getSelectedHotspotId === "function" &&
+      document.querySelector("#spot-list [data-group-key]")
+    );
+  });
+
+  await page.locator("[data-action='focus-group']").first().click();
+
+  const spotItem = page.locator("#spot-list [data-spot-id='single-dong']");
+  await expect(spotItem).toBeVisible();
+  await expect(spotItem).toHaveClass(/spot-item-highlighted/);
+  await expect(spotItem).not.toHaveClass(/spot-item-selected/);
+  await expect.poll(() => {
+    return page.evaluate(() => window.__spotListTestHooks.getHighlightedHotspotIds());
+  }).toEqual(["single-dong"]);
+  await expect.poll(() => {
+    return page.evaluate(() => window.__spotListTestHooks.getSelectedHotspotId());
+  }).toBe("");
 });
 
 test("Issue view dong button is present and active by default", async ({ page }) => {
