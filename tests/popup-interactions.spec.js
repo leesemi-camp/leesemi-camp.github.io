@@ -48,6 +48,29 @@ async function setupSpots(page, spots) {
   }, spots);
 }
 
+async function waitForMapPopupToSettle(page) {
+  await page.waitForFunction(() => {
+    const popup = document.getElementById("map-popup");
+    if (!popup || popup.classList.contains("hidden") || popup.classList.contains("map-popup-closing")) {
+      return false;
+    }
+    const firstRect = popup.getBoundingClientRect();
+    return new Promise((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const secondRect = popup.getBoundingClientRect();
+          const stable =
+            Math.abs(firstRect.left - secondRect.left) < 0.5 &&
+            Math.abs(firstRect.top - secondRect.top) < 0.5 &&
+            Math.abs(firstRect.width - secondRect.width) < 0.5 &&
+            Math.abs(firstRect.height - secondRect.height) < 0.5;
+          resolve(stable);
+        });
+      });
+    });
+  });
+}
+
 test("Map popup element exists and is initially hidden", async ({ page }) => {
   // 지도 팝업 요소가 초기에 숨겨진 상태임
   await page.goto("/map/");
@@ -228,7 +251,10 @@ test("Map popup close button uses close animation", async ({ page }) => {
   const clearBtn = page.locator("#clear-dong-filter-btn");
   await page.locator("[data-action='focus-group']").first().click();
   await expect(popup).not.toHaveClass(/hidden/);
+  await expect(popup).toHaveAttribute("aria-hidden", "false");
   await expect(popup.locator("[data-action='close-popup']")).toBeVisible();
+  // 지도 이동 애니메이션 중에는 WebKit이 버튼을 불안정한 요소로 볼 수 있어 팝업 위치가 자리 잡은 뒤 클릭한다.
+  await waitForMapPopupToSettle(page);
 
   await popup.locator("[data-action='close-popup']").click();
 
