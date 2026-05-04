@@ -72,19 +72,18 @@
   - `tests/spot-list.spec.js`: `Memo presence toggles compact card class`
   - `tests/smoke.spec.js`: `Map spot memo state`
 
-## PUB-004: 현안 열람(동별 보기 고정)
+## PUB-004: 현안 열람(통계 필터)
 
-- Entry: `/map/` (편집 화면에도 동일 버튼/리스트가 존재)
+- Entry: `/map/` (편집 화면에도 동일 통계/리스트가 존재)
 - 사용자 흐름
-  - 리스트는 항상 동별 묶음으로 렌더링됩니다.
-  - “동별 보기” 버튼은 현재 보기 상태를 표시합니다.
+  - 현안 통계의 카테고리/동 항목을 누르면 해당 조건의 현안 카드만 리스트에 표시됩니다.
+  - “전체 보기” 버튼으로 카테고리/동 필터를 해제합니다.
 - 구현
-  - 버튼 이벤트: `app.js` `bindUiEvents()`에서 `#issue-view-dong-btn`
-  - 모드 동기화: `setIssueListMode(mode)` / `syncIssueListModeUi()`
-  - 리스트 렌더: `renderVisibleIssueList()`가 `renderIssueDongList(hotspots)`를 호출
-  - 동별 묶음 계산: `buildIssueDongGroups(...)`
+  - 통계 버튼 이벤트: `app.js` `bindUiEvents()`에서 `data-action="filter-issues"`
+  - 필터 상태: `activeIssueFilter` / `setActiveIssueFilter(...)`
+  - 리스트 렌더: `renderVisibleIssueList()`가 `applyIssueFilter(...)` 후 `renderHotspotList(filtered)`를 호출
 - 테스트
-  - 없음(현재)
+  - `tests/issue-stats-rendering.spec.js`: 카테고리/동 통계 필터 및 전체 보기
 
 ## PUB-005: 동 선택(경계 클릭) → 동 필터 적용/해제
 

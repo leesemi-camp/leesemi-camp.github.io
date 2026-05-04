@@ -59,12 +59,7 @@ const APP_CONFIG = {
   },
   data: {
     boundarySources: [
-      "/data/daejangdong.wfs.xml",
-      "/data/baekhyeondong.wfs.xml",
-      "/data/seogundong.wfs.xml",
-      "/data/unjungdong.wfs.xml",
-      "/data/pangyodong.wfs.xml",
-      "/data/hasanundong.wfs.xml"
+      "/data/dong-boundaries.optimized.geojson"
     ],
     commonPledges: [
       {

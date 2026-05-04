@@ -25,6 +25,7 @@
     <meta name="twitter:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="preload" href="/data/dong-boundaries.optimized.geojson" as="fetch" type="application/geo+json" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css">
     <link rel="stylesheet" href="../styles.css">
     <link rel="stylesheet" href="./style.css">
@@ -59,26 +60,33 @@
 
         <section class="workspace">
             <div class="map-wrap map-wrap-initializing">
-                <div id="map" class="map" role="application" aria-label="동별 현안 지도"></div>
+                <div id="map" class="map" role="application" aria-label="동별 현안 지도" tabindex="0"></div>
                 <div id="map-popup" class="map-popup hidden" aria-hidden="true"></div>
             </div>
 
-            <aside class="side-panel">
-                <section id="issue-stats-summary" class="issue-stats-summary" aria-live="polite"></section>
-                <section class="pledge-panel">
-                    <h3>지역구 공통 현안</h3>
-                    <ul id="common-pledge-list" class="pledge-list"></ul>
-                </section>
+            <aside class="side-panel" aria-label="현안 정보">
+                <button id="mobile-sheet-toggle" type="button" class="mobile-sheet-grip" aria-expanded="true" aria-controls="mobile-sheet-content" aria-label="현안 정보 시트 접기"></button>
+                <div id="mobile-sheet-content" class="mobile-sheet-content">
+                    <div class="mobile-sheet-tabs" role="tablist" aria-label="현안 정보 보기">
+                        <button type="button" class="mobile-sheet-tab mobile-sheet-tab-active" data-mobile-sheet-tab="stats" role="tab" aria-selected="true" aria-controls="mobile-stats-panel">통계</button>
+                        <button type="button" class="mobile-sheet-tab" data-mobile-sheet-tab="issues" role="tab" aria-selected="false" aria-controls="issue-list-panel" disabled>현안</button>
+                    </div>
+                    <div id="mobile-stats-panel" class="mobile-sheet-section mobile-sheet-section-active" data-mobile-sheet-section="stats" role="tabpanel">
+                        <section id="issue-stats-summary" class="issue-stats-summary" aria-live="polite"></section>
+                        <section id="common-pledge-panel" class="pledge-panel">
+                            <h3>지역구 공통 현안</h3>
+                            <ul id="common-pledge-list" class="pledge-list"></ul>
+                        </section>
+                    </div>
 
-                <h3 class="list-title">우리동네 현안</h3>
-                <div class="spot-filter-row">
-                    <button id="issue-view-dong-btn" type="button" class="btn-secondary btn-small spot-action-btn spot-action-btn-checked">동별 보기
-                    </button>
-                    <button id="clear-dong-filter-btn" type="button" class="btn-secondary btn-small hidden">전체 보기
-                    </button>
+                    <section id="issue-list-panel" class="issue-list-panel issue-list-panel-hidden mobile-sheet-section" data-mobile-sheet-section="issues" role="tabpanel" aria-hidden="true">
+                        <div class="issue-list-head">
+                            <h3 id="issue-list-title" class="list-title">우리동네 현안</h3>
+                            <button id="issue-list-clear-filter-btn" type="button" class="issue-list-clear-btn" data-action="clear-issue-filter">전체 보기</button>
+                        </div>
+                        <ul id="spot-list" class="spot-list"></ul>
+                    </section>
                 </div>
-                <p class="muted">지도에서 동 영역을 클릭하면 해당 동 현안만 볼 수 있습니다.</p>
-                <ul id="spot-list" class="spot-list"></ul>
             </aside>
         </section>
         <section class="issue-helper" aria-label="현안 제보 안내">

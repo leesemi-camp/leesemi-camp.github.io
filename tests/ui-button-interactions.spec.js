@@ -43,6 +43,29 @@ test("Issue helper toggle re-expands the bubble", async ({ page }) => {
   expect(ariaExpanded).toBe("true");
 });
 
+test("Issue helper re-expands with opening animation", async ({ page }) => {
+  // 다시 펼칠 때도 issue-helper-opening 상태로 등장 애니메이션을 적용함
+  await page.goto("/map/");
+  await page.waitForSelector("#issue-helper-toggle");
+  const helper = page.locator(".issue-helper");
+  const toggleBtn = page.locator("#issue-helper-toggle");
+  await toggleBtn.click();
+  await expect(helper).toHaveClass(/issue-helper-collapsed/);
+  await toggleBtn.click();
+  const openState = await helper.evaluate((element) => {
+    const bubble = document.getElementById("issue-helper-bubble");
+    const bubbleStyle = bubble ? window.getComputedStyle(bubble) : null;
+    return {
+      opening: element.classList.contains("issue-helper-opening"),
+      ariaHidden: bubble ? bubble.getAttribute("aria-hidden") : "",
+      animationName: bubbleStyle ? bubbleStyle.animationName : ""
+    };
+  });
+  expect(openState.opening).toBe(true);
+  expect(openState.ariaHidden).toBe("false");
+  expect(openState.animationName).toContain("issue-helper-bubble-open");
+});
+
 test("Issue helper close button collapses the bubble", async ({ page }) => {
   // 현안 안내 말풍선 닫기 버튼 클릭 (issueHelperCloseButton 이벤트 핸들러)
   await page.goto("/map/");

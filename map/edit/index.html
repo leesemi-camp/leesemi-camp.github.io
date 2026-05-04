@@ -25,6 +25,7 @@
   <meta name="twitter:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/data/dong-boundaries.optimized.geojson" as="fetch" type="application/geo+json" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css">
   <link rel="stylesheet" href="../../styles.css">
   <script src="https://cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js" defer></script>
@@ -167,10 +168,6 @@
           </section>
 
           <h3 class="list-title">등록된 지역 현안</h3>
-          <div class="spot-filter-row">
-            <button id="issue-view-dong-btn" type="button" class="btn-secondary btn-small spot-action-btn spot-action-btn-checked">동별 보기</button>
-            <button id="clear-dong-filter-btn" type="button" class="btn-secondary btn-small hidden">전체 보기</button>
-          </div>
           <ul id="spot-list" class="spot-list"></ul>
         </aside>
       </section>

@@ -25,7 +25,12 @@ test("Memo presence toggles compact card class", async ({ page }) => {
   // 메모 유무에 따라 카드 클래스/요소가 달라지는지 확인
   await page.goto("/map/");
   await page.waitForFunction(() => {
-    return window.__spotListTestHooks && typeof window.__spotListTestHooks.renderHotspotList === "function";
+    return (
+      window.__spotListTestHooks &&
+      typeof window.__spotListTestHooks.renderHotspotList === "function" &&
+      document.querySelector("#issue-stats-summary") &&
+      document.querySelector("#issue-stats-summary").textContent.trim().length > 0
+    );
   });
 
   const hotspots = [

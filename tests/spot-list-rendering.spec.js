@@ -27,7 +27,9 @@ async function waitForHook(page) {
   await page.waitForFunction(() => {
     return (
       window.__spotListTestHooks &&
-      typeof window.__spotListTestHooks.renderHotspotList === "function"
+      typeof window.__spotListTestHooks.renderHotspotList === "function" &&
+      document.querySelector("#issue-stats-summary") &&
+      document.querySelector("#issue-stats-summary").textContent.trim().length > 0
     );
   });
 }
