@@ -7875,12 +7875,13 @@ import APP_CONFIG from './config.js';
       mobileSheetState: options && options.mobileSheetState
     };
     if (activeFilter.type === "dong") {
+      const shouldShowDongSummaryPopup = Boolean(options && options.preservePopup) || isMobileLayout();
       focusDongIssues(activeFilter.key, {
         boundaryFeature: findBoundaryFeatureByDongName(activeFilter.key),
         duration: focusOptions.duration,
         maxZoom: 15,
         mobileSheetState: focusOptions.mobileSheetState,
-        skipPopup: !(options && options.preservePopup)
+        skipPopup: !shouldShowDongSummaryPopup
       });
       return true;
     }
