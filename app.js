@@ -7773,17 +7773,15 @@ import APP_CONFIG from './config.js';
         return;
       }
       window.requestAnimationFrame(() => {
-        alignOpenMapPopupToVisibleCenter({
-          duration: MAP_VIEW_CENTER_ANIMATION_MS
+        openDongIssueSummaryPopup(targetCoordinate, normalizedDong, spots.length, {
+          alignToVisibleCenter: true,
+          alignDuration: MAP_VIEW_CENTER_ANIMATION_MS
         });
       });
     };
 
     if (targetCoordinate) {
       suppressPopupCloseForNextMapMove(MAP_VIEW_FIT_ANIMATION_MS);
-      if (shouldOpenSummaryPopup) {
-        openDongIssueSummaryPopup(targetCoordinate, normalizedDong, spots.length);
-      }
       let didScheduleFocus = false;
       const didFocusBoundary = focusMapOnBoundaryExtent(boundaryExtent, {
         duration: MAP_VIEW_FIT_ANIMATION_MS,
