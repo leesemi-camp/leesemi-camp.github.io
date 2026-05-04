@@ -2568,7 +2568,6 @@ import APP_CONFIG from './config.js';
 
     state.map.on("movestart", () => {
       if (state.suppressPopupCloseOnNextMoveStart) {
-        clearPopupMoveSuppression();
         return;
       }
       closePopup();
@@ -5637,9 +5636,11 @@ import APP_CONFIG from './config.js';
     if (didChange) {
       syncMobileDependentLayout();
       if (options && options.refocusActiveFilter) {
+        const mobileSheetState = nextExpanded ? "expanded" : "collapsed";
         const refocusForSheetState = () => {
           refocusActiveIssueFilterOnMap({
-            duration: MAP_VIEW_FIT_ANIMATION_MS
+            duration: MAP_VIEW_FIT_ANIMATION_MS,
+            mobileSheetState
           });
         };
         window.requestAnimationFrame(refocusForSheetState);
@@ -7786,6 +7787,7 @@ import APP_CONFIG from './config.js';
       const didFocusBoundary = focusMapOnBoundaryExtent(boundaryExtent, {
         duration: MAP_VIEW_FIT_ANIMATION_MS,
         maxZoom: 15,
+        mobileSheetState: options && options.mobileSheetState,
         callback: finishDongFocus
       });
       didScheduleFocus = didScheduleFocus || didFocusBoundary;
@@ -7794,6 +7796,7 @@ import APP_CONFIG from './config.js';
           duration: MAP_VIEW_FIT_ANIMATION_MS,
           maxZoom: 16,
           singlePointMinZoom: 15,
+          mobileSheetState: options && options.mobileSheetState,
           callback: finishDongFocus
         });
         didScheduleFocus = didScheduleFocus || didFocusSpots;
@@ -7818,7 +7821,8 @@ import APP_CONFIG from './config.js';
 
   function refocusActiveIssueFilterOnMap(options) {
     if (alignOpenMapPopupToVisibleCenter({
-      duration: options && options.duration
+      duration: options && options.duration,
+      mobileSheetState: options && options.mobileSheetState
     })) {
       return true;
     }
@@ -7831,7 +7835,8 @@ import APP_CONFIG from './config.js';
         : null;
       if (selectedGeometry && typeof selectedGeometry.getCoordinates === "function" && selectedSpot) {
         animateMapToHotspotSelection(selectedGeometry.getCoordinates(), selectedSpot, {
-          duration: options && options.duration
+          duration: options && options.duration,
+          mobileSheetState: options && options.mobileSheetState
         });
         return true;
       }
@@ -7849,13 +7854,15 @@ import APP_CONFIG from './config.js';
     const focusOptions = {
       duration: options && options.duration,
       maxZoom: 16,
-      singlePointMinZoom: 15
+      singlePointMinZoom: 15,
+      mobileSheetState: options && options.mobileSheetState
     };
     if (activeFilter.type === "dong") {
       focusDongIssues(activeFilter.key, {
         boundaryFeature: findBoundaryFeatureByDongName(activeFilter.key),
         duration: focusOptions.duration,
         maxZoom: 15,
+        mobileSheetState: focusOptions.mobileSheetState,
         skipPopup: true
       });
       return true;
