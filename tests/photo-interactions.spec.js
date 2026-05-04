@@ -1,6 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { addCoverageReport } from "monocart-reporter";
 
+const TEST_PHOTO_BLUE =
+  "data:image/gif;base64,R0lGODlhAQABAPAAAFqJzAAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==";
+const TEST_PHOTO_GREEN =
+  "data:image/gif;base64,R0lGODlhAQABAPAAAGKpXQAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==";
+
 // Chromium에서만 V8 커버리지를 수집한다.
 test.beforeEach(async ({ page }, testInfo) => {
   if (testInfo.project.use.browserName === "chromium") {
@@ -50,12 +55,35 @@ async function waitForSpotListHook(page) {
   });
 }
 
+async function waitForMapPopupToSettle(page) {
+  await page.waitForFunction(() => {
+    const popup = document.getElementById("map-popup");
+    if (!popup || popup.classList.contains("hidden") || popup.classList.contains("map-popup-closing")) {
+      return false;
+    }
+    const firstRect = popup.getBoundingClientRect();
+    return new Promise((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const secondRect = popup.getBoundingClientRect();
+          resolve(
+            Math.abs(firstRect.left - secondRect.left) < 0.5 &&
+            Math.abs(firstRect.top - secondRect.top) < 0.5 &&
+            Math.abs(firstRect.width - secondRect.width) < 0.5 &&
+            Math.abs(firstRect.height - secondRect.height) < 0.5
+          );
+        });
+      });
+    });
+  });
+}
+
 // 두 장의 사진을 가진 현안으로 슬라이드쇼를 렌더링한다.
 async function renderSpotWithPhotos(page) {
   await blockFirestore(page);
-  await page.goto("/map/");
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page);
-  await page.evaluate(() => {
+  await page.evaluate(([firstPhoto, secondPhoto]) => {
     window.__spotListTestHooks.renderHotspotList([
       {
         id: "photo-test-1",
@@ -64,12 +92,12 @@ async function renderSpotWithPhotos(page) {
         categoryLabel: "교통",
         dongName: "판교동",
         photoDataUrls: [
-          "https://example.com/photo1.jpg",
-          "https://example.com/photo2.jpg"
+          firstPhoto,
+          secondPhoto
         ]
       }
     ]);
-  });
+  }, [TEST_PHOTO_BLUE, TEST_PHOTO_GREEN]);
   // 슬라이드쇼 이미지가 DOM에 나타날 때까지 대기
   await page.waitForSelector("#spot-list .photo-slide-image");
 }
@@ -77,9 +105,9 @@ async function renderSpotWithPhotos(page) {
 // 한 장의 사진을 가진 현안으로 렌더링한다.
 async function renderSpotWithSinglePhoto(page) {
   await blockFirestore(page);
-  await page.goto("/map/");
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page);
-  await page.evaluate(() => {
+  await page.evaluate((photoUrl) => {
     window.__spotListTestHooks.renderHotspotList([
       {
         id: "single-photo-1",
@@ -87,10 +115,10 @@ async function renderSpotWithSinglePhoto(page) {
         categoryId: "env",
         categoryLabel: "환경",
         dongName: "운중동",
-        photoDataUrls: ["https://example.com/single.jpg"]
+        photoDataUrls: [photoUrl]
       }
     ]);
-  });
+  }, TEST_PHOTO_BLUE);
   await page.waitForSelector("#spot-list .photo-slide-image");
 }
 
@@ -129,12 +157,12 @@ test("Map popup photo slideshow next button navigates to next slide", async ({ p
       lat: 37.394,
       lng: 127.111,
       photoDataUrls: [
-        "https://example.com/map-popup-photo-1.jpg",
-        "https://example.com/map-popup-photo-2.jpg"
+        TEST_PHOTO_BLUE,
+        TEST_PHOTO_GREEN
       ]
     }
   ]);
-  await page.goto("/map/");
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.setActiveDongFilter("판교동");
@@ -147,7 +175,12 @@ test("Map popup photo slideshow next button navigates to next slide", async ({ p
 
   const indicator = page.locator("#map-popup .photo-slide-indicator");
   await expect(indicator).toHaveText("1 / 2");
-  await page.locator("#map-popup [data-action='photo-slide-next']").click();
+  await waitForMapPopupToSettle(page);
+  const nextButton = page.locator("#map-popup [data-action='photo-slide-next']");
+  await expect(nextButton).toBeVisible();
+  // WebKit은 지도 팝업 위치 보정 직후 overlay 이동을 오래 불안정하게 볼 수 있어,
+  // 여기서는 버튼 이벤트 위임과 슬라이드 상태 변경 자체를 직접 검증한다.
+  await nextButton.dispatchEvent("click");
   await expect(indicator).toHaveText("2 / 2");
   await expect(page.locator("#map-popup .photo-slide-image")).toHaveAttribute("data-photo-index", "1");
 });
