@@ -302,6 +302,20 @@ test("Static boundary mask stays after boundary GeoJSON completes", async ({ pag
 test("Initial mobile map drag pans before zoom controls", async ({ page }) => {
   // +/- 컨트롤을 누르기 전 첫 드래그부터 지도가 이동해야 한다.
   await page.setViewportSize({ width: 390, height: 900 });
+  await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
+  await page.route("**/data/hotspots.public.json", (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        source: "firestore",
+        collection: "crowd_hotspots",
+        count: 0,
+        hotspots: []
+      })
+    });
+  });
   await page.goto("/map/");
   await page.waitForFunction(() => {
     const hooks = window.__spotListTestHooks;
@@ -315,15 +329,58 @@ test("Initial mobile map drag pans before zoom controls", async ({ page }) => {
       mapWrap &&
       mapViewport &&
       !mapWrap.classList.contains("map-wrap-initializing") &&
+      typeof hooks.getBoundaryExtentCenter === "function" &&
+      hooks.getBoundaryExtentCenter() &&
       viewState &&
       !viewState.animating
     );
   });
 
+  const dragPoint = await page.evaluate(() => {
+    const mapViewport = document.querySelector(".map .ol-viewport");
+    if (!mapViewport) {
+      return null;
+    }
+    const rect = mapViewport.getBoundingClientRect();
+    const candidates = [
+      [0.68, 0.22],
+      [0.58, 0.26],
+      [0.72, 0.32],
+      [0.46, 0.22]
+    ];
+    const isSafeMapPoint = (x, y) => {
+      const target = document.elementFromPoint(x, y);
+      return Boolean(
+        target &&
+        target.closest(".map") &&
+        !target.closest(".ol-control") &&
+        !target.closest(".side-panel") &&
+        !target.closest(".issue-helper") &&
+        !target.closest(".map-popup")
+      );
+    };
+    for (const [xRatio, yRatio] of candidates) {
+      const startX = rect.left + rect.width * xRatio;
+      const startY = rect.top + rect.height * yRatio;
+      const endX = Math.max(rect.left + rect.width * 0.32, startX - rect.width * 0.36);
+      const endY = startY;
+      if (isSafeMapPoint(startX, startY) && isSafeMapPoint(endX, endY)) {
+        return {
+          startX,
+          startY,
+          endX,
+          endY
+        };
+      }
+    }
+    return null;
+  });
+  expect(dragPoint).not.toBeNull();
+
   const beforeCenter = await page.evaluate(() => window.__spotListTestHooks.getMapViewState().center);
-  await page.mouse.move(90, 260);
+  await page.mouse.move(dragPoint.startX, dragPoint.startY);
   await page.mouse.down();
-  await page.mouse.move(260, 260, { steps: 10 });
+  await page.mouse.move(dragPoint.endX, dragPoint.endY, { steps: 10 });
   await page.mouse.up();
 
   await expect.poll(async () => {
