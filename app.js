@@ -18,6 +18,9 @@ import APP_CONFIG from './config.js';
     boundaryDefaultStyle: null,
     boundarySelectedStyle: null,
     hotspotSource: null,
+    hotspotLayer: null,
+    hotspotAggregateSource: null,
+    hotspotAggregateLayer: null,
     selectedCoordSource: null,
     populationSource: null,
     selectedCoordLayer: null,
@@ -32,6 +35,8 @@ import APP_CONFIG from './config.js';
     },
     currentUser: null,
     boundariesLoaded: false,
+    boundaryLoadingPromise: null,
+    boundaryMaskFallbackApplied: false,
     overlayLoaded: {
       vehicle: false,
       pedestrian: false
@@ -51,6 +56,7 @@ import APP_CONFIG from './config.js';
     populationMaxByPeriod: new Map(),
     hotspotData: new Map(),
     hotspotStyleCache: new Map(),
+    hotspotAggregateStyleCache: new Map(),
     highlightedHotspotIds: new Set(),
     selectedHotspotId: "",
     availableDongs: [],
@@ -62,9 +68,11 @@ import APP_CONFIG from './config.js';
     issueCatalogMap: new Map(),
     issues: [],
     commonIssueTagMap: new Map(),
-    issueGroupMap: new Map(),
-    issueListMode: "dong",
-    activeDongName: "",
+    activeIssueFilter: {
+      type: "",
+      key: "",
+      label: ""
+    },
     spotPhotoDataUrls: [],
     spotPhotoProcessingInProgress: false,
     photoSlideshowSerial: 0,
@@ -86,11 +94,24 @@ import APP_CONFIG from './config.js';
     selectedCoordFeature: null,
     autoCenteredToCurrentLocation: false,
     suppressPopupCloseOnNextMoveStart: false,
+    suppressPopupCloseGuardTimer: null,
     mapPopupCloseTimer: null,
     mapPopupDismissClearsDongFilter: false,
     mapPopupClearsHotspotSelection: false,
+    mapPopupReturnFocusElement: null,
     spotListRefreshTimer: null,
-    issueHelperCloseTimer: null
+    hotspotStyleAnimations: new Set(),
+    hotspotStyleAnimationFrame: null,
+    hotspotMarkerDisplayMode: "",
+    hotspotMarkerTransitionFrame: null,
+    mobileSheetActiveTab: "stats",
+    mobileSheetExpanded: true,
+    mobileSheetPointerStartY: null,
+    mobileSheetPointerCurrentY: null,
+    mobileSheetDragHandled: false,
+    issueHelperCloseTimer: null,
+    issueHelperOpenTimer: null,
+    issueHelperAutoCollapseTimer: null
   };
 
   const DONG_AUTO_KEY = "__auto__";
@@ -222,7 +243,17 @@ import APP_CONFIG from './config.js';
   const MAP_POPUP_CLOSE_ANIMATION_MS = 160;
   const PHOTO_LIGHTBOX_CLOSE_ANIMATION_MS = 180;
   const SPOT_LIST_REFRESH_ANIMATION_MS = 220;
+  const HOTSPOT_STYLE_ANIMATION_MS = 220;
+  const HOTSPOT_MARKER_MODE_TRANSITION_MS = 180;
+  const MAP_VIEW_CENTER_ANIMATION_MS = 420;
+  const MAP_VIEW_FIT_ANIMATION_MS = 520;
+  const BOUNDARY_MASK_RENDER_BUFFER_PX = 4096;
+  const MOBILE_SHEET_COLLAPSED_HEIGHT_PX = 42;
+  const MOBILE_SHEET_MOTION_TRACK_MS = 340;
+  const HOTSPOT_AGGREGATE_MAX_ZOOM = 13.05;
   const ISSUE_HELPER_CLOSE_ANIMATION_MS = 180;
+  const ISSUE_HELPER_OPEN_ANIMATION_MS = 180;
+  const ISSUE_HELPER_MOBILE_AUTO_COLLAPSE_MS = 6500;
 
   const elements = {
     loginPanel: document.getElementById("login-panel"),
@@ -230,6 +261,7 @@ import APP_CONFIG from './config.js';
     statusText: document.getElementById("status-text"),
     loginButton: document.getElementById("login-btn"),
     logoutButton: document.getElementById("logout-btn"),
+    sidePanel: document.querySelector(".side-panel"),
     mapWrap: document.querySelector(".map-wrap"),
     map: document.getElementById("map"),
     mapPopup: document.getElementById("map-popup"),
@@ -258,13 +290,16 @@ import APP_CONFIG from './config.js';
     spotPhotoReprocessButton: document.getElementById("spot-photo-reprocess-btn"),
     spotPhotoReprocessStatus: document.getElementById("spot-photo-reprocess-status"),
     spotSaveStatus: document.getElementById("spot-save-status"),
+    issueListPanel: document.getElementById("issue-list-panel"),
+    issueListTitle: document.getElementById("issue-list-title"),
     spotList: document.getElementById("spot-list"),
-    issueViewDongButton: document.getElementById("issue-view-dong-btn"),
-    clearDongFilterButton: document.getElementById("clear-dong-filter-btn"),
-    activeDongFilter: document.getElementById("active-dong-filter"),
     issueStatsSummary: document.getElementById("issue-stats-summary"),
+    issueListClearFilterButton: document.getElementById("issue-list-clear-filter-btn"),
     totalIssueCount: document.getElementById("total-issue-count"),
     commonPledgeList: document.getElementById("common-pledge-list"),
+    mobileSheetTabs: Array.from(document.querySelectorAll("[data-mobile-sheet-tab]")),
+    mobileSheetSections: Array.from(document.querySelectorAll("[data-mobile-sheet-section]")),
+    mobileSheetToggle: document.getElementById("mobile-sheet-toggle"),
     issueHelper: document.querySelector(".issue-helper"),
     issueHelperBubble: document.getElementById("issue-helper-bubble"),
     issueHelperCloseButton: document.getElementById("issue-helper-close-btn"),
@@ -296,6 +331,25 @@ import APP_CONFIG from './config.js';
     storagePathPrefix: "hotspot-photos"
   };
   let hotspotWatermarkImagePromise = null;
+  const defaultBoundarySourcePaths = [
+    "/data/daejangdong.wfs.xml",
+    "/data/baekhyeondong.wfs.xml",
+    "/data/seogundong.wfs.xml",
+    "/data/unjungdong.wfs.xml",
+    "/data/pangyodong.wfs.xml",
+    "/data/hasanundong.wfs.xml"
+  ];
+  const optimizedBoundarySourcePath = "/data/dong-boundaries.optimized.geojson";
+  // Simplified from the configured WFS boundaries so the outside-region mask can
+  // be drawn before the heavier boundary XML files finish loading.
+  const staticBoundaryMaskLonLatRings = [
+    [[127.060662,37.380946],[127.061535,37.380227],[127.063391,37.379416],[127.064342,37.379442],[127.064477,37.379628],[127.065219,37.379833],[127.06613,37.379437],[127.066958,37.37957],[127.067682,37.379416],[127.067931,37.379245],[127.068446,37.379155],[127.069666,37.378756],[127.070726,37.378254],[127.071222,37.377824],[127.071897,37.377627],[127.072578,37.37731],[127.073348,37.37722],[127.074048,37.376069],[127.074303,37.375405],[127.075347,37.37519],[127.075471,37.375586],[127.076032,37.375375],[127.076649,37.374921],[127.077566,37.374593],[127.078048,37.374546],[127.078329,37.374374],[127.079104,37.374761],[127.079778,37.37379],[127.080795,37.373518],[127.080638,37.372704],[127.080375,37.372667],[127.07979,37.372242],[127.07986,37.371688],[127.079522,37.371328],[127.080135,37.370266],[127.08012,37.369907],[127.079821,37.369306],[127.079763,37.368618],[127.079835,37.368271],[127.079173,37.368072],[127.07804,37.367496],[127.077645,37.367109],[127.077519,37.366759],[127.077276,37.366577],[127.077611,37.366255],[127.077931,37.365394],[127.078126,37.365127],[127.078004,37.364962],[127.078009,37.36459],[127.076717,37.363311],[127.076261,37.362484],[127.076008,37.362354],[127.075943,37.362171],[127.075997,37.361947],[127.075835,37.361443],[127.075125,37.36087],[127.075166,37.360374],[127.07439,37.359704],[127.074177,37.35927],[127.074322,37.3588],[127.0721,37.357212],[127.071838,37.357396],[127.069964,37.358233],[127.067281,37.359049],[127.0666,37.359352],[127.064934,37.359771],[127.063186,37.360441],[127.062031,37.360393],[127.061058,37.360685],[127.060377,37.360771],[127.058134,37.360746],[127.057721,37.360702],[127.056851,37.360421],[127.055727,37.359954],[127.054289,37.360126],[127.053659,37.360484],[127.053093,37.360924],[127.052957,37.361352],[127.052896,37.362136],[127.053184,37.36264],[127.053181,37.363197],[127.052398,37.364017],[127.050891,37.364866],[127.050863,37.365237],[127.051131,37.365544],[127.051289,37.365879],[127.051141,37.3667],[127.050885,37.367184],[127.051157,37.367539],[127.051369,37.368213],[127.051281,37.368378],[127.051263,37.368739],[127.051349,37.369283],[127.051259,37.369417],[127.051388,37.36952],[127.051391,37.369932],[127.05108,37.371015],[127.051397,37.371428],[127.05132,37.373486],[127.051714,37.374682],[127.052281,37.375265],[127.052275,37.376156],[127.052647,37.376588],[127.052391,37.376965],[127.052434,37.377449],[127.052306,37.377928],[127.052501,37.378524],[127.053422,37.379003],[127.056213,37.38009],[127.056678,37.379857],[127.057965,37.379601],[127.058413,37.379963],[127.058615,37.379999],[127.058883,37.380653],[127.05951,37.380987],[127.059934,37.381059],[127.060662,37.380946]],
+    [[127.100311,37.383733],[127.100325,37.382892],[127.100473,37.382859],[127.100529,37.382756],[127.100594,37.382235],[127.100426,37.382242],[127.100412,37.382108],[127.101916,37.382101],[127.103059,37.381643],[127.103063,37.384764],[127.102228,37.389509],[127.101541,37.391644],[127.101544,37.393773],[127.10115,37.394588],[127.101784,37.395052],[127.101711,37.395273],[127.101782,37.395325],[127.102307,37.395354],[127.103357,37.39481],[127.104337,37.394576],[127.104761,37.395069],[127.106125,37.394262],[127.106088,37.394414],[127.106562,37.394999],[127.106996,37.395721],[127.107383,37.395772],[127.107424,37.396046],[127.107115,37.396057],[127.107245,37.396537],[127.10739,37.396393],[127.109366,37.396365],[127.109365,37.396049],[127.110449,37.396073],[127.110636,37.395927],[127.111816,37.395922],[127.112028,37.396071],[127.112644,37.396073],[127.112724,37.396009],[127.112722,37.394927],[127.116636,37.394923],[127.116666,37.3952],[127.118353,37.395199],[127.118353,37.394922],[127.120329,37.39492],[127.120367,37.39311],[127.120082,37.391824],[127.119714,37.390797],[127.118489,37.389128],[127.116354,37.38695],[127.113057,37.383307],[127.109049,37.383746],[127.106899,37.381059],[127.106226,37.3813],[127.105538,37.382436],[127.104743,37.38279],[127.103508,37.382967],[127.103443,37.379953],[127.10364,37.377376],[127.103628,37.376912],[127.103515,37.376913],[127.103448,37.37622],[127.103457,37.374977],[127.103,37.375221],[127.102487,37.37536],[127.102291,37.375225],[127.102172,37.375261],[127.102142,37.376289],[127.102055,37.376605],[127.101859,37.376781],[127.101854,37.376723],[127.10172,37.377204],[127.101756,37.376771],[127.10154,37.376744],[127.101089,37.376946],[127.100791,37.376931],[127.099875,37.376432],[127.09944,37.376422],[127.09875,37.376258],[127.097953,37.376442],[127.096776,37.376179],[127.096466,37.376171],[127.096156,37.376335],[127.095709,37.376307],[127.094554,37.376023],[127.094377,37.37595],[127.094097,37.375508],[127.093679,37.375495],[127.093397,37.375773],[127.093219,37.376309],[127.092856,37.376409],[127.092599,37.376773],[127.092106,37.376956],[127.090601,37.376862],[127.089596,37.377458],[127.088738,37.377133],[127.088375,37.376865],[127.087746,37.37671],[127.087126,37.376732],[127.086755,37.376487],[127.085152,37.376305],[127.084936,37.376203],[127.084668,37.375727],[127.083812,37.375459],[127.083473,37.375126],[127.083392,37.374835],[127.082792,37.374529],[127.081884,37.37384],[127.081451,37.373657],[127.080795,37.373518],[127.079778,37.37379],[127.079409,37.374395],[127.078688,37.375245],[127.078458,37.376123],[127.078783,37.376421],[127.079116,37.378048],[127.079539,37.37818],[127.079838,37.378479],[127.079827,37.378865],[127.080235,37.379207],[127.080896,37.379992],[127.082253,37.381326],[127.083896,37.382472],[127.084081,37.382418],[127.084786,37.382646],[127.085509,37.382658],[127.086417,37.383193],[127.087102,37.383368],[127.088432,37.383251],[127.088692,37.383401],[127.088778,37.383569],[127.089257,37.383744],[127.089546,37.383726],[127.089315,37.383906],[127.090196,37.384878],[127.090457,37.384806],[127.090883,37.384916],[127.09116,37.384697],[127.091623,37.384671],[127.091866,37.384405],[127.092354,37.384536],[127.092909,37.384359],[127.093434,37.384649],[127.0945,37.384826],[127.094871,37.384671],[127.095258,37.384636],[127.096073,37.3849],[127.096545,37.384539],[127.096968,37.384408],[127.098188,37.384289],[127.098441,37.384067],[127.09862,37.383655],[127.098936,37.383617],[127.099438,37.383894],[127.100275,37.383714],[127.100311,37.383733]],
+    [[127.043548,37.38896],[127.043704,37.388888],[127.044305,37.388917],[127.045472,37.388583],[127.045936,37.388129],[127.046862,37.387561],[127.04698,37.387267],[127.047819,37.386993],[127.048977,37.38691],[127.049317,37.386596],[127.050012,37.386247],[127.051599,37.386574],[127.051714,37.385673],[127.05215,37.385115],[127.052426,37.385009],[127.052594,37.384459],[127.053055,37.38404],[127.053826,37.384071],[127.054556,37.384433],[127.055144,37.383962],[127.055193,37.383151],[127.055522,37.382738],[127.056145,37.382502],[127.056163,37.382113],[127.056788,37.3813],[127.057094,37.381348],[127.057719,37.380897],[127.058883,37.380653],[127.058615,37.379999],[127.058413,37.379963],[127.057965,37.379601],[127.056678,37.379857],[127.056213,37.38009],[127.053422,37.379003],[127.052501,37.378524],[127.052306,37.377928],[127.052434,37.377449],[127.052391,37.376965],[127.052647,37.376588],[127.052275,37.376156],[127.052281,37.375265],[127.051714,37.374682],[127.05132,37.373486],[127.051397,37.371428],[127.05108,37.371015],[127.051391,37.369932],[127.051388,37.36952],[127.051259,37.369417],[127.051349,37.369283],[127.051263,37.368739],[127.051281,37.368378],[127.051369,37.368213],[127.051157,37.367539],[127.050885,37.367184],[127.051141,37.3667],[127.051289,37.365879],[127.051131,37.365544],[127.050863,37.365237],[127.050891,37.364866],[127.050303,37.364911],[127.050118,37.365176],[127.0495,37.365322],[127.049051,37.365714],[127.048574,37.365988],[127.04724,37.366566],[127.046838,37.367108],[127.046722,37.367458],[127.046353,37.367929],[127.046293,37.368186],[127.046082,37.368297],[127.045703,37.368297],[127.045094,37.368545],[127.044834,37.36882],[127.044084,37.368789],[127.043328,37.369024],[127.042339,37.369035],[127.041082,37.369365],[127.039501,37.369385],[127.038955,37.369578],[127.038331,37.369675],[127.03748,37.370192],[127.03726,37.370183],[127.036652,37.370425],[127.035984,37.37049],[127.035454,37.37067],[127.035152,37.370535],[127.034912,37.370535],[127.034664,37.370681],[127.034465,37.370984],[127.032474,37.371498],[127.03222,37.371532],[127.032096,37.371464],[127.031571,37.371748],[127.030938,37.371821],[127.030716,37.371916],[127.030577,37.372077],[127.030369,37.372122],[127.029652,37.372131],[127.02926,37.37232],[127.029086,37.372125],[127.028641,37.371942],[127.027913,37.371965],[127.027705,37.372848],[127.027905,37.374092],[127.027915,37.375614],[127.028005,37.376006],[127.028345,37.376657],[127.027994,37.377155],[127.028038,37.378272],[127.028175,37.378497],[127.028192,37.379173],[127.029276,37.379551],[127.031405,37.379362],[127.031943,37.3796],[127.031897,37.380028],[127.032174,37.380362],[127.032277,37.381424],[127.032058,37.382198],[127.033134,37.383118],[127.033113,37.383614],[127.033191,37.383903],[127.033812,37.384623],[127.033959,37.385871],[127.03494,37.385988],[127.035529,37.386605],[127.035383,37.386867],[127.035184,37.387929],[127.034672,37.388794],[127.035355,37.388812],[127.035761,37.38892],[127.0361,37.389271],[127.036846,37.389379],[127.037297,37.389577],[127.037975,37.390271],[127.038416,37.390505],[127.039378,37.390421],[127.039936,37.389829],[127.040891,37.389608],[127.041208,37.389426],[127.042237,37.389269],[127.04266,37.389096],[127.043339,37.389047],[127.043548,37.38896]],
+    [[127.044998,37.40349],[127.045602,37.403436],[127.046437,37.403493],[127.047095,37.403663],[127.04776,37.403492],[127.05068,37.4035],[127.05088,37.403363],[127.051502,37.403219],[127.052834,37.402697],[127.053325,37.402604],[127.054086,37.402634],[127.054434,37.40241],[127.054948,37.402229],[127.056148,37.40243],[127.057561,37.401507],[127.058287,37.401255],[127.058627,37.401271],[127.059483,37.40097],[127.059569,37.400667],[127.060379,37.399961],[127.061173,37.399645],[127.061643,37.39932],[127.063194,37.398507],[127.063626,37.398658],[127.06456,37.398636],[127.064736,37.398613],[127.065703,37.39807],[127.066188,37.398339],[127.067871,37.397984],[127.068109,37.398143],[127.068383,37.398194],[127.069368,37.397978],[127.069753,37.397782],[127.07053,37.39786],[127.071737,37.397807],[127.072141,37.397982],[127.07281,37.398105],[127.07369,37.398031],[127.074207,37.397755],[127.074634,37.397739],[127.074764,37.397522],[127.075848,37.397277],[127.075869,37.396918],[127.076328,37.396416],[127.076362,37.395606],[127.077095,37.395817],[127.077624,37.396165],[127.078117,37.396263],[127.07832,37.39643],[127.078575,37.396447],[127.078516,37.396549],[127.078648,37.396637],[127.079049,37.396743],[127.079006,37.396912],[127.079201,37.397177],[127.079928,37.397582],[127.081254,37.398108],[127.082095,37.397507],[127.082576,37.397597],[127.082919,37.397518],[127.083507,37.397069],[127.084156,37.397115],[127.084304,37.39721],[127.085988,37.392929],[127.085579,37.39132],[127.085384,37.390875],[127.085234,37.390806],[127.085075,37.390468],[127.085165,37.390363],[127.085011,37.389835],[127.084229,37.387654],[127.083114,37.387673],[127.082067,37.387967],[127.081435,37.388008],[127.080479,37.387867],[127.080332,37.387683],[127.080077,37.387609],[127.08003,37.387818],[127.080085,37.388081],[127.079731,37.388069],[127.079581,37.388179],[127.079518,37.388564],[127.077214,37.389002],[127.076261,37.388628],[127.075555,37.38768],[127.075699,37.387654],[127.07568,37.387586],[127.075896,37.38739],[127.075511,37.387319],[127.075217,37.387169],[127.074933,37.38667],[127.074934,37.385513],[127.074765,37.384861],[127.074641,37.384765],[127.074528,37.384453],[127.074682,37.384345],[127.074709,37.384121],[127.07472,37.383568],[127.074565,37.383079],[127.074821,37.38259],[127.072854,37.382568],[127.071414,37.383503],[127.069252,37.383746],[127.068624,37.384089],[127.06862,37.385157],[127.067917,37.384967],[127.065272,37.38513],[127.064377,37.384826],[127.063296,37.38483],[127.062262,37.384357],[127.06153,37.383829],[127.061146,37.383262],[127.060729,37.382993],[127.060123,37.382411],[127.059894,37.381065],[127.05951,37.380987],[127.058883,37.380653],[127.057719,37.380897],[127.057094,37.381348],[127.056788,37.3813],[127.056163,37.382113],[127.056145,37.382502],[127.055522,37.382738],[127.055193,37.383151],[127.055144,37.383962],[127.054556,37.384433],[127.053826,37.384071],[127.053055,37.38404],[127.052819,37.384248],[127.052594,37.384459],[127.052426,37.385009],[127.05215,37.385115],[127.051714,37.385673],[127.051599,37.386574],[127.050012,37.386247],[127.049317,37.386596],[127.048977,37.38691],[127.047819,37.386993],[127.04698,37.387267],[127.046862,37.387561],[127.045936,37.388129],[127.045472,37.388583],[127.044305,37.388917],[127.043704,37.388888],[127.043339,37.389047],[127.04266,37.389096],[127.042237,37.389269],[127.041208,37.389426],[127.040891,37.389608],[127.039936,37.389829],[127.039378,37.390421],[127.038416,37.390505],[127.038439,37.390857],[127.038733,37.391938],[127.038496,37.392226],[127.038507,37.392686],[127.038214,37.393686],[127.038181,37.394208],[127.038452,37.394488],[127.038192,37.394767],[127.038102,37.395245],[127.038227,37.396101],[127.038069,37.397245],[127.038137,37.398209],[127.037483,37.399678],[127.0371,37.4013],[127.03745,37.401759],[127.038026,37.402065],[127.03893,37.402344],[127.03998,37.402326],[127.04102,37.402722],[127.041765,37.403181],[127.042003,37.403425],[127.042567,37.403695],[127.043245,37.403884],[127.044283,37.403784],[127.044998,37.40349]],
+    [[127.094379,37.405186],[127.096929,37.40342],[127.099651,37.400793],[127.100821,37.395269],[127.101544,37.393773],[127.101541,37.391644],[127.102228,37.389509],[127.103063,37.384764],[127.103059,37.381643],[127.101916,37.382101],[127.100412,37.382108],[127.100426,37.382242],[127.100594,37.382235],[127.100529,37.382756],[127.100473,37.382859],[127.100325,37.382892],[127.100311,37.383733],[127.099438,37.383894],[127.098936,37.383617],[127.09862,37.383655],[127.098441,37.384067],[127.098188,37.384289],[127.096968,37.384408],[127.096545,37.384539],[127.096073,37.3849],[127.095258,37.384636],[127.094871,37.384671],[127.0945,37.384826],[127.093434,37.384649],[127.092909,37.384359],[127.092354,37.384536],[127.091866,37.384405],[127.091623,37.384671],[127.09116,37.384697],[127.090883,37.384916],[127.090457,37.384806],[127.090196,37.384878],[127.089315,37.383906],[127.089546,37.383726],[127.089257,37.383744],[127.088778,37.383569],[127.088692,37.383401],[127.088432,37.383251],[127.087102,37.383368],[127.087204,37.383403],[127.087073,37.383474],[127.086827,37.384115],[127.086852,37.384261],[127.085501,37.384188],[127.085459,37.384105],[127.085366,37.384185],[127.085414,37.384335],[127.085487,37.384304],[127.085455,37.384453],[127.085594,37.38452],[127.085605,37.384615],[127.085893,37.384717],[127.085954,37.385068],[127.085841,37.385251],[127.084911,37.385423],[127.085059,37.385813],[127.084715,37.38619],[127.08502,37.387102],[127.084329,37.387659],[127.084229,37.387654],[127.085011,37.389835],[127.085165,37.390363],[127.085075,37.390468],[127.085234,37.390806],[127.085384,37.390875],[127.085579,37.39132],[127.085988,37.392929],[127.084304,37.39721],[127.084602,37.397534],[127.084411,37.397944],[127.084728,37.398373],[127.08524,37.398537],[127.085399,37.398666],[127.085405,37.398858],[127.085911,37.399218],[127.086402,37.399943],[127.08721,37.400372],[127.08747,37.400263],[127.088647,37.400619],[127.08884,37.401256],[127.088692,37.402504],[127.089062,37.403087],[127.089821,37.403486],[127.09011,37.403726],[127.090537,37.403766],[127.091805,37.404288],[127.092436,37.404101],[127.092645,37.404302],[127.092693,37.40463],[127.092951,37.405004],[127.094191,37.405368],[127.094379,37.405186]],
+    [[127.084229,37.387654],[127.084329,37.387659],[127.08502,37.387102],[127.084715,37.38619],[127.085059,37.385813],[127.084911,37.385423],[127.085841,37.385251],[127.085954,37.385068],[127.085893,37.384717],[127.085605,37.384615],[127.085594,37.38452],[127.085455,37.384453],[127.085487,37.384304],[127.085414,37.384335],[127.085366,37.384185],[127.085417,37.384104],[127.085501,37.384188],[127.086852,37.384261],[127.086827,37.384115],[127.087073,37.383474],[127.087204,37.383403],[127.086417,37.383193],[127.085509,37.382658],[127.084786,37.382646],[127.084081,37.382418],[127.083896,37.382472],[127.08373,37.382406],[127.082253,37.381326],[127.080896,37.379992],[127.080235,37.379207],[127.079827,37.378865],[127.079838,37.378479],[127.079539,37.37818],[127.079116,37.378048],[127.078783,37.376421],[127.078458,37.376123],[127.078688,37.375245],[127.079104,37.374761],[127.078329,37.374374],[127.078048,37.374546],[127.077566,37.374593],[127.076649,37.374921],[127.076032,37.375375],[127.075471,37.375586],[127.075347,37.37519],[127.074303,37.375405],[127.074048,37.376069],[127.073348,37.37722],[127.072578,37.37731],[127.071897,37.377627],[127.071222,37.377824],[127.070726,37.378254],[127.069666,37.378756],[127.068446,37.379155],[127.067931,37.379245],[127.067682,37.379416],[127.066958,37.37957],[127.06613,37.379437],[127.065219,37.379833],[127.064477,37.379628],[127.064342,37.379442],[127.063391,37.379416],[127.061535,37.380227],[127.060662,37.380946],[127.059894,37.381065],[127.060123,37.382411],[127.060729,37.382993],[127.061146,37.383262],[127.06153,37.383829],[127.062262,37.384357],[127.063296,37.38483],[127.064377,37.384826],[127.065272,37.38513],[127.067917,37.384967],[127.06862,37.385157],[127.068624,37.384089],[127.069252,37.383746],[127.071414,37.383503],[127.072854,37.382568],[127.074821,37.38259],[127.074565,37.383079],[127.07472,37.383568],[127.074709,37.384121],[127.074682,37.384345],[127.074528,37.384453],[127.074641,37.384765],[127.074765,37.384861],[127.074934,37.385513],[127.074933,37.38667],[127.075217,37.387169],[127.075511,37.387319],[127.075896,37.38739],[127.07568,37.387586],[127.075699,37.387654],[127.075555,37.38768],[127.076261,37.388628],[127.077214,37.389002],[127.079518,37.388564],[127.079581,37.388179],[127.079731,37.388069],[127.080085,37.388081],[127.08003,37.387818],[127.080077,37.387609],[127.080332,37.387683],[127.080479,37.387867],[127.081435,37.388008],[127.082067,37.387967],[127.083114,37.387673],[127.083961,37.38764],[127.084229,37.387654]]
+  ];
 
   void init();
 
@@ -582,14 +636,6 @@ import APP_CONFIG from './config.js';
         const actionButton = target.closest("[data-action]");
         if (actionButton) {
           const action = String(actionButton.getAttribute("data-action") || "");
-          if (action === "focus-group") {
-            const groupKey = String(actionButton.getAttribute("data-group-key") || "").trim();
-            if (groupKey) {
-              focusIssueGroup(groupKey);
-            }
-            return;
-          }
-
           if (action === "edit-spot" || action === "delete-spot") {
             const spotId = String(actionButton.getAttribute("data-spot-id") || "");
             if (!spotId) {
@@ -608,34 +654,78 @@ import APP_CONFIG from './config.js';
         }
 
         const item = target.closest("[data-spot-id]");
-        if (!item || !state.map || !state.hotspotSource) {
-          const groupItem = target.closest("[data-group-key]");
-          if (groupItem) {
-            const groupKey = String(groupItem.getAttribute("data-group-key") || "").trim();
-            if (groupKey) {
-              focusIssueGroup(groupKey);
-            }
-          }
+        activateSpotListItem(item);
+      });
+
+      elements.spotList.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
           return;
         }
-
-        const spotId = item.getAttribute("data-spot-id");
-        if (!spotId) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
           return;
         }
-
-        const feature = state.hotspotSource.getFeatureById(spotId);
-        const spot = state.hotspotData.get(spotId);
-        if (!feature || !spot) {
+        const item = target.closest("[data-spot-id]");
+        if (!item) {
           return;
         }
-
-        const coordinate = feature.getGeometry().getCoordinates();
-        setHighlightedHotspots([spot.id], {
-          selectedHotspotId: spot.id
+        event.preventDefault();
+        activateSpotListItem(item, {
+          focusItem: true
         });
-        animateMapToHotspotSelection(coordinate, spot);
-        openHotspotPopup(coordinate, spot);
+      });
+    }
+
+    if (elements.issueStatsSummary) {
+      elements.issueStatsSummary.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        const actionButton = target.closest("[data-action='filter-issues']");
+        if (actionButton instanceof HTMLElement) {
+          const filterType = String(actionButton.getAttribute("data-filter-type") || "").trim();
+          const filterKey = String(actionButton.getAttribute("data-filter-key") || "").trim();
+          const filterLabel = String(actionButton.getAttribute("data-filter-label") || "").trim();
+          if (filterType === "dong") {
+            focusDongIssues(filterLabel || filterKey, {
+              boundaryFeature: findBoundaryFeatureByDongName(filterLabel || filterKey)
+            });
+            animateSpotListRefresh();
+            return;
+          }
+          if (filterType === "category") {
+            focusCategoryIssues(filterKey, {
+              label: filterLabel,
+              animateList: true
+            });
+            return;
+          }
+          setActiveIssueFilter(filterType, filterKey, {
+            label: filterLabel,
+            animateList: true
+          });
+          return;
+        }
+        const clearButton = target.closest("[data-action='clear-issue-filter']");
+        if (clearButton instanceof HTMLElement) {
+          clearActiveIssueFilter({
+            animateList: true,
+            resetMapToRegion: true
+          });
+        }
+      });
+    }
+
+    if (elements.issueListClearFilterButton) {
+      elements.issueListClearFilterButton.addEventListener("click", () => {
+        clearActiveIssueFilter({
+          animateList: true,
+          resetMapToRegion: true
+        });
+        setMobileSheetExpanded(true, {
+          userInitiated: true
+        });
       });
     }
 
@@ -657,15 +747,71 @@ import APP_CONFIG from './config.js';
       });
     }
 
-    if (elements.issueViewDongButton) {
-      elements.issueViewDongButton.addEventListener("click", () => {
-        setIssueListMode("dong");
+    if (Array.isArray(elements.mobileSheetTabs) && elements.mobileSheetTabs.length > 0) {
+      elements.mobileSheetTabs.forEach((tabButton) => {
+        tabButton.addEventListener("click", () => {
+          const tabName = String(tabButton.getAttribute("data-mobile-sheet-tab") || "").trim();
+          setMobileSheetTab(tabName, {
+            userInitiated: true
+          });
+        });
       });
     }
 
-    if (elements.clearDongFilterButton) {
-      elements.clearDongFilterButton.addEventListener("click", () => {
-        clearActiveDongView();
+    if (elements.mobileSheetToggle) {
+      elements.mobileSheetToggle.addEventListener("pointerdown", (event) => {
+        state.mobileSheetPointerStartY = event.clientY;
+        state.mobileSheetPointerCurrentY = event.clientY;
+        state.mobileSheetDragHandled = false;
+        elements.sidePanel && elements.sidePanel.classList.add("mobile-sheet-dragging");
+        if (typeof elements.mobileSheetToggle.setPointerCapture === "function") {
+          elements.mobileSheetToggle.setPointerCapture(event.pointerId);
+        }
+      });
+      elements.mobileSheetToggle.addEventListener("pointermove", (event) => {
+        if (!Number.isFinite(state.mobileSheetPointerStartY)) {
+          return;
+        }
+        state.mobileSheetPointerCurrentY = event.clientY;
+        const deltaY = event.clientY - state.mobileSheetPointerStartY;
+        if (Math.abs(deltaY) >= 8) {
+          state.mobileSheetDragHandled = true;
+        }
+      });
+      elements.mobileSheetToggle.addEventListener("pointerup", (event) => {
+        if (!Number.isFinite(state.mobileSheetPointerStartY)) {
+          return;
+        }
+        const deltaY = event.clientY - state.mobileSheetPointerStartY;
+        state.mobileSheetPointerStartY = null;
+        state.mobileSheetPointerCurrentY = null;
+        elements.sidePanel && elements.sidePanel.classList.remove("mobile-sheet-dragging");
+        if (Math.abs(deltaY) < 28) {
+          return;
+        }
+        event.preventDefault();
+        state.mobileSheetDragHandled = true;
+        setMobileSheetExpanded(deltaY < 0, {
+          refocusActiveFilter: true,
+          userInitiated: true
+        });
+      });
+      elements.mobileSheetToggle.addEventListener("pointercancel", () => {
+        state.mobileSheetPointerStartY = null;
+        state.mobileSheetPointerCurrentY = null;
+        state.mobileSheetDragHandled = false;
+        elements.sidePanel && elements.sidePanel.classList.remove("mobile-sheet-dragging");
+      });
+      elements.mobileSheetToggle.addEventListener("click", (event) => {
+        if (state.mobileSheetDragHandled) {
+          event.preventDefault();
+          state.mobileSheetDragHandled = false;
+          return;
+        }
+        setMobileSheetExpanded(!state.mobileSheetExpanded, {
+          refocusActiveFilter: true,
+          userInitiated: true
+        });
       });
     }
 
@@ -697,10 +843,104 @@ import APP_CONFIG from './config.js';
         window.clearTimeout(state.issueHelperCloseTimer);
         state.issueHelperCloseTimer = null;
       };
+      const clearIssueHelperOpenTimer = () => {
+        if (!state.issueHelperOpenTimer) {
+          return;
+        }
+        window.clearTimeout(state.issueHelperOpenTimer);
+        state.issueHelperOpenTimer = null;
+      };
+      const clearIssueHelperAutoCollapseTimer = () => {
+        if (!state.issueHelperAutoCollapseTimer) {
+          return;
+        }
+        window.clearTimeout(state.issueHelperAutoCollapseTimer);
+        state.issueHelperAutoCollapseTimer = null;
+      };
+      let issueHelperDockFrame = 0;
+      let issueHelperDockTrackingFrame = 0;
+      let issueHelperDockTrackingUntil = 0;
+      const syncIssueHelperMobileDock = () => {
+        if (issueHelperDockFrame) {
+          return;
+        }
+        issueHelperDockFrame = window.requestAnimationFrame(() => {
+          issueHelperDockFrame = 0;
+          if (!elements.issueHelper || !elements.mapWrap || document.body.dataset.mapMode !== "view" || !isMobileLayout()) {
+            elements.issueHelper.style.removeProperty("--issue-helper-mobile-bottom");
+            return;
+          }
+
+          const mapRect = elements.mapWrap.getBoundingClientRect();
+          const characterRect = elements.issueHelperToggleButton.getBoundingClientRect();
+          const sheetRect = elements.sidePanel && elements.sidePanel.getBoundingClientRect
+            ? elements.sidePanel.getBoundingClientRect()
+            : null;
+          const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+          const inset = window.innerWidth <= 540 ? 8 : 10;
+          const mapGap = window.innerWidth <= 540 ? 10 : 12;
+          const minimumVisibleBottom = mapRect.top + characterRect.height + mapGap;
+          const sheetTop = sheetRect && sheetRect.height > 0 && sheetRect.top > mapRect.top
+            ? sheetRect.top
+            : mapRect.bottom;
+          const visibleMapBottom = Math.min(
+            viewportHeight - inset,
+            Math.max(minimumVisibleBottom, sheetTop)
+          );
+          const helperBottom = Math.max(inset, viewportHeight - visibleMapBottom + mapGap);
+          elements.issueHelper.style.setProperty("--issue-helper-mobile-bottom", Math.round(helperBottom) + "px");
+        });
+      };
+      const runIssueHelperDockTracking = () => {
+        issueHelperDockTrackingFrame = 0;
+        syncIssueHelperMobileDock();
+        if (window.performance.now() >= issueHelperDockTrackingUntil) {
+          return;
+        }
+        issueHelperDockTrackingFrame = window.requestAnimationFrame(runIssueHelperDockTracking);
+      };
+      const trackIssueHelperMobileDock = (duration) => {
+        const numericDuration = Number(duration);
+        const trackDuration = Number.isFinite(numericDuration) && numericDuration >= 0
+          ? numericDuration
+          : MOBILE_SHEET_MOTION_TRACK_MS;
+        issueHelperDockTrackingUntil = Math.max(
+          issueHelperDockTrackingUntil,
+          window.performance.now() + trackDuration
+        );
+        if (!issueHelperDockTrackingFrame) {
+          issueHelperDockTrackingFrame = window.requestAnimationFrame(runIssueHelperDockTracking);
+        }
+      };
+      const scheduleIssueHelperMobileAutoCollapse = () => {
+        clearIssueHelperAutoCollapseTimer();
+        if (
+          !isIssueHelperExpanded ||
+          document.body.dataset.mapMode !== "view" ||
+          !isMobileLayout() ||
+          prefersReducedMotion()
+        ) {
+          return;
+        }
+        state.issueHelperAutoCollapseTimer = window.setTimeout(() => {
+          state.issueHelperAutoCollapseTimer = null;
+          if (!isIssueHelperExpanded || document.body.dataset.mapMode !== "view" || !isMobileLayout()) {
+            return;
+          }
+          isIssueHelperExpanded = false;
+          applyIssueHelperExpandedState();
+        }, ISSUE_HELPER_MOBILE_AUTO_COLLAPSE_MS);
+      };
       const finishIssueHelperClose = () => {
         elements.issueHelper.classList.add("issue-helper-collapsed");
-        elements.issueHelper.classList.remove("issue-helper-closing");
+        elements.issueHelper.classList.remove("issue-helper-closing", "issue-helper-opening");
         state.issueHelperCloseTimer = null;
+        syncIssueHelperMobileDock();
+      };
+      const finishIssueHelperOpen = () => {
+        elements.issueHelper.classList.remove("issue-helper-opening");
+        state.issueHelperOpenTimer = null;
+        syncIssueHelperMobileDock();
       };
       const applyIssueHelperExpandedState = (options) => {
         const immediate = Boolean(options && options.immediate);
@@ -712,20 +952,27 @@ import APP_CONFIG from './config.js';
         );
 
         clearIssueHelperCloseTimer();
+        clearIssueHelperOpenTimer();
         if (isIssueHelperExpanded) {
-          elements.issueHelper.classList.remove("issue-helper-collapsed", "issue-helper-closing");
+          elements.issueHelper.classList.remove("issue-helper-collapsed", "issue-helper-closing", "issue-helper-opening");
+          if (immediate || prefersReducedMotion()) {
+            return;
+          }
+          elements.issueHelper.classList.add("issue-helper-opening");
+          state.issueHelperOpenTimer = window.setTimeout(finishIssueHelperOpen, ISSUE_HELPER_OPEN_ANIMATION_MS);
           return;
         }
         if (immediate || prefersReducedMotion()) {
           finishIssueHelperClose();
           return;
         }
-        elements.issueHelper.classList.remove("issue-helper-collapsed");
+        elements.issueHelper.classList.remove("issue-helper-collapsed", "issue-helper-opening");
         elements.issueHelper.classList.add("issue-helper-closing");
         state.issueHelperCloseTimer = window.setTimeout(finishIssueHelperClose, ISSUE_HELPER_CLOSE_ANIMATION_MS);
       };
 
       elements.issueHelperToggleButton.addEventListener("click", (event) => {
+        clearIssueHelperAutoCollapseTimer();
         isIssueHelperExpanded = !isIssueHelperExpanded;
         applyIssueHelperExpandedState();
         if (event && event.detail > 0) {
@@ -742,13 +989,53 @@ import APP_CONFIG from './config.js';
           if (!isIssueHelperExpanded) {
             return;
           }
+          clearIssueHelperAutoCollapseTimer();
           isIssueHelperExpanded = false;
           applyIssueHelperExpandedState();
           elements.issueHelperToggleButton.focus({ preventScroll: true });
         });
       }
 
+      window.addEventListener("map-popup-opened", () => {
+        if (
+          !isIssueHelperExpanded ||
+          document.body.dataset.mapMode !== "view" ||
+          !isMobileLayout()
+        ) {
+          return;
+        }
+        clearIssueHelperAutoCollapseTimer();
+        isIssueHelperExpanded = false;
+        applyIssueHelperExpandedState();
+      });
+
       applyIssueHelperExpandedState({ immediate: true });
+      syncIssueHelperMobileDock();
+      scheduleIssueHelperMobileAutoCollapse();
+      window.addEventListener("scroll", syncIssueHelperMobileDock, { passive: true });
+      window.addEventListener("resize", syncIssueHelperMobileDock);
+      window.addEventListener("mobile-sheet-motion", (event) => {
+        const duration = event && event.detail ? event.detail.duration : MOBILE_SHEET_MOTION_TRACK_MS;
+        trackIssueHelperMobileDock(duration);
+      });
+      if (elements.sidePanel) {
+        const trackSheetTransition = (event) => {
+          if (
+            event &&
+            event.target !== elements.sidePanel &&
+            !String(event.propertyName || "").includes("height")
+          ) {
+            return;
+          }
+          trackIssueHelperMobileDock(MOBILE_SHEET_MOTION_TRACK_MS);
+        };
+        elements.sidePanel.addEventListener("transitionrun", trackSheetTransition);
+        elements.sidePanel.addEventListener("transitionstart", trackSheetTransition);
+        elements.sidePanel.addEventListener("transitionend", syncIssueHelperMobileDock);
+      }
+      if (mobileLayoutQuery && typeof mobileLayoutQuery.addEventListener === "function") {
+        mobileLayoutQuery.addEventListener("change", syncIssueHelperMobileDock);
+      }
     }
 
     if (elements.photoLightboxCloseButton) {
@@ -834,7 +1121,9 @@ import APP_CONFIG from './config.js';
           event.preventDefault();
           return;
         }
-        if (clearActiveDongView()) {
+        if (clearActiveIssueFilter({
+          animateList: true
+        })) {
           event.preventDefault();
         }
         return;
@@ -864,10 +1153,10 @@ import APP_CONFIG from './config.js';
     }
 
     syncSpotFormLayoutState();
+    syncMobileSheetTabs();
     updateCurrentLocationButtonAvailability();
     syncDongSelectOptions();
-    updateDongFilterUi();
-    syncIssueListModeUi();
+    updateIssueFilterUi();
     updateTotalIssueCountLabel();
   }
 
@@ -1474,6 +1763,7 @@ import APP_CONFIG from './config.js';
       );
     });
     elements.commonPledgeList.innerHTML = html.join("");
+    syncCommonIssueTagButtonState();
   }
 
   function buildCommonIssueTagMap(issues) {
@@ -1578,14 +1868,27 @@ import APP_CONFIG from './config.js';
             return "";
           }
           const safeTag = escapeHtml(normalizedTag);
-          const spotCount = commonIssueTagMap && commonIssueTagMap.has(normalizedTag)
-            ? commonIssueTagMap.get(normalizedTag).length
-            : 0;
-          const countLabel = spotCount > 0
-            ? "<span class='pledge-common-tag-count'>" + String(spotCount) + "</span>"
+          const tagSpots = commonIssueTagMap && commonIssueTagMap.has(normalizedTag)
+            ? commonIssueTagMap.get(normalizedTag)
+            : [];
+          const spotCount = tagSpots.length;
+          const categoryMeta = tagSpots.length > 0
+            ? resolveIssueCategoryMeta(tagSpots[0].categoryId, tagSpots[0].categoryLabel)
+            : null;
+          const tagStyle = categoryMeta
+            ? " style='" + buildCategoryBadgeStyle(categoryMeta.color) + "'"
             : "";
+          const countStyle = categoryMeta
+            ? " style='" + buildCategoryCountBadgeStyle(categoryMeta.color) + "'"
+            : "";
+          const countLabel = spotCount > 0
+            ? "<span class='pledge-common-tag-count'" + countStyle + ">" + String(spotCount) + "</span>"
+            : "";
+          const isActive = isActiveIssueFilter("common", normalizeIssueFilterKey(normalizedTag));
+          const activeClassName = isActive ? " pledge-common-tag-active" : "";
+          const activeAttrs = isActive ? " aria-current='true'" : "";
           return (
-            "<button type='button' class='pledge-common-tag' data-action='focus-common-tag' data-common-tag='" + safeTag + "'>" +
+            "<button type='button' class='pledge-common-tag" + activeClassName + "' data-action='focus-common-tag' data-common-tag='" + safeTag + "' aria-pressed='" + String(isActive) + "'" + activeAttrs + tagStyle + ">" +
               "<span>[" + safeTag + "]</span>" +
               countLabel +
             "</button>"
@@ -1593,6 +1896,22 @@ import APP_CONFIG from './config.js';
         }).join("") +
       "</div>"
     );
+  }
+
+  function syncCommonIssueTagButtonState() {
+    if (!elements.commonPledgeList) {
+      return;
+    }
+    const activeFilter = getActiveIssueFilter();
+    elements.commonPledgeList.querySelectorAll("[data-action='focus-common-tag'][data-common-tag]").forEach((button) => {
+      if (!(button instanceof HTMLElement)) {
+        return;
+      }
+      const tag = String(button.getAttribute("data-common-tag") || "").trim();
+      const isActive = Boolean(activeFilter.type === "common" && normalizeIssueFilterKey(tag) === activeFilter.key);
+      button.classList.toggle("pledge-common-tag-active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+    });
   }
 
   function getIssueCatalogConfig() {
@@ -2076,6 +2395,7 @@ import APP_CONFIG from './config.js';
     state.boundarySource = new ol.source.Vector();
     state.boundaryMaskSource = new ol.source.Vector();
     state.hotspotSource = new ol.source.Vector();
+    state.hotspotAggregateSource = new ol.source.Vector();
     state.selectedCoordSource = new ol.source.Vector();
     state.populationSource = new ol.source.Vector();
     state.overlaySources.vehicle = new ol.source.Vector();
@@ -2108,6 +2428,9 @@ import APP_CONFIG from './config.js';
     });
     state.boundaryMaskLayer = new ol.layer.Vector({
       source: state.boundaryMaskSource,
+      renderBuffer: BOUNDARY_MASK_RENDER_BUFFER_PX,
+      updateWhileAnimating: true,
+      updateWhileInteracting: true,
       style: new ol.style.Style({
         fill: new ol.style.Fill({
           color: outsideBoundaryMaskColor
@@ -2116,8 +2439,13 @@ import APP_CONFIG from './config.js';
       })
     });
 
-    const hotspotLayer = new ol.layer.Vector({
+    state.hotspotLayer = new ol.layer.Vector({
       source: state.hotspotSource
+    });
+    state.hotspotAggregateLayer = new ol.layer.Vector({
+      source: state.hotspotAggregateSource,
+      style: getHotspotAggregateStyle,
+      visible: false
     });
 
     state.map = new ol.Map({
@@ -2131,7 +2459,8 @@ import APP_CONFIG from './config.js';
         state.overlayLayers.pedestrian,
         state.boundaryMaskLayer,
         boundaryLayer,
-        hotspotLayer,
+        state.hotspotAggregateLayer,
+        state.hotspotLayer,
         state.currentLocationLayer,
         state.selectedCoordLayer
       ],
@@ -2150,6 +2479,14 @@ import APP_CONFIG from './config.js';
       className: "map-popup-overlay"
     });
     state.map.addOverlay(state.popupOverlay);
+    syncHotspotMarkerDisplayMode();
+    state.map.on("moveend", () => {
+      syncHotspotMarkerDisplayMode();
+    });
+
+    if (applyStaticBoundaryMaskFallback()) {
+      revealMapViewport();
+    }
 
     state.map.on("singleclick", (event) => {
       if (handleMapPopupClickThrough(event)) {
@@ -2177,25 +2514,20 @@ import APP_CONFIG from './config.js';
       if (!hitFeature) {
         closePopup();
         clearHighlightedHotspots();
-        if (!isEditMode() && state.activeDongName) {
-          setActiveDongFilter("");
+        if (!isEditMode() && hasActiveIssueFilter()) {
+          setActiveIssueFilter("");
         }
         return;
       }
 
       const kind = hitFeature.get("kind");
+      if (kind === "hotspot_aggregate") {
+        handleHotspotAggregateClick(hitFeature, event.coordinate);
+        return;
+      }
+
       if (kind === "hotspot") {
-        const spot = hitFeature.get("spot");
-        const coordinate = event.coordinate;
-        if (spot && spot.id) {
-          setHighlightedHotspots([spot.id], {
-            selectedHotspotId: spot.id
-          });
-        } else {
-          clearHighlightedHotspots();
-        }
-        animateMapToHotspotSelection(coordinate, spot);
-        openHotspotPopup(coordinate, spot);
+        openHotspotFeature(hitFeature, event.coordinate);
         return;
       }
 
@@ -2236,7 +2568,7 @@ import APP_CONFIG from './config.js';
 
     state.map.on("movestart", () => {
       if (state.suppressPopupCloseOnNextMoveStart) {
-        state.suppressPopupCloseOnNextMoveStart = false;
+        clearPopupMoveSuppression();
         return;
       }
       closePopup();
@@ -2283,6 +2615,107 @@ import APP_CONFIG from './config.js';
     return defaultTileAttributions;
   }
 
+  function applyStaticBoundaryMaskFallback() {
+    if (
+      !state.map ||
+      !state.boundaryMaskSource ||
+      state.boundariesLoaded ||
+      state.boundaryMaskFallbackApplied ||
+      !canUseStaticBoundaryMaskFallback()
+    ) {
+      return false;
+    }
+
+    const holeRings = staticBoundaryMaskLonLatRings
+      .map((ring) => {
+        if (!Array.isArray(ring) || ring.length < 4) {
+          return null;
+        }
+        return ring
+          .filter((coordinate) => Array.isArray(coordinate) && coordinate.length >= 2)
+          .map((coordinate) => {
+            return ol.proj.fromLonLat([Number(coordinate[0]), Number(coordinate[1])]);
+          });
+      })
+      .filter((ring) => Array.isArray(ring) && ring.length >= 4);
+
+    const maskFeature = buildOutsideBoundaryMaskFeatureFromHoleRings(holeRings);
+    if (!maskFeature) {
+      return false;
+    }
+
+    state.boundaryMaskSource.clear();
+    maskFeature.set("maskSource", "static");
+    state.boundaryMaskSource.addFeature(maskFeature);
+    state.boundaryMaskFallbackApplied = true;
+    fitMapToStaticBoundaryMaskExtent(holeRings);
+    return true;
+  }
+
+  function canUseStaticBoundaryMaskFallback() {
+    const boundaryPaths = resolveBoundaryPaths().map(normalizeBoundarySourcePath);
+    if (
+      boundaryPaths.length === 1 &&
+      boundaryPaths[0] === normalizeBoundarySourcePath(optimizedBoundarySourcePath)
+    ) {
+      return true;
+    }
+    if (boundaryPaths.length !== defaultBoundarySourcePaths.length) {
+      return false;
+    }
+    return defaultBoundarySourcePaths.every((path, index) => {
+      return normalizeBoundarySourcePath(path) === boundaryPaths[index];
+    });
+  }
+
+  function normalizeBoundarySourcePath(path) {
+    const value = String(path || "").trim();
+    if (!value) {
+      return "";
+    }
+    try {
+      const url = new URL(value, window.location.origin);
+      if (url.origin === window.location.origin) {
+        return url.pathname;
+      }
+      return url.href;
+    } catch (error) {
+      if (value.startsWith("./")) {
+        return "/" + value.slice(2);
+      }
+      if (value.startsWith("/")) {
+        return value;
+      }
+      return "/" + value;
+    }
+  }
+
+  function fitMapToStaticBoundaryMaskExtent(holeRings) {
+    if (!state.map || !Array.isArray(holeRings) || holeRings.length === 0) {
+      return false;
+    }
+    const extent = ol.extent.createEmpty();
+    holeRings.forEach((ring) => {
+      ring.forEach((coordinate) => {
+        if (
+          Array.isArray(coordinate) &&
+          Number.isFinite(coordinate[0]) &&
+          Number.isFinite(coordinate[1])
+        ) {
+          ol.extent.extendCoordinate(extent, coordinate);
+        }
+      });
+    });
+    if (!hasUsableExtentArea(extent)) {
+      return false;
+    }
+    return fitMapViewToExtent(state.map.getView(), extent, {
+      padding: getRegionMapFocusPadding(),
+      duration: 0,
+      maxZoom: 16
+    }, 0);
+  }
+
   function revealMapViewport() {
     const mapWrap = elements.mapWrap || (elements.map ? elements.map.parentElement : null);
     if (mapWrap && mapWrap.classList && mapWrap.classList.contains("map-wrap-initializing")) {
@@ -2297,14 +2730,27 @@ import APP_CONFIG from './config.js';
     if (state.boundariesLoaded || !state.boundarySource || !state.map) {
       return;
     }
+    if (state.boundaryLoadingPromise) {
+      await state.boundaryLoadingPromise;
+      return;
+    }
 
+    state.boundaryLoadingPromise = loadBoundariesOnce();
+    try {
+      await state.boundaryLoadingPromise;
+    } finally {
+      state.boundaryLoadingPromise = null;
+    }
+  }
+
+  async function loadBoundariesOnce() {
     const boundaryPaths = resolveBoundaryPaths();
 
     try {
       const allFeatures = [];
       const errors = [];
       const tasks = boundaryPaths.map(async (path) => {
-        const response = await fetch(path, { cache: "no-store" });
+        const response = await fetch(path);
         if (!response.ok) {
           throw new Error(path + ": 불러오기 실패 (" + response.status + ")");
         }
@@ -2508,9 +2954,6 @@ import APP_CONFIG from './config.js';
     }
 
     state.boundarySource.clear();
-    if (state.boundaryMaskSource) {
-      state.boundaryMaskSource.clear();
-    }
 
     const drawableFeatures = features.filter((feature) => Boolean(feature.getGeometry()));
     const boundaryStyle = createBoundaryStyle({
@@ -2579,6 +3022,7 @@ import APP_CONFIG from './config.js';
     ];
     state.availableDongMap = new Map(state.availableDongs.map((item) => [item.key, item]));
     syncDongSelectOptions();
+    refreshHotspotAggregateFeatures();
     if (getPopulationConfig().mode === "emd") {
       syncPopulationSourceWithBoundaries(drawableFeatures);
       if (isPopulationVisible()) {
@@ -2589,7 +3033,7 @@ import APP_CONFIG from './config.js';
     console.info("[boundary-load] rendered:", Array.from(new Set(loadedDongNames)));
 
     fitMapToBoundaryExtent({
-      padding: [22, 22, 22, 22],
+      padding: getRegionMapFocusPadding(),
       duration: 0,
       maxZoom: 16
     });
@@ -2599,16 +3043,42 @@ import APP_CONFIG from './config.js';
     if (!state.boundaryMaskSource) {
       return;
     }
+    if (shouldKeepStaticBoundaryMask()) {
+      return;
+    }
     state.boundaryMaskSource.clear();
 
     const maskFeature = buildOutsideBoundaryMaskFeature(boundaryFeatures);
     if (maskFeature) {
+      maskFeature.set("maskSource", "boundary");
       state.boundaryMaskSource.addFeature(maskFeature);
     }
   }
 
+  function shouldKeepStaticBoundaryMask() {
+    return Boolean(
+      state.boundaryMaskFallbackApplied &&
+      canUseStaticBoundaryMaskFallback()
+    );
+  }
+
   function buildOutsideBoundaryMaskFeature(boundaryFeatures) {
     if (!Array.isArray(boundaryFeatures) || boundaryFeatures.length === 0) {
+      return null;
+    }
+
+    const holeRings = [];
+    boundaryFeatures.forEach((feature) => {
+      if (!feature || typeof feature.getGeometry !== "function") {
+        return;
+      }
+      appendMaskHolesFromGeometry(feature.getGeometry(), holeRings);
+    });
+    return buildOutsideBoundaryMaskFeatureFromHoleRings(holeRings);
+  }
+
+  function buildOutsideBoundaryMaskFeatureFromHoleRings(holeRings) {
+    if (!Array.isArray(holeRings) || holeRings.length === 0) {
       return null;
     }
 
@@ -2633,17 +3103,6 @@ import APP_CONFIG from './config.js';
       [worldExtent[2], worldExtent[1]],
       [worldExtent[0], worldExtent[1]]
     ];
-
-    const holeRings = [];
-    boundaryFeatures.forEach((feature) => {
-      if (!feature || typeof feature.getGeometry !== "function") {
-        return;
-      }
-      appendMaskHolesFromGeometry(feature.getGeometry(), holeRings);
-    });
-    if (holeRings.length === 0) {
-      return null;
-    }
 
     const geometry = new ol.geom.Polygon([outerRing, ...holeRings]);
     const feature = new ol.Feature({
@@ -2794,7 +3253,7 @@ import APP_CONFIG from './config.js';
     if (!state.boundarySource) {
       return;
     }
-    const activeDong = resolveMergedDongName(state.activeDongName);
+    const activeDong = getActiveDongFilterName();
     const defaultStyle = state.boundaryDefaultStyle;
     const selectedStyle = state.boundarySelectedStyle || defaultStyle;
 
@@ -2920,6 +3379,15 @@ import APP_CONFIG from './config.js';
       "background:" + backgroundColor + ";" +
       "color:" + textColor + ";" +
       "border:1px solid " + borderColor + ";"
+    );
+  }
+
+  function buildCategoryCountBadgeStyle(color) {
+    const resolved = String(color || "").trim() || defaultIssueCategoryColor;
+    return (
+      "background:" + resolved + ";" +
+      "color:#ffffff;" +
+      "border:1px solid " + toRgba(resolved, 0.16) + ";"
     );
   }
 
@@ -3089,21 +3557,6 @@ import APP_CONFIG from './config.js';
     }
     const totalCount = Array.isArray(state.issues) ? state.issues.length : 0;
     elements.totalIssueCount.textContent = "총 현안 건수: " + String(totalCount) + "건";
-  }
-
-  function setIssueListMode(mode) {
-    if (mode !== "dong" || state.issueListMode === "dong") {
-      return;
-    }
-    state.issueListMode = "dong";
-    syncIssueListModeUi();
-    renderVisibleIssueList();
-  }
-
-  function syncIssueListModeUi() {
-    if (elements.issueViewDongButton) {
-      elements.issueViewDongButton.classList.add("spot-action-btn-checked");
-    }
   }
 
   function compareKoreanText(a, b) {
@@ -4891,7 +5344,7 @@ import APP_CONFIG from './config.js';
     renderCommonPledges();
     renderHotspots(hotspots);
     renderVisibleIssueList();
-    updateDongFilterUi();
+    updateIssueFilterUi();
   }
 
   function isFirestorePermissionError(error) {
@@ -4932,43 +5385,327 @@ import APP_CONFIG from './config.js';
 
   function applyIssueFilter(hotspots) {
     const list = Array.isArray(hotspots) ? hotspots : [];
-    const activeDong = resolveMergedDongName(state.activeDongName);
-    if (!activeDong) {
+    const activeFilter = getActiveIssueFilter();
+    if (!activeFilter.type || !activeFilter.key) {
       return list;
     }
-    return list.filter((spot) => {
-      return resolveSpotDongForAggregation(spot) === activeDong;
-    });
+    if (activeFilter.type === "dong") {
+      return list.filter((spot) => {
+        return resolveSpotDongForAggregation(spot) === activeFilter.key;
+      });
+    }
+    if (activeFilter.type === "category") {
+      return list.filter((spot) => {
+        return resolveIssueCategoryFilterKey(spot) === activeFilter.key;
+      });
+    }
+    if (activeFilter.type === "common") {
+      return list.filter((spot) => {
+        return resolveCommonIssueFilterKey(spot) === activeFilter.key;
+      });
+    }
+    return list;
   }
 
-  function setActiveDongFilter(dongName, options) {
-    const normalized = resolveMergedDongName(dongName);
-    if (state.activeDongName === normalized) {
-      return;
+  function normalizeIssueFilterKey(value) {
+    return String(value || "").trim().toLocaleLowerCase("ko-KR");
+  }
+
+  function resolveIssueCategoryFilterKey(spot) {
+    const categoryMeta = resolveIssueCategoryMeta(spot && spot.categoryId, spot && spot.categoryLabel);
+    const label = String(categoryMeta.label || "").trim() || "미분류";
+    return normalizeIssueFilterKey(label);
+  }
+
+  function resolveCommonIssueFilterKey(spot) {
+    return normalizeIssueFilterKey(resolveBracketedCommonTag(spot));
+  }
+
+  function buildIssueFilterState(type, key, label) {
+    const filterType = String(type || "").trim();
+    if (!filterType) {
+      return {
+        type: "",
+        key: "",
+        label: ""
+      };
     }
-    state.activeDongName = normalized;
-    updateDongFilterUi();
+    if (filterType === "dong") {
+      const dongName = resolveMergedDongName(label || key);
+      return {
+        type: dongName ? "dong" : "",
+        key: dongName,
+        label: dongName
+      };
+    }
+    if (filterType === "category") {
+      const rawLabel = String(label || key || "").trim();
+      const categoryKey = normalizeIssueFilterKey(key || rawLabel);
+      return {
+        type: categoryKey ? "category" : "",
+        key: categoryKey,
+        label: rawLabel || "미분류"
+      };
+    }
+    if (filterType === "common") {
+      const rawLabel = String(label || key || "").trim();
+      const commonKey = normalizeIssueFilterKey(rawLabel);
+      return {
+        type: commonKey ? "common" : "",
+        key: commonKey,
+        label: rawLabel
+      };
+    }
+    return {
+      type: "",
+      key: "",
+      label: ""
+    };
+  }
+
+  function getActiveIssueFilter() {
+    return buildIssueFilterState(
+      state.activeIssueFilter && state.activeIssueFilter.type,
+      state.activeIssueFilter && state.activeIssueFilter.key,
+      state.activeIssueFilter && state.activeIssueFilter.label
+    );
+  }
+
+  function hasActiveIssueFilter() {
+    const activeFilter = getActiveIssueFilter();
+    return Boolean(activeFilter.type && activeFilter.key);
+  }
+
+  function getActiveDongFilterName() {
+    const activeFilter = getActiveIssueFilter();
+    return activeFilter.type === "dong" ? activeFilter.key : "";
+  }
+
+  function isActiveIssueFilter(type, key) {
+    const activeFilter = getActiveIssueFilter();
+    return Boolean(activeFilter.type === type && activeFilter.key === key);
+  }
+
+  function getActiveIssueFilterLabel() {
+    const activeFilter = getActiveIssueFilter();
+    if (!activeFilter.type || !activeFilter.label) {
+      return "";
+    }
+    if (activeFilter.type === "common") {
+      return "[" + activeFilter.label + "]";
+    }
+    return activeFilter.label;
+  }
+
+  function getIssueListTitleForActiveFilter() {
+    const activeFilter = getActiveIssueFilter();
+    if (!activeFilter.type || !activeFilter.label) {
+      return "우리동네 현안";
+    }
+    if (activeFilter.type === "dong") {
+      return activeFilter.label + " 현안";
+    }
+    if (activeFilter.type === "category") {
+      return activeFilter.label + " 현안";
+    }
+    if (activeFilter.type === "common") {
+      return "[" + activeFilter.label + "] 현안";
+    }
+    return "선택 현안";
+  }
+
+  function setActiveIssueFilter(type, key, options) {
+    const nextFilter = buildIssueFilterState(type, key, options && options.label);
+    const activeFilter = getActiveIssueFilter();
+    if (
+      activeFilter.type === nextFilter.type &&
+      activeFilter.key === nextFilter.key &&
+      activeFilter.label === nextFilter.label
+    ) {
+      return false;
+    }
+    if (nextFilter.type) {
+      closePopup();
+      clearHighlightedHotspots();
+    }
+    state.activeIssueFilter = nextFilter;
+    updateIssueFilterUi();
+    syncCommonIssueTagButtonState();
     updateBoundaryHighlightStyles();
     renderVisibleIssueList();
+    setMobileSheetTab(nextFilter.type ? "issues" : "stats");
+    if (isMobileLayout()) {
+      setMobileSheetExpanded(true);
+    }
     if (options && options.animateList) {
       animateSpotListRefresh();
     }
+    return true;
   }
 
-  function clearActiveDongView() {
-    if (!state.activeDongName) {
+  function setActiveDongFilter(dongName, options) {
+    return setActiveIssueFilter("dong", dongName, {
+      label: dongName,
+      animateList: Boolean(options && options.animateList)
+    });
+  }
+
+  function clearActiveIssueFilter(options) {
+    if (!hasActiveIssueFilter()) {
       return false;
     }
     closePopup();
     clearHighlightedHotspots();
-    setActiveDongFilter("", {
-      animateList: true
+    setActiveIssueFilter("", "", {
+      animateList: Boolean(options && options.animateList)
     });
+    if (options && options.resetMapToRegion) {
+      resetMapToRegionView({
+        duration: options.duration
+      });
+    }
     return true;
   }
 
+  function setIssueListPanelVisibility(isVisible) {
+    if (!elements.issueListPanel) {
+      return;
+    }
+    elements.issueListPanel.classList.toggle("issue-list-panel-hidden", !isVisible);
+    elements.issueListPanel.setAttribute("aria-hidden", String(!isVisible));
+    if (!isVisible && elements.spotList) {
+      if (state.spotListRefreshTimer) {
+        window.clearTimeout(state.spotListRefreshTimer);
+        state.spotListRefreshTimer = null;
+      }
+      elements.spotList.classList.remove("spot-list-refreshing");
+    }
+    syncMobileSheetTabs();
+  }
+
+  function isIssueListPanelVisible() {
+    if (!elements.issueListPanel) {
+      return Boolean(elements.spotList);
+    }
+    return !elements.issueListPanel.classList.contains("issue-list-panel-hidden");
+  }
+
+  function isValidMobileSheetTab(tabName) {
+    return tabName === "stats" || tabName === "issues";
+  }
+
+  function setMobileSheetTab(tabName, options) {
+    if (!Array.isArray(elements.mobileSheetTabs) || elements.mobileSheetTabs.length === 0) {
+      return false;
+    }
+    const requestedTab = isValidMobileSheetTab(tabName) ? tabName : "stats";
+    const allowUnavailable = Boolean(options && options.allowUnavailable);
+    const nextTab = requestedTab === "issues" && !isIssueListPanelVisible() && !allowUnavailable
+      ? "stats"
+      : requestedTab;
+    state.mobileSheetActiveTab = nextTab;
+    syncMobileSheetTabs();
+    if (options && options.userInitiated) {
+      setMobileSheetExpanded(true, {
+        userInitiated: true
+      });
+    }
+    return nextTab === requestedTab;
+  }
+
+  function setMobileSheetExpanded(isExpanded, options) {
+    if (!elements.sidePanel) {
+      return false;
+    }
+    const nextExpanded = Boolean(isExpanded);
+    const didChange = state.mobileSheetExpanded !== nextExpanded;
+    state.mobileSheetExpanded = nextExpanded;
+    elements.sidePanel.classList.toggle("mobile-sheet-collapsed", !nextExpanded);
+    if (document.body) {
+      document.body.classList.toggle("mobile-sheet-is-collapsed", !nextExpanded);
+    }
+    if (elements.mobileSheetToggle) {
+      elements.mobileSheetToggle.setAttribute("aria-expanded", String(nextExpanded));
+      elements.mobileSheetToggle.setAttribute(
+        "aria-label",
+        nextExpanded ? "현안 정보 시트 접기" : "현안 정보 시트 펼치기"
+      );
+      if (options && options.userInitiated && typeof elements.mobileSheetToggle.focus === "function") {
+        elements.mobileSheetToggle.focus({ preventScroll: true });
+      }
+    }
+    if (didChange) {
+      syncMobileDependentLayout();
+      if (options && options.refocusActiveFilter) {
+        const refocusForSheetState = () => {
+          refocusActiveIssueFilterOnMap({
+            duration: MAP_VIEW_FIT_ANIMATION_MS
+          });
+        };
+        window.requestAnimationFrame(refocusForSheetState);
+        window.setTimeout(refocusForSheetState, MOBILE_SHEET_MOTION_TRACK_MS);
+      }
+    }
+    return didChange;
+  }
+
+  function syncMobileDependentLayout() {
+    const sync = () => {
+      window.dispatchEvent(new Event("resize"));
+      if (state.map && typeof state.map.render === "function") {
+        state.map.render();
+      }
+    };
+    window.dispatchEvent(new CustomEvent("mobile-sheet-motion", {
+      detail: {
+        duration: MOBILE_SHEET_MOTION_TRACK_MS
+      }
+    }));
+    window.requestAnimationFrame(sync);
+    window.setTimeout(sync, 260);
+  }
+
+  function syncMobileSheetTabs() {
+    if (!Array.isArray(elements.mobileSheetTabs) || elements.mobileSheetTabs.length === 0) {
+      return;
+    }
+    const issueListVisible = isIssueListPanelVisible();
+    if (state.mobileSheetActiveTab === "issues" && !issueListVisible) {
+      state.mobileSheetActiveTab = "stats";
+    }
+    if (!isValidMobileSheetTab(state.mobileSheetActiveTab)) {
+      state.mobileSheetActiveTab = "stats";
+    }
+
+    const activeTab = state.mobileSheetActiveTab;
+    elements.mobileSheetTabs.forEach((tabButton) => {
+      const tabName = String(tabButton.getAttribute("data-mobile-sheet-tab") || "").trim();
+      const isActive = tabName === activeTab;
+      const isDisabled = tabName === "issues" && !issueListVisible;
+      tabButton.classList.toggle("mobile-sheet-tab-active", isActive);
+      tabButton.classList.toggle("mobile-sheet-tab-disabled", isDisabled);
+      tabButton.setAttribute("aria-selected", String(isActive));
+      tabButton.toggleAttribute("disabled", isDisabled);
+    });
+
+    const shouldUseSheetTabs = isMobileLayout() && document.body.dataset.mapMode === "view";
+    if (Array.isArray(elements.mobileSheetSections)) {
+      elements.mobileSheetSections.forEach((section) => {
+        const sectionName = String(section.getAttribute("data-mobile-sheet-section") || "").trim();
+        const isActive = sectionName === activeTab;
+        section.classList.toggle("mobile-sheet-section-active", isActive);
+        section.removeAttribute("hidden");
+        if (section.id !== "issue-list-panel" && shouldUseSheetTabs) {
+          section.setAttribute("aria-hidden", String(!isActive));
+        } else if (section.id !== "issue-list-panel") {
+          section.removeAttribute("aria-hidden");
+        }
+      });
+    }
+  }
+
   function animateSpotListRefresh() {
-    if (!elements.spotList || prefersReducedMotion()) {
+    if (!elements.spotList || !isIssueListPanelVisible() || prefersReducedMotion()) {
       return;
     }
     if (state.spotListRefreshTimer) {
@@ -5000,28 +5737,44 @@ import APP_CONFIG from './config.js';
     return false;
   }
 
-  function updateDongFilterUi() {
-    const activeDong = String(state.activeDongName || "").trim();
-    if (elements.issueViewDongButton) {
-      elements.issueViewDongButton.textContent = activeDong
-        ? "동별 보기(" + activeDong + ")"
-        : "동별 보기";
+  function updateIssueFilterUi() {
+    const isActive = hasActiveIssueFilter();
+    const activeFilter = getActiveIssueFilter();
+    const activeLabel = getActiveIssueFilterLabel();
+    if (elements.sidePanel) {
+      elements.sidePanel.classList.toggle("side-panel-has-filter", isActive);
+      elements.sidePanel.setAttribute("data-issue-filter-type", activeFilter.type || "none");
+      elements.sidePanel.setAttribute("data-issue-filter-label", activeLabel);
+      elements.sidePanel.setAttribute("aria-label", isActive ? "현안 정보, " + activeLabel + " 선택됨" : "현안 정보");
     }
-
-    if (elements.activeDongFilter) {
-      elements.activeDongFilter.classList.add("hidden");
-      elements.activeDongFilter.textContent = "";
+    if (elements.issueListPanel) {
+      elements.issueListPanel.setAttribute("aria-label", isActive ? getIssueListTitleForActiveFilter() : "선택 현안 목록");
     }
-
-    if (!activeDong) {
-      if (elements.clearDongFilterButton) {
-        elements.clearDongFilterButton.classList.add("hidden");
+    if (elements.issueListTitle) {
+      elements.issueListTitle.textContent = getIssueListTitleForActiveFilter();
+    }
+    const clearButton = document.getElementById("clear-issue-filter-btn");
+    if (clearButton) {
+      clearButton.classList.toggle("issue-stats-clear-btn-inactive", !isActive);
+      clearButton.toggleAttribute("disabled", !isActive);
+      if (isActive) {
+        clearButton.removeAttribute("aria-hidden");
+        clearButton.removeAttribute("tabindex");
+      } else {
+        clearButton.setAttribute("aria-hidden", "true");
+        clearButton.setAttribute("tabindex", "-1");
       }
-      return;
     }
-
-    if (elements.clearDongFilterButton) {
-      elements.clearDongFilterButton.classList.remove("hidden");
+    if (elements.issueListClearFilterButton) {
+      elements.issueListClearFilterButton.classList.toggle("issue-list-clear-btn-inactive", !isActive);
+      elements.issueListClearFilterButton.toggleAttribute("disabled", !isActive);
+      if (isActive) {
+        elements.issueListClearFilterButton.removeAttribute("aria-hidden");
+        elements.issueListClearFilterButton.removeAttribute("tabindex");
+      } else {
+        elements.issueListClearFilterButton.setAttribute("aria-hidden", "true");
+        elements.issueListClearFilterButton.setAttribute("tabindex", "-1");
+      }
     }
   }
 
@@ -5064,19 +5817,83 @@ import APP_CONFIG from './config.js';
 
     const padding = Array.isArray(options && options.padding) && options.padding.length === 4
       ? options.padding
-      : [22, 22, 22, 22];
+      : getRegionMapFocusPadding(options);
     const maxZoom = readPositiveNumber(options && options.maxZoom, 16);
-    const duration = Number(options && options.duration);
     const fitOptions = {
       padding,
-      maxZoom
+      maxZoom,
+      duration: resolveMapAnimationDuration(options && options.duration, MAP_VIEW_FIT_ANIMATION_MS),
+      easing: easeOutCubic
     };
-    if (Number.isFinite(duration) && duration >= 0) {
-      fitOptions.duration = duration;
-    }
 
     state.map.getView().fit(extent, fitOptions);
     return true;
+  }
+
+  function resetMapToRegionView(options) {
+    return fitMapToBoundaryExtent({
+      padding: getRegionMapFocusPadding(options),
+      duration: options && options.duration,
+      maxZoom: 16
+    });
+  }
+
+  function resolveMapAnimationDuration(duration, fallbackDuration) {
+    if (prefersReducedMotion()) {
+      return 0;
+    }
+    const numericDuration = Number(duration);
+    if (Number.isFinite(numericDuration) && numericDuration >= 0) {
+      return numericDuration;
+    }
+    return Number.isFinite(fallbackDuration) && fallbackDuration >= 0
+      ? fallbackDuration
+      : MAP_VIEW_CENTER_ANIMATION_MS;
+  }
+
+  function buildSmoothMapAnimationOptions(options, fallbackDuration) {
+    return {
+      ...(options || {}),
+      duration: resolveMapAnimationDuration(options && options.duration, fallbackDuration),
+      easing: easeOutCubic
+    };
+  }
+
+  function animateMapView(view, options, fallbackDuration, callback) {
+    if (!view || typeof view.animate !== "function") {
+      return false;
+    }
+    view.animate(buildSmoothMapAnimationOptions(options, fallbackDuration), callback);
+    return true;
+  }
+
+  function fitMapViewToExtent(view, extent, options, fallbackDuration, callback) {
+    if (!view || typeof view.fit !== "function") {
+      return false;
+    }
+    const fitOptions = buildSmoothMapAnimationOptions(options, fallbackDuration);
+    if (typeof callback === "function") {
+      fitOptions.callback = callback;
+    }
+    view.fit(extent, fitOptions);
+    return true;
+  }
+
+  function clearPopupMoveSuppression() {
+    if (state.suppressPopupCloseGuardTimer) {
+      window.clearTimeout(state.suppressPopupCloseGuardTimer);
+      state.suppressPopupCloseGuardTimer = null;
+    }
+    state.suppressPopupCloseOnNextMoveStart = false;
+  }
+
+  function suppressPopupCloseForNextMapMove(duration) {
+    clearPopupMoveSuppression();
+    state.suppressPopupCloseOnNextMoveStart = true;
+    const guardDuration = resolveMapAnimationDuration(duration, MAP_VIEW_FIT_ANIMATION_MS) + 140;
+    state.suppressPopupCloseGuardTimer = window.setTimeout(() => {
+      clearPopupMoveSuppression();
+    }, guardDuration);
   }
 
   async function refreshCurrentLocationIndicator() {
@@ -5150,8 +5967,8 @@ import APP_CONFIG from './config.js';
         const isOutsideBoundary = !boundaryMeta.dongName && !boundaryMeta.emdCode;
         if (isOutsideBoundary) {
           const fitted = fitMapToBoundaryExtent({
-            padding: [22, 22, 22, 22],
-            duration: 240,
+            padding: getRegionMapFocusPadding(),
+            duration: MAP_VIEW_FIT_ANIMATION_MS,
             maxZoom: 16
           });
           if (fitted) {
@@ -5162,11 +5979,11 @@ import APP_CONFIG from './config.js';
       }
       const currentZoom = mapView.getZoom();
       const targetZoom = Number.isFinite(currentZoom) && currentZoom > minZoom ? currentZoom : minZoom;
-      mapView.animate({
+      animateMapView(mapView, {
         center: ol.proj.fromLonLat([lng, lat]),
         zoom: targetZoom,
-        duration: 260
-      });
+        duration: MAP_VIEW_CENTER_ANIMATION_MS
+      }, MAP_VIEW_CENTER_ANIMATION_MS);
       state.autoCenteredToCurrentLocation = true;
     } catch (error) {
       if (!silent) {
@@ -5193,10 +6010,14 @@ import APP_CONFIG from './config.js';
       feature.set("emd_cd", spot.emdCode || "");
       feature.set("spot", spot);
       feature.setStyle(getHotspotStyle(spot, "normal"));
+      feature.set("hotspotEmphasisMode", "normal");
+      feature.set("hotspotVisualMode", "normal");
       state.hotspotSource.addFeature(feature);
       state.hotspotData.set(spot.id, spot);
     });
 
+    refreshHotspotAggregateFeatures();
+    syncHotspotMarkerDisplayMode();
     applyHotspotHighlightStyles();
 
     if (state.editingHotspotId && !state.hotspotData.has(state.editingHotspotId)) {
@@ -5205,10 +6026,211 @@ import APP_CONFIG from './config.js';
   }
 
   function clearHotspotFeatures() {
+    clearHotspotStyleAnimations();
     if (state.hotspotSource) {
       state.hotspotSource.clear();
     }
     state.hotspotData.clear();
+    refreshHotspotAggregateFeatures();
+    syncHotspotMarkerDisplayMode();
+  }
+
+  function resolveAggregateIssueList() {
+    if (!Array.isArray(state.issues)) {
+      return [];
+    }
+    const activeFilter = getActiveIssueFilter();
+    if (activeFilter.type === "dong") {
+      return [];
+    }
+    return applyIssueFilter(state.issues).filter((spot) => {
+      return Number.isFinite(Number(spot && spot.lat)) && Number.isFinite(Number(spot && spot.lng));
+    });
+  }
+
+  function resolveDongAggregateCoordinate(dongName, spots) {
+    const boundaryExtent = resolveBoundaryExtentByDongName(dongName);
+    if (boundaryExtent && hasUsableExtentArea(boundaryExtent)) {
+      return ol.extent.getCenter(boundaryExtent);
+    }
+    const extentMeta = resolveHotspotExtentMeta(spots);
+    return extentMeta && extentMeta.center ? extentMeta.center : null;
+  }
+
+  function refreshHotspotAggregateFeatures() {
+    if (!state.hotspotAggregateSource) {
+      return;
+    }
+
+    state.hotspotAggregateSource.clear();
+    const groupedByDong = new Map();
+    resolveAggregateIssueList().forEach((spot) => {
+      const dongName = resolveSpotDongForAggregation(spot);
+      if (!dongName) {
+        return;
+      }
+      if (!groupedByDong.has(dongName)) {
+        groupedByDong.set(dongName, []);
+      }
+      groupedByDong.get(dongName).push(spot);
+    });
+
+    const aggregateFeatures = [];
+    groupedByDong.forEach((spots, dongName) => {
+      if (!Array.isArray(spots) || spots.length === 0) {
+        return;
+      }
+      const coordinate = resolveDongAggregateCoordinate(dongName, spots);
+      if (!coordinate) {
+        return;
+      }
+      const feature = new ol.Feature({
+        geometry: new ol.geom.Point(coordinate)
+      });
+      feature.set("kind", "hotspot_aggregate");
+      feature.set("dongName", dongName);
+      feature.set("count", spots.length);
+      feature.set("spots", spots);
+      aggregateFeatures.push(feature);
+    });
+
+    if (aggregateFeatures.length > 0) {
+      state.hotspotAggregateSource.addFeatures(aggregateFeatures);
+    }
+    if (state.hotspotAggregateSource && typeof state.hotspotAggregateSource.changed === "function") {
+      state.hotspotAggregateSource.changed();
+    }
+  }
+
+  function shouldShowHotspotAggregates() {
+    if (!state.map || isEditMode()) {
+      return false;
+    }
+    if (state.selectedHotspotId) {
+      return false;
+    }
+    const activeFilter = getActiveIssueFilter();
+    if (activeFilter.type === "dong") {
+      return false;
+    }
+    const view = state.map.getView();
+    const zoom = view && typeof view.getZoom === "function" ? Number(view.getZoom()) : 0;
+    return Number.isFinite(zoom) && zoom < HOTSPOT_AGGREGATE_MAX_ZOOM;
+  }
+
+  function syncHotspotMarkerDisplayMode() {
+    const showAggregates = shouldShowHotspotAggregates();
+    const nextMode = showAggregates ? "aggregate" : "hotspot";
+    const aggregateLayer = state.hotspotAggregateLayer;
+    const hotspotLayer = state.hotspotLayer;
+    if (!aggregateLayer || !hotspotLayer) {
+      return;
+    }
+
+    if (state.hotspotMarkerDisplayMode === nextMode) {
+      return;
+    }
+
+    const shouldAnimate = Boolean(state.hotspotMarkerDisplayMode) && !prefersReducedMotion();
+    if (!shouldAnimate) {
+      clearHotspotMarkerModeTransition();
+      state.hotspotMarkerDisplayMode = nextMode;
+      applyHotspotMarkerDisplayMode(nextMode);
+      return;
+    }
+
+    transitionHotspotMarkerDisplayMode(nextMode);
+  }
+
+  function applyHotspotMarkerDisplayMode(mode) {
+    const aggregateVisible = mode === "aggregate";
+    setLayerVisibilityAndOpacity(state.hotspotAggregateLayer, aggregateVisible, aggregateVisible ? 1 : 0);
+    setLayerVisibilityAndOpacity(state.hotspotLayer, !aggregateVisible, aggregateVisible ? 0 : 1);
+  }
+
+  function setLayerVisibilityAndOpacity(layer, visible, opacity) {
+    if (!layer) {
+      return;
+    }
+    if (typeof layer.setVisible === "function") {
+      layer.setVisible(Boolean(visible));
+    }
+    if (typeof layer.setOpacity === "function") {
+      layer.setOpacity(Math.max(0, Math.min(1, Number(opacity))));
+    }
+  }
+
+  function readLayerOpacity(layer, fallback) {
+    if (layer && typeof layer.getOpacity === "function") {
+      const opacity = Number(layer.getOpacity());
+      if (Number.isFinite(opacity)) {
+        return opacity;
+      }
+    }
+    return fallback;
+  }
+
+  function clearHotspotMarkerModeTransition() {
+    if (!state.hotspotMarkerTransitionFrame) {
+      return;
+    }
+    if (typeof window.cancelAnimationFrame === "function") {
+      window.cancelAnimationFrame(state.hotspotMarkerTransitionFrame);
+    } else {
+      window.clearTimeout(state.hotspotMarkerTransitionFrame);
+    }
+    state.hotspotMarkerTransitionFrame = null;
+  }
+
+  function transitionHotspotMarkerDisplayMode(nextMode) {
+    const aggregateLayer = state.hotspotAggregateLayer;
+    const hotspotLayer = state.hotspotLayer;
+    const fromAggregateOpacity = readLayerOpacity(aggregateLayer, nextMode === "aggregate" ? 0 : 1);
+    const fromHotspotOpacity = readLayerOpacity(hotspotLayer, nextMode === "hotspot" ? 0 : 1);
+    const toAggregateOpacity = nextMode === "aggregate" ? 1 : 0;
+    const toHotspotOpacity = nextMode === "hotspot" ? 1 : 0;
+    const start = typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+
+    clearHotspotMarkerModeTransition();
+    state.hotspotMarkerDisplayMode = nextMode;
+    setLayerVisibilityAndOpacity(aggregateLayer, true, fromAggregateOpacity);
+    setLayerVisibilityAndOpacity(hotspotLayer, true, fromHotspotOpacity);
+
+    const step = (timestamp) => {
+      const now = Number.isFinite(timestamp) ? timestamp : Date.now();
+      const progress = Math.max(0, Math.min(1, (now - start) / HOTSPOT_MARKER_MODE_TRANSITION_MS));
+      const eased = easeOutCubic(progress);
+      setLayerVisibilityAndOpacity(
+        aggregateLayer,
+        true,
+        lerpNumber(fromAggregateOpacity, toAggregateOpacity, eased)
+      );
+      setLayerVisibilityAndOpacity(
+        hotspotLayer,
+        true,
+        lerpNumber(fromHotspotOpacity, toHotspotOpacity, eased)
+      );
+
+      if (progress >= 1) {
+        state.hotspotMarkerTransitionFrame = null;
+        applyHotspotMarkerDisplayMode(nextMode);
+        return;
+      }
+
+      if (typeof window.requestAnimationFrame === "function") {
+        state.hotspotMarkerTransitionFrame = window.requestAnimationFrame(step);
+      } else {
+        state.hotspotMarkerTransitionFrame = window.setTimeout(() => step(Date.now()), 16);
+      }
+    };
+
+    if (typeof window.requestAnimationFrame === "function") {
+      state.hotspotMarkerTransitionFrame = window.requestAnimationFrame(step);
+    } else {
+      state.hotspotMarkerTransitionFrame = window.setTimeout(() => step(Date.now()), 16);
+    }
   }
 
   function setHighlightedHotspots(spotIds, options) {
@@ -5220,6 +6242,7 @@ import APP_CONFIG from './config.js';
     state.selectedHotspotId = selectedHotspotId && state.highlightedHotspotIds.has(selectedHotspotId)
       ? selectedHotspotId
       : "";
+    syncHotspotMarkerDisplayMode();
     applyHotspotHighlightStyles();
   }
 
@@ -5229,6 +6252,7 @@ import APP_CONFIG from './config.js';
     }
     state.highlightedHotspotIds = new Set();
     state.selectedHotspotId = "";
+    syncHotspotMarkerDisplayMode();
     applyHotspotHighlightStyles();
   }
 
@@ -5265,8 +6289,12 @@ import APP_CONFIG from './config.js';
       const emphasisMode = hasHighlight
         ? (highlightSet.has(spotId) ? "focus" : "dim")
         : "normal";
-      feature.setStyle(getHotspotStyle(spot, emphasisMode));
+      setHotspotFeatureEmphasis(feature, spot, emphasisMode);
     });
+    if (state.hotspotAggregateSource && typeof state.hotspotAggregateSource.changed === "function") {
+      state.hotspotAggregateSource.changed();
+    }
+    syncHotspotMarkerDisplayMode();
     syncSpotListHighlightState();
   }
 
@@ -5285,30 +6313,203 @@ import APP_CONFIG from './config.js';
     });
   }
 
+  function normalizeHotspotEmphasisMode(emphasisMode) {
+    return emphasisMode === "focus" || emphasisMode === "dim" ? emphasisMode : "normal";
+  }
+
+  function getHotspotStyleMetrics(emphasisMode) {
+    const mode = normalizeHotspotEmphasisMode(emphasisMode);
+    const normalHaloRadius = 22;
+    const normalCoreRadius = 18;
+    const normalIconFontSize = 22;
+    if (mode === "focus") {
+      const focusScale = 1.5;
+      return {
+        haloRadius: Math.round(normalHaloRadius * focusScale),
+        coreRadius: Math.round(normalCoreRadius * focusScale),
+        iconFontSize: Math.round(normalIconFontSize * focusScale)
+      };
+    }
+    if (mode === "dim") {
+      return {
+        haloRadius: normalHaloRadius,
+        coreRadius: normalCoreRadius,
+        iconFontSize: 20
+      };
+    }
+    return {
+      haloRadius: normalHaloRadius,
+      coreRadius: normalCoreRadius,
+      iconFontSize: normalIconFontSize
+    };
+  }
+
+  function easeOutCubic(progress) {
+    const t = Math.max(0, Math.min(1, Number(progress)));
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  function lerpNumber(start, end, progress) {
+    return Number(start) + ((Number(end) - Number(start)) * progress);
+  }
+
+  function interpolateHotspotStyleMetrics(fromMode, toMode, progress) {
+    const eased = easeOutCubic(progress);
+    const fromMetrics = getHotspotStyleMetrics(fromMode);
+    const toMetrics = getHotspotStyleMetrics(toMode);
+    return {
+      haloRadius: lerpNumber(fromMetrics.haloRadius, toMetrics.haloRadius, eased),
+      coreRadius: lerpNumber(fromMetrics.coreRadius, toMetrics.coreRadius, eased),
+      iconFontSize: lerpNumber(fromMetrics.iconFontSize, toMetrics.iconFontSize, eased),
+      progress: eased
+    };
+  }
+
+  function getHotspotFocusRingOpacity(fromMode, toMode, progress) {
+    const eased = easeOutCubic(progress);
+    if (toMode === "focus") {
+      return eased;
+    }
+    if (fromMode === "focus") {
+      return 1 - eased;
+    }
+    return 0;
+  }
+
+  function setHotspotFeatureEmphasis(feature, spot, emphasisMode) {
+    if (!feature) {
+      return;
+    }
+    const nextMode = normalizeHotspotEmphasisMode(emphasisMode);
+    const currentMode = normalizeHotspotEmphasisMode(feature.get("hotspotEmphasisMode"));
+    if (currentMode === nextMode && !state.hotspotStyleAnimations.has(feature)) {
+      feature.setStyle(getHotspotStyle(spot, nextMode));
+      return;
+    }
+
+    const visualMode = normalizeHotspotEmphasisMode(feature.get("hotspotVisualMode") || currentMode);
+    feature.set("hotspotEmphasisMode", nextMode);
+
+    if (prefersReducedMotion() || currentMode === nextMode) {
+      clearHotspotFeatureAnimation(feature);
+      feature.set("hotspotVisualMode", nextMode);
+      feature.setStyle(getHotspotStyle(spot, nextMode));
+      return;
+    }
+
+    const now = typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+    feature.set("hotspotAnimationFromMode", visualMode);
+    feature.set("hotspotAnimationToMode", nextMode);
+    feature.set("hotspotAnimationStart", now);
+    feature.set("hotspotAnimationSpot", spot || feature.get("spot"));
+    state.hotspotStyleAnimations.add(feature);
+    scheduleHotspotStyleAnimation();
+  }
+
+  function scheduleHotspotStyleAnimation() {
+    if (state.hotspotStyleAnimationFrame || state.hotspotStyleAnimations.size === 0) {
+      return;
+    }
+    const run = (timestamp) => {
+      state.hotspotStyleAnimationFrame = null;
+      stepHotspotStyleAnimations(Number.isFinite(timestamp) ? timestamp : Date.now());
+      if (state.hotspotStyleAnimations.size > 0) {
+        scheduleHotspotStyleAnimation();
+      }
+    };
+    if (typeof window.requestAnimationFrame === "function") {
+      state.hotspotStyleAnimationFrame = window.requestAnimationFrame(run);
+      return;
+    }
+    state.hotspotStyleAnimationFrame = window.setTimeout(() => run(Date.now()), 16);
+  }
+
+  function stepHotspotStyleAnimations(timestamp) {
+    Array.from(state.hotspotStyleAnimations).forEach((feature) => {
+      if (!feature) {
+        state.hotspotStyleAnimations.delete(feature);
+        return;
+      }
+      const fromMode = normalizeHotspotEmphasisMode(feature.get("hotspotAnimationFromMode"));
+      const toMode = normalizeHotspotEmphasisMode(feature.get("hotspotAnimationToMode"));
+      const start = Number(feature.get("hotspotAnimationStart"));
+      const spot = feature.get("hotspotAnimationSpot") || feature.get("spot");
+      const elapsed = Number.isFinite(start) ? timestamp - start : HOTSPOT_STYLE_ANIMATION_MS;
+      const progress = Math.max(0, Math.min(1, elapsed / HOTSPOT_STYLE_ANIMATION_MS));
+      if (progress >= 1) {
+        feature.set("hotspotVisualMode", toMode);
+        feature.setStyle(getHotspotStyle(spot, toMode));
+        clearHotspotFeatureAnimation(feature);
+        return;
+      }
+      feature.setStyle(getHotspotTransitionStyle(spot, fromMode, toMode, progress));
+    });
+  }
+
+  function clearHotspotFeatureAnimation(feature) {
+    if (!feature) {
+      return;
+    }
+    state.hotspotStyleAnimations.delete(feature);
+    feature.unset("hotspotAnimationFromMode", true);
+    feature.unset("hotspotAnimationToMode", true);
+    feature.unset("hotspotAnimationStart", true);
+    feature.unset("hotspotAnimationSpot", true);
+  }
+
+  function clearHotspotStyleAnimations() {
+    if (state.hotspotStyleAnimationFrame) {
+      if (typeof window.cancelAnimationFrame === "function") {
+        window.cancelAnimationFrame(state.hotspotStyleAnimationFrame);
+      } else {
+        window.clearTimeout(state.hotspotStyleAnimationFrame);
+      }
+      state.hotspotStyleAnimationFrame = null;
+    }
+    state.hotspotStyleAnimations.forEach((feature) => {
+      clearHotspotFeatureAnimation(feature);
+    });
+    state.hotspotStyleAnimations.clear();
+  }
+
   function getHotspotStyle(spot, emphasisMode) {
     const categoryMeta = resolveIssueCategoryMeta(spot && spot.categoryId, spot && spot.categoryLabel);
     const baseColor = categoryMeta.color || defaultIssueCategoryColor;
-    const markerColor = mixHexColorWithWhite(baseColor, 0.34);
-    const markerBorderColor = mixHexColorWithWhite(baseColor, 0.10);
     const markerIcon = categoryMeta.icon || "📍";
-    const mode = emphasisMode === "focus" || emphasisMode === "dim"
-      ? emphasisMode
-      : "normal";
+    const mode = normalizeHotspotEmphasisMode(emphasisMode);
     const cacheKey = String(categoryMeta.id || "") + "|" + baseColor + "|" + markerIcon + "|" + mode;
 
     if (state.hotspotStyleCache.has(cacheKey)) {
       return state.hotspotStyleCache.get(cacheKey);
     }
 
+    const style = createHotspotStyle(spot, mode, getHotspotStyleMetrics(mode), mode === "focus" ? 1 : 0);
+    state.hotspotStyleCache.set(cacheKey, style);
+    return style;
+  }
+
+  function getHotspotTransitionStyle(spot, fromMode, toMode, progress) {
+    const targetMode = normalizeHotspotEmphasisMode(toMode);
+    const sourceMode = normalizeHotspotEmphasisMode(fromMode);
+    const metrics = interpolateHotspotStyleMetrics(sourceMode, targetMode, progress);
+    const ringOpacity = getHotspotFocusRingOpacity(sourceMode, targetMode, progress);
+    return createHotspotStyle(spot, targetMode, metrics, ringOpacity);
+  }
+
+  function createHotspotStyle(spot, emphasisMode, metrics, focusRingOpacity) {
+    const categoryMeta = resolveIssueCategoryMeta(spot && spot.categoryId, spot && spot.categoryLabel);
+    const baseColor = categoryMeta.color || defaultIssueCategoryColor;
+    const markerColor = mixHexColorWithWhite(baseColor, 0.34);
+    const markerBorderColor = mixHexColorWithWhite(baseColor, 0.10);
+    const markerIcon = categoryMeta.icon || "📍";
+    const mode = normalizeHotspotEmphasisMode(emphasisMode);
     const isDim = mode === "dim";
     const isFocus = mode === "focus";
-    const normalHaloRadius = 22;
-    const normalCoreRadius = 18;
-    const normalIconFontSize = 22;
-    const focusScale = 1.5;
-    const haloRadius = isFocus ? Math.round(normalHaloRadius * focusScale) : normalHaloRadius;
-    const coreRadius = isFocus ? Math.round(normalCoreRadius * focusScale) : normalCoreRadius;
-    const iconFontSize = isFocus ? Math.round(normalIconFontSize * focusScale) : isDim ? 20 : normalIconFontSize;
+    const haloRadius = Math.max(1, Number(metrics && metrics.haloRadius) || 22);
+    const coreRadius = Math.max(1, Number(metrics && metrics.coreRadius) || 18);
+    const iconFontSize = Math.max(1, Number(metrics && metrics.iconFontSize) || 22);
     const haloFillColor = isDim
       ? "rgba(255,255,255,0.44)"
       : isFocus
@@ -5323,9 +6524,10 @@ import APP_CONFIG from './config.js';
     const coreStrokeColor = isDim ? toRgba(markerBorderColor, 0.56) : markerBorderColor;
     const textFillColor = isDim ? "rgba(15,23,42,0.52)" : "#0f172a";
     const textStrokeColor = isDim ? "rgba(255,255,255,0.78)" : "rgba(255,255,255,0.95)";
+    const ringOpacity = Math.max(0, Math.min(1, Number(focusRingOpacity) || 0));
     const style = [];
 
-    if (isFocus) {
+    if (ringOpacity > 0.01) {
       style.push(
         new ol.style.Style({
           zIndex: 24,
@@ -5333,7 +6535,7 @@ import APP_CONFIG from './config.js';
             radius: haloRadius + 3,
             fill: new ol.style.Fill({ color: "rgba(255,255,255,0)" }),
             stroke: new ol.style.Stroke({
-              color: toRgba(baseColor, 0.46),
+              color: toRgba(baseColor, 0.46 * ringOpacity),
               width: 3
             })
           })
@@ -5374,7 +6576,7 @@ import APP_CONFIG from './config.js';
           textBaseline: "middle",
           offsetX: 0,
           offsetY: 1,
-          font: "700 " + String(iconFontSize) + "px \"Pretendard\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+          font: "700 " + String(Math.round(iconFontSize)) + "px \"Pretendard\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
           fill: new ol.style.Fill({
             color: textFillColor
           }),
@@ -5386,15 +6588,136 @@ import APP_CONFIG from './config.js';
       })
     );
 
-    state.hotspotStyleCache.set(cacheKey, style);
     return style;
+  }
+
+  function getHotspotAggregateStyle(feature) {
+    if (!feature || typeof feature.get !== "function") {
+      return null;
+    }
+    const dongName = String(feature.get("dongName") || "").trim();
+    const count = Math.max(1, Number(feature.get("count")) || 1);
+    const activeFilter = getActiveIssueFilter();
+    const isFiltered = activeFilter.type === "category" || activeFilter.type === "common";
+    const mode = isFiltered ? "focus" : "normal";
+    const cacheKey = String(count) + "|" + mode;
+    if (state.hotspotAggregateStyleCache.has(cacheKey)) {
+      return state.hotspotAggregateStyleCache.get(cacheKey);
+    }
+
+    const style = createHotspotAggregateStyle(count, mode);
+    state.hotspotAggregateStyleCache.set(cacheKey, style);
+    return style;
+  }
+
+  function createHotspotAggregateStyle(count, mode) {
+    const safeCount = Math.max(1, Number(count) || 1);
+    const isFocus = mode === "focus";
+    const label = safeCount > 99 ? "99+" : String(safeCount);
+    const baseColor = isFocus ? "#2563eb" : "#2f6fb7";
+    const haloRadius = isFocus ? 35 : 31;
+    const coreRadius = isFocus ? 27 : 24;
+
+    return [
+      new ol.style.Style({
+        zIndex: isFocus ? 27 : 23,
+        image: new ol.style.Circle({
+          radius: haloRadius,
+          fill: new ol.style.Fill({ color: "rgba(255,255,255,0.94)" }),
+          stroke: new ol.style.Stroke({
+            color: isFocus ? "rgba(37,99,235,0.62)" : "rgba(24,59,103,0.24)",
+            width: isFocus ? 2.6 : 1.5
+          })
+        })
+      }),
+      new ol.style.Style({
+        zIndex: isFocus ? 28 : 24,
+        image: new ol.style.Circle({
+          radius: coreRadius,
+          fill: new ol.style.Fill({
+            color: isFocus ? "rgba(37,99,235,0.92)" : "rgba(69,132,202,0.90)"
+          }),
+          stroke: new ol.style.Stroke({
+            color: baseColor,
+            width: isFocus ? 3.4 : 2.8
+          })
+        }),
+        text: new ol.style.Text({
+          text: label,
+          placement: "point",
+          justify: "center",
+          textAlign: "center",
+          textBaseline: "middle",
+          offsetY: 0,
+          font: "900 16px \"Pretendard\", sans-serif",
+          fill: new ol.style.Fill({ color: "#ffffff" }),
+          stroke: new ol.style.Stroke({
+            color: "rgba(24,59,103,0.72)",
+            width: 3.5
+          })
+        })
+      })
+    ];
+  }
+
+  function openHotspotFeature(feature, fallbackCoordinate) {
+    if (!feature || typeof feature.get !== "function") {
+      return false;
+    }
+    const spot = feature.get("spot");
+    const geometry = typeof feature.getGeometry === "function" ? feature.getGeometry() : null;
+    const coordinate = geometry && typeof geometry.getCoordinates === "function"
+      ? geometry.getCoordinates()
+      : fallbackCoordinate;
+    if (!spot || !Array.isArray(coordinate)) {
+      clearHighlightedHotspots();
+      return false;
+    }
+
+    if (spot.id) {
+      setHighlightedHotspots([spot.id], {
+        selectedHotspotId: spot.id
+      });
+    } else {
+      clearHighlightedHotspots();
+    }
+    animateMapToHotspotSelection(coordinate, spot);
+    openHotspotPopup(coordinate, spot);
+    return true;
+  }
+
+  function handleHotspotAggregateClick(feature, fallbackCoordinate) {
+    if (!feature || typeof feature.get !== "function") {
+      return false;
+    }
+    const dongName = String(feature.get("dongName") || "").trim();
+    if (!dongName) {
+      return false;
+    }
+
+    closePopup();
+    clearHighlightedHotspots();
+    focusDongIssues(dongName, {
+      fallbackCoordinate,
+      boundaryFeature: findBoundaryFeatureByDongName(dongName)
+    });
+    return true;
   }
 
   function renderVisibleIssueList() {
     updateTotalIssueCountLabel();
     const filtered = applyIssueFilter(state.issues);
     renderIssueStatsSummary(state.issues);
-    renderIssueDongList(filtered);
+    const shouldShowList = hasActiveIssueFilter();
+    refreshHotspotAggregateFeatures();
+    syncHotspotMarkerDisplayMode();
+    setIssueListPanelVisibility(shouldShowList);
+    renderHotspotList(shouldShowList ? filtered : [], {
+      preservePanelVisibility: true
+    });
+    if (shouldShowList) {
+      setHighlightedHotspots(filtered.map((spot) => spot.id));
+    }
   }
 
   function renderIssueStatsSummary(hotspots) {
@@ -5408,48 +6731,83 @@ import APP_CONFIG from './config.js';
       return;
     }
 
-    const scopeLabel = "전체 기준";
+    const activeFilter = getActiveIssueFilter();
+    const scopeLabel = activeFilter.type === "category"
+      ? "카테고리: " + activeFilter.label
+      : (activeFilter.type === "dong"
+        ? "동: " + activeFilter.label
+        : (activeFilter.type === "common" ? "공통 현안: [" + activeFilter.label + "]" : "전체 기준"));
+    const isFiltered = hasActiveIssueFilter();
+    const clearButtonClassName = isFiltered
+      ? "issue-stats-clear-btn"
+      : "issue-stats-clear-btn issue-stats-clear-btn-inactive";
+    const clearButtonAttrs = isFiltered
+      ? ""
+      : " disabled aria-hidden='true' tabindex='-1'";
+    const clearButtonMarkup =
+      "<button id='clear-issue-filter-btn' type='button' class='" + clearButtonClassName + "' data-action='clear-issue-filter'" + clearButtonAttrs + ">" +
+        "전체 보기" +
+      "</button>";
     const categoryStats = buildIssueCategoryStats(list);
     const dongStats = buildIssueDongStats(list);
 
     const categoryItems = categoryStats.map((item) => {
       const safeLabel = escapeHtml(item.label);
+      const safeKey = escapeHtml(item.key);
       const countLabel = String(item.count) + "건";
       const chipStyle = buildCategoryBadgeStyle(item.color);
+      const isActive = isActiveIssueFilter("category", item.key);
+      const activeClassName = isActive ? " issue-stats-filter-btn-active" : "";
+      const activeAttrs = isActive ? " aria-current='true'" : "";
+      const buttonLabel = escapeHtml(item.label + " " + countLabel + " 보기");
       return (
         "<li class='issue-stats-item'>" +
-          "<span class='issue-stats-chip issue-stats-chip-category' style='" + chipStyle + "'>" + safeLabel + "</span>" +
-          "<span class='issue-stats-count'>" + countLabel + "</span>" +
+          "<button type='button' class='issue-stats-filter-btn" + activeClassName + "' data-action='filter-issues' data-filter-type='category' data-filter-key='" + safeKey + "' data-filter-label='" + safeLabel + "' aria-label='" + buttonLabel + "' aria-pressed='" + String(isActive) + "'" + activeAttrs + ">" +
+            "<span class='issue-stats-chip issue-stats-chip-category' style='" + chipStyle + "'>" + safeLabel + "</span>" +
+            "<span class='issue-stats-count'>" + countLabel + "</span>" +
+            "<span class='issue-stats-open-indicator' aria-hidden='true'>›</span>" +
+          "</button>" +
         "</li>"
       );
     });
 
     const dongItems = dongStats.map((item) => {
       const safeLabel = escapeHtml(item.label);
+      const safeKey = escapeHtml(item.key);
       const countLabel = String(item.count) + "건";
       const sourceNames = Array.isArray(item.sourceNames) ? item.sourceNames : [];
       const mergeHint = sourceNames.length > 1
         ? "<div class='issue-stats-hint'>" + escapeHtml(sourceNames.join(" · ") + " 묶음") + "</div>"
         : "";
+      const isActive = isActiveIssueFilter("dong", item.key);
+      const activeClassName = isActive ? " issue-stats-filter-btn-active" : "";
+      const activeAttrs = isActive ? " aria-current='true'" : "";
+      const buttonLabel = escapeHtml(item.label + " " + countLabel + " 보기");
       return (
         "<li class='issue-stats-item'>" +
-          "<span class='issue-stats-chip issue-stats-chip-dong'>" + safeLabel + "</span>" +
-          "<span class='issue-stats-count'>" + countLabel + "</span>" +
+          "<button type='button' class='issue-stats-filter-btn" + activeClassName + "' data-action='filter-issues' data-filter-type='dong' data-filter-key='" + safeKey + "' data-filter-label='" + safeLabel + "' aria-label='" + buttonLabel + "' aria-pressed='" + String(isActive) + "'" + activeAttrs + ">" +
+            "<span class='issue-stats-chip issue-stats-chip-dong'>" + safeLabel + "</span>" +
+            "<span class='issue-stats-count'>" + countLabel + "</span>" +
+            "<span class='issue-stats-open-indicator' aria-hidden='true'>›</span>" +
+          "</button>" +
           mergeHint +
         "</li>"
       );
     });
 
     elements.issueStatsSummary.innerHTML =
-      "<div class='issue-stats-head'>현안 통계 <span class='issue-stats-scope'>(" + scopeLabel + ")</span></div>" +
+      "<div class='issue-stats-head'>" +
+        "<span class='issue-stats-title'>현안 통계 <span class='issue-stats-scope'>(" + scopeLabel + ")</span></span>" +
+        clearButtonMarkup +
+      "</div>" +
       "<div class='issue-stats-grid'>" +
-        "<section class='issue-stats-block'>" +
-          "<h4>카테고리별 총 건수</h4>" +
-          "<ul class='issue-stats-list'>" + categoryItems.join("") + "</ul>" +
-        "</section>" +
         "<section class='issue-stats-block'>" +
           "<h4>동별 총 건수</h4>" +
           "<ul class='issue-stats-list'>" + dongItems.join("") + "</ul>" +
+        "</section>" +
+        "<section class='issue-stats-block'>" +
+          "<h4>카테고리별 총 건수</h4>" +
+          "<ul class='issue-stats-list'>" + categoryItems.join("") + "</ul>" +
         "</section>" +
       "</div>";
   }
@@ -5461,14 +6819,16 @@ import APP_CONFIG from './config.js';
     list.forEach((spot) => {
       const categoryMeta = resolveIssueCategoryMeta(spot.categoryId, spot.categoryLabel);
       const label = String(categoryMeta.label || "").trim() || "미분류";
-      if (!statsByLabel.has(label)) {
-        statsByLabel.set(label, {
+      const key = normalizeIssueFilterKey(label);
+      if (!statsByLabel.has(key)) {
+        statsByLabel.set(key, {
+          key,
           label,
           color: categoryMeta.color || defaultIssueCategoryColor,
           count: 0
         });
       }
-      statsByLabel.get(label).count += 1;
+      statsByLabel.get(key).count += 1;
     });
 
     return Array.from(statsByLabel.values()).sort((a, b) => {
@@ -5486,6 +6846,7 @@ import APP_CONFIG from './config.js';
 
     dongTargets.forEach((dongName) => {
       statsByDong.set(dongName, {
+        key: dongName,
         label: dongName,
         count: 0,
         sourceNames: new Set([dongName])
@@ -5505,6 +6866,7 @@ import APP_CONFIG from './config.js';
     return Array.from(statsByDong.values())
       .map((item) => {
         return {
+          key: item.label,
           label: item.label,
           count: item.count,
           sourceNames: Array.from(item.sourceNames).sort(compareDongLabelForDisplay)
@@ -5515,26 +6877,73 @@ import APP_CONFIG from './config.js';
       });
   }
 
-  function renderHotspotList(hotspots) {
+  function getActiveIssueFilterEmptyMessage() {
+    const activeFilter = getActiveIssueFilter();
+    if (activeFilter.type === "dong") {
+      return activeFilter.label + "에 등록된 현안이 없습니다.";
+    }
+    if (activeFilter.type === "category") {
+      return activeFilter.label + " 카테고리에 등록된 현안이 없습니다.";
+    }
+    return "등록된 지역 현안이 없습니다.";
+  }
+
+  function activateSpotListItem(item, options) {
+    if (!(item instanceof HTMLElement) || !state.map || !state.hotspotSource) {
+      return false;
+    }
+
+    const spotId = String(item.getAttribute("data-spot-id") || "").trim();
+    if (!spotId) {
+      return false;
+    }
+
+    const feature = state.hotspotSource.getFeatureById(spotId);
+    const spot = state.hotspotData.get(spotId);
+    if (!feature || !spot) {
+      return false;
+    }
+
+    const geometry = typeof feature.getGeometry === "function" ? feature.getGeometry() : null;
+    const coordinate = geometry && typeof geometry.getCoordinates === "function"
+      ? geometry.getCoordinates()
+      : null;
+    if (!Array.isArray(coordinate)) {
+      return false;
+    }
+
+    if (options && options.focusItem && typeof item.focus === "function") {
+      item.focus({ preventScroll: true });
+    }
+    setHighlightedHotspots([spot.id], {
+      selectedHotspotId: spot.id
+    });
+    animateMapToHotspotSelection(coordinate, spot);
+    openHotspotPopup(coordinate, spot, {
+      returnFocusElement: item,
+      focusPopup: Boolean(options && options.focusItem)
+    });
+    return true;
+  }
+
+  function renderHotspotList(hotspots, options) {
     if (!elements.spotList) {
       return;
     }
 
-    state.issueGroupMap = new Map();
+    if (!(options && options.preservePanelVisibility)) {
+      setIssueListPanelVisibility(true);
+    }
     clearPhotoSlideshowsByPrefix("spot-list-");
+    const list = Array.isArray(hotspots) ? hotspots : [];
 
-    if (hotspots.length === 0) {
-      if (state.activeDongName) {
-        const safeDongName = escapeHtml(state.activeDongName);
-        elements.spotList.innerHTML = "<li class='empty'>" + safeDongName + "에 등록된 현안이 없습니다.</li>";
-      } else {
-        elements.spotList.innerHTML = "<li class='empty'>등록된 지역 현안이 없습니다.</li>";
-      }
+    if (list.length === 0) {
+      elements.spotList.innerHTML = "<li class='empty'>" + escapeHtml(getActiveIssueFilterEmptyMessage()) + "</li>";
       return;
     }
 
     const showEditorActions = isEditMode();
-    const items = hotspots.map((spot) => {
+    const items = list.map((spot) => {
       const rawTitle = String(spot.title || "").trim() || "현안";
       const title = escapeHtml(rawTitle);
       const memoRaw = typeof spot.memo === "string" ? spot.memo.trim() : "";
@@ -5583,7 +6992,7 @@ import APP_CONFIG from './config.js';
       }
 
       return (
-        "<li class='" + spotItemClassName + "' data-spot-id='" + safeId + "'>" +
+        "<li class='" + spotItemClassName + "' data-spot-id='" + safeId + "' role='button' tabindex='0' aria-label='" + escapeHtml(rawTitle + " 위치 보기") + "'>" +
           "<div class='spot-item-top'>" +
             "<strong>" + titleWithPhotoBadge + "</strong>" +
           "</div>" +
@@ -5608,8 +7017,28 @@ import APP_CONFIG from './config.js';
     window.__spotListTestHooks = {
       renderHotspotList,
       renderIssueStatsSummary,
-      renderIssueDongList,
       setActiveDongFilter,
+      setActiveIssueFilter,
+      setMobileSheetExpanded,
+      getIssueMapFocusPadding,
+      getRegionMapFocusPadding,
+      getPopupAwareCenterDelta(options) {
+        if (!state.map || typeof state.map.getView !== "function") {
+          return null;
+        }
+        const view = state.map.getView();
+        const center = view && typeof view.getCenter === "function" ? view.getCenter() : null;
+        if (!Array.isArray(center)) {
+          return null;
+        }
+        const adjusted = resolvePopupAwareCenterCoordinate(center, options);
+        return {
+          deltaX: adjusted[0] - center[0],
+          deltaY: adjusted[1] - center[1]
+        };
+      },
+      focusDongIssues,
+      focusCategoryIssues,
       renderVisibleIssueListWithData(issues) {
         state.issues = Array.isArray(issues) ? issues : [];
         renderVisibleIssueList();
@@ -5619,285 +7048,153 @@ import APP_CONFIG from './config.js';
       },
       getSelectedHotspotId() {
         return state.selectedHotspotId || "";
+      },
+      getHotspotStyleAnimationCount() {
+        return state.hotspotStyleAnimations instanceof Set
+          ? state.hotspotStyleAnimations.size
+          : 0;
+      },
+      setMapZoomForTest(zoom) {
+        if (!state.map || typeof state.map.getView !== "function") {
+          return null;
+        }
+        const view = state.map.getView();
+        if (!view || typeof view.setZoom !== "function") {
+          return null;
+        }
+        view.setZoom(Number(zoom));
+        syncHotspotMarkerDisplayMode();
+        return typeof view.getZoom === "function" ? view.getZoom() : null;
+      },
+      getHotspotAggregateState() {
+        if (!state.hotspotAggregateSource) {
+          return null;
+        }
+        const aggregateFeatures = typeof state.hotspotAggregateSource.getFeatures === "function"
+          ? state.hotspotAggregateSource.getFeatures()
+          : [];
+        const aggregates = aggregateFeatures.map((feature) => ({
+          dongName: String(feature.get("dongName") || ""),
+          count: Number(feature.get("count")) || 0
+        })).filter((entry) => entry.dongName && entry.count > 0)
+          .sort((a, b) => a.dongName.localeCompare(b.dongName, "ko"));
+        return {
+          visible: Boolean(
+            state.hotspotAggregateLayer &&
+            typeof state.hotspotAggregateLayer.getVisible === "function" &&
+            state.hotspotAggregateLayer.getVisible()
+          ),
+          aggregateOpacity: readLayerOpacity(state.hotspotAggregateLayer, 0),
+          hotspotVisible: Boolean(
+            state.hotspotLayer &&
+            typeof state.hotspotLayer.getVisible === "function" &&
+            state.hotspotLayer.getVisible()
+          ),
+          hotspotOpacity: readLayerOpacity(state.hotspotLayer, 0),
+          transitionActive: Boolean(state.hotspotMarkerTransitionFrame),
+          featureCount: state.hotspotSource && typeof state.hotspotSource.getFeatures === "function"
+            ? state.hotspotSource.getFeatures().length
+            : 0,
+          aggregateCount: aggregates.length,
+          aggregates
+        };
+      },
+      isIssueListPanelVisible,
+      getMapViewState() {
+        if (!state.map || typeof state.map.getView !== "function") {
+          return null;
+        }
+        const view = state.map.getView();
+        const center = view && typeof view.getCenter === "function" ? view.getCenter() : null;
+        const lonLat = Array.isArray(center) ? ol.proj.toLonLat(center) : null;
+        return {
+          center: lonLat,
+          zoom: view && typeof view.getZoom === "function" ? view.getZoom() : null,
+          animating: Boolean(view && typeof view.getAnimating === "function" && view.getAnimating())
+        };
+      },
+      getMapVisibleExtentState() {
+        if (!state.map || typeof state.map.getView !== "function") {
+          return null;
+        }
+        const view = state.map.getView();
+        const size = typeof state.map.getSize === "function" ? state.map.getSize() : null;
+        if (!view || typeof view.calculateExtent !== "function" || !Array.isArray(size)) {
+          return null;
+        }
+        const extent = view.calculateExtent(size);
+        const bottomLeft = ol.proj.toLonLat([extent[0], extent[1]]);
+        const topRight = ol.proj.toLonLat([extent[2], extent[3]]);
+        return {
+          west: bottomLeft[0],
+          south: bottomLeft[1],
+          east: topRight[0],
+          north: topRight[1]
+        };
+      },
+      getBoundaryExtentCenter() {
+        if (!state.boundarySource) {
+          return null;
+        }
+        const extent = state.boundarySource.getExtent();
+        if (
+          !extent ||
+          extent.length !== 4 ||
+          !extent.every((value) => Number.isFinite(value))
+        ) {
+          return null;
+        }
+        return ol.proj.toLonLat(ol.extent.getCenter(extent));
+      },
+      getBoundaryMaskState() {
+        if (!state.boundaryMaskSource) {
+          return null;
+        }
+        const features = state.boundaryMaskSource.getFeatures();
+        const firstFeature = features.length > 0 ? features[0] : null;
+        const layer = state.boundaryMaskLayer;
+        const readLayerOption = (methodName, propertyName, fallbackValue) => {
+          if (!layer) {
+            return fallbackValue;
+          }
+          if (typeof layer[methodName] === "function") {
+            return layer[methodName]();
+          }
+          if (typeof layer.get === "function") {
+            const value = layer.get(propertyName);
+            if (value !== undefined) {
+              return value;
+            }
+          }
+          return fallbackValue;
+        };
+        return {
+          count: features.length,
+          source: firstFeature && typeof firstFeature.get === "function"
+            ? String(firstFeature.get("maskSource") || "")
+            : "",
+          staticApplied: Boolean(state.boundaryMaskFallbackApplied),
+          renderBuffer: readLayerOption("getRenderBuffer", "renderBuffer", BOUNDARY_MASK_RENDER_BUFFER_PX),
+          updateWhileAnimating: Boolean(readLayerOption("getUpdateWhileAnimating", "updateWhileAnimating", true)),
+          updateWhileInteracting: Boolean(readLayerOption("getUpdateWhileInteracting", "updateWhileInteracting", true))
+        };
+      },
+      getDongBoundaryExtentState(dongName) {
+        const extent = resolveBoundaryExtentByDongName(dongName);
+        if (!extent) {
+          return null;
+        }
+        const bottomLeft = ol.proj.toLonLat([extent[0], extent[1]]);
+        const topRight = ol.proj.toLonLat([extent[2], extent[3]]);
+        return {
+          center: ol.proj.toLonLat(ol.extent.getCenter(extent)),
+          west: bottomLeft[0],
+          south: bottomLeft[1],
+          east: topRight[0],
+          north: topRight[1]
+        };
       }
     };
-  }
-
-  function renderIssueGroupList(hotspots) {
-    if (!elements.spotList) {
-      return;
-    }
-    clearPhotoSlideshowsByPrefix("spot-list-");
-
-    if (hotspots.length === 0) {
-      state.issueGroupMap = new Map();
-      if (state.activeDongName) {
-        const safeDongName = escapeHtml(state.activeDongName);
-        elements.spotList.innerHTML = "<li class='empty'>" + safeDongName + "에 등록된 현안이 없습니다.</li>";
-      } else {
-        elements.spotList.innerHTML = "<li class='empty'>등록된 지역 현안이 없습니다.</li>";
-      }
-      return;
-    }
-
-    const groups = buildIssueGroups(hotspots);
-    state.issueGroupMap = new Map(groups.map((group) => [group.key, group]));
-    const showEditorHint = isEditMode();
-    const items = groups.map((group) => {
-      const safeKey = escapeHtml(group.key);
-      const safeTitle = escapeHtml(group.title);
-      const categoryLabel = escapeHtml(resolveCategoryLabel(group.categoryId, group.categoryLabel));
-      const categoryMeta = resolveIssueCategoryMeta(group.categoryId, group.categoryLabel);
-      const categoryStyle = buildCategoryBadgeStyle(categoryMeta.color);
-      const countLabel = String(group.spots.length) + "곳";
-      const dongLabel = group.dongNames.length > 0
-        ? group.dongNames.join(", ")
-        : "동 정보 없음";
-      const previewDongNames = group.dongNames.slice(0, 3).join(" · ");
-      const restCount = group.dongNames.length - 3;
-      const previewText = restCount > 0
-        ? previewDongNames + " 외 " + String(restCount) + "곳"
-        : previewDongNames;
-      const editorHintHtml = showEditorHint
-        ? "<div class='spot-group-hint'>개별 수정/삭제는 개별 보기에서 가능합니다.</div>"
-        : "";
-      return (
-        "<li class='spot-item spot-group-item' data-group-key='" + safeKey + "'>" +
-          "<div class='spot-item-top'>" +
-            "<strong>" + safeTitle + "</strong>" +
-            "<span class='spot-group-count'>" + countLabel + "</span>" +
-          "</div>" +
-          "<div class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</div>" +
-          "<div class='spot-dong'>대상 동: " + escapeHtml(dongLabel) + "</div>" +
-          "<div class='spot-memo'>분포: " + escapeHtml(previewText || dongLabel) + "</div>" +
-          "<div class='spot-item-actions'>" +
-            "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='focus-group' data-group-key='" + safeKey + "'>지도에서 한 번에 보기</button>" +
-          "</div>" +
-          editorHintHtml +
-        "</li>"
-      );
-    });
-    elements.spotList.innerHTML = items.join("");
-  }
-
-  function renderIssueDongList(hotspots) {
-    if (!elements.spotList) {
-      return;
-    }
-    clearPhotoSlideshowsByPrefix("spot-list-");
-
-    if (hotspots.length === 0) {
-      state.issueGroupMap = new Map();
-      if (state.activeDongName) {
-        const safeDongName = escapeHtml(state.activeDongName);
-        elements.spotList.innerHTML = "<li class='empty'>" + safeDongName + "에 등록된 현안이 없습니다.</li>";
-      } else {
-        elements.spotList.innerHTML = "<li class='empty'>등록된 지역 현안이 없습니다.</li>";
-      }
-      return;
-    }
-
-    const groups = buildIssueDongGroups(hotspots);
-    state.issueGroupMap = new Map(groups.map((group) => [group.key, group]));
-    const showEditorActions = isEditMode();
-
-    const items = groups.map((group) => {
-      const safeKey = escapeHtml(group.key);
-      const safeTitle = escapeHtml(group.title);
-      const sourceNames = Array.isArray(group.sourceDongNames) ? group.sourceDongNames : [];
-      const sourceNamesText = sourceNames.length > 0 ? sourceNames.join(", ") : group.title;
-      const countLabel = String(group.spots.length) + "건";
-      const categorySummary = Array.isArray(group.categorySummary) ? group.categorySummary : [];
-      const categoryText = categorySummary.length > 0
-        ? categorySummary.join(" · ")
-        : "카테고리 정보 없음";
-      const spotItems = Array.isArray(group.spots) ? group.spots : [];
-      const issueListHtml = spotItems.length === 0
-        ? "<li class='spot-dong-issue-item empty'>표시할 현안이 없습니다.</li>"
-        : spotItems.map((spot) => {
-          const safeIssueTitle = escapeHtml(String(spot && spot.title ? spot.title : "현안"));
-          const safeIssueCategory = escapeHtml(resolveCategoryLabel(spot && spot.categoryId, spot && spot.categoryLabel));
-          const issueCategoryMeta = resolveIssueCategoryMeta(spot && spot.categoryId, spot && spot.categoryLabel);
-          const issueCategoryStyle = buildCategoryBadgeStyle(issueCategoryMeta.color);
-          const rawSpotId = String(spot && spot.id ? spot.id : "").trim();
-          const safeSpotId = escapeHtml(rawSpotId);
-          const spotIdAttr = rawSpotId ? " data-spot-id='" + safeSpotId + "'" : "";
-          const issueActionsHtml = showEditorActions && rawSpotId
-            ? (
-              "<span class='spot-dong-issue-actions'>" +
-                "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='edit-spot' data-spot-id='" + safeSpotId + "'>수정</button>" +
-                "<button type='button' class='btn-secondary btn-small spot-action-btn danger' data-action='delete-spot' data-spot-id='" + safeSpotId + "'>삭제</button>" +
-              "</span>"
-            )
-            : "";
-          return (
-            "<li class='spot-dong-issue-item'" + spotIdAttr + ">" +
-              "<span class='spot-dong-issue-title'>" + safeIssueTitle + "</span>" +
-              "<span class='spot-dong-issue-meta'>" +
-                "<span class='spot-dong-issue-category' style='" + issueCategoryStyle + "'>" + safeIssueCategory + "</span>" +
-                issueActionsHtml +
-              "</span>" +
-            "</li>"
-          );
-        }).join("");
-
-      return (
-        "<li class='spot-item spot-group-item spot-dong-group-item' data-group-key='" + safeKey + "'>" +
-          "<div class='spot-item-top'>" +
-            "<strong>" + safeTitle + "</strong>" +
-            "<span class='spot-group-count'>" + countLabel + "</span>" +
-          "</div>" +
-          "<div class='spot-dong'>묶음 기준: " + escapeHtml(sourceNamesText) + "</div>" +
-          "<div class='spot-memo'>카테고리 분포: " + escapeHtml(categoryText) + "</div>" +
-          "<ul class='spot-dong-issue-list'>" + issueListHtml + "</ul>" +
-          "<div class='spot-item-actions'>" +
-            "<button type='button' class='btn-secondary btn-small spot-action-btn' data-action='focus-group' data-group-key='" + safeKey + "'>지도에서 동별 보기</button>" +
-          "</div>" +
-        "</li>"
-      );
-    });
-
-    elements.spotList.innerHTML = items.join("");
-  }
-
-  function buildIssueDongGroups(hotspots) {
-    const list = Array.isArray(hotspots) ? hotspots : [];
-    const groupMap = new Map();
-
-    list.forEach((spot) => {
-      const mergedDongName = resolveSpotDongForAggregation(spot);
-      if (!mergedDongName || mergedDongName === DONG_COMMON_NAME) {
-        return;
-      }
-      const key = "dong:" + mergedDongName.toLowerCase();
-      if (!groupMap.has(key)) {
-        groupMap.set(key, {
-          key,
-          title: mergedDongName,
-          categoryId: "",
-          categoryLabel: "동별 묶음",
-          spots: [],
-          dongNames: [mergedDongName],
-          sourceDongNames: new Set(),
-          categoryMap: new Map()
-        });
-      }
-      const group = groupMap.get(key);
-      group.spots.push(spot);
-      group.dongNames = [mergedDongName];
-      group.sourceDongNames.add(mergedDongName);
-      const categoryLabel = resolveCategoryLabel(spot.categoryId, spot.categoryLabel);
-      group.categoryMap.set(categoryLabel, (group.categoryMap.get(categoryLabel) || 0) + 1);
-    });
-
-    return Array.from(groupMap.values())
-      .map((group) => {
-        group.spots.sort(compareHotspotByTitle);
-        const categorySummary = Array.from(group.categoryMap.entries())
-          .sort((a, b) => {
-            if (a[1] !== b[1]) {
-              return b[1] - a[1];
-            }
-            return compareKoreanText(a[0], b[0]);
-          })
-          .map(([label, count]) => {
-            return label + " " + String(count) + "건";
-          });
-        return {
-          key: group.key,
-          title: group.title,
-          categoryId: group.categoryId,
-          categoryLabel: group.categoryLabel,
-          spots: group.spots,
-          dongNames: group.dongNames,
-          sourceDongNames: Array.from(group.sourceDongNames).sort(compareDongLabelForDisplay),
-          categorySummary
-        };
-      })
-      .sort((a, b) => {
-        return compareDongLabelForDisplay(a.title, b.title);
-      });
-  }
-
-  function buildIssueGroups(hotspots) {
-    const list = Array.isArray(hotspots) ? hotspots : [];
-    const groupMap = new Map();
-
-    list.forEach((spot) => {
-      const key = resolveIssueGroupKey(spot);
-      if (!groupMap.has(key)) {
-        groupMap.set(key, {
-          key,
-          title: resolveIssueGroupTitle(spot),
-          categoryId: String(spot.categoryId || "").trim(),
-          categoryLabel: String(spot.categoryLabel || "").trim(),
-          spots: [],
-          dongNames: []
-        });
-      }
-      const group = groupMap.get(key);
-      group.spots.push(spot);
-      if (!group.categoryId && spot.categoryId) {
-        group.categoryId = String(spot.categoryId).trim();
-      }
-      if (!group.categoryLabel && spot.categoryLabel) {
-        group.categoryLabel = String(spot.categoryLabel).trim();
-      }
-    });
-
-    return Array.from(groupMap.values())
-      .map((group) => {
-        group.spots.sort(compareHotspotByTitle);
-        const uniqueDongs = Array.from(new Set(group.spots.map((spot) => formatSpotDongLabel(spot))));
-        group.dongNames = uniqueDongs.sort(compareDongLabelForDisplay);
-        return group;
-      })
-      .sort((a, b) => compareIssueTitleForList(a.title, b.title));
-  }
-
-  function resolveIssueGroupKey(spot) {
-    const issueRefId = normalizeIssueCatalogId(spot && spot.issueRefId);
-    if (issueRefId) {
-      return "ref:" + issueRefId;
-    }
-    const normalizedGroupLabel = normalizeIssueGroupLabel(spot && spot.groupLabel);
-    if (normalizedGroupLabel) {
-      return "group:" + normalizedGroupLabel.toLowerCase();
-    }
-    const bracketTag = normalizeIssueGroupLabel(resolveBracketedCommonTag(spot));
-    if (bracketTag) {
-      return "bracket:" + bracketTag.toLowerCase();
-    }
-    const normalizedTitle = normalizeIssueGroupLabel(spot && spot.title);
-    if (normalizedTitle) {
-      return "title:" + normalizedTitle.toLowerCase();
-    }
-    return "id:" + String(spot && spot.id ? spot.id : "");
-  }
-
-  function resolveIssueGroupTitle(spot) {
-    const normalizedGroupLabel = normalizeIssueGroupLabel(spot && spot.groupLabel);
-    if (normalizedGroupLabel) {
-      return normalizedGroupLabel;
-    }
-    const bracketTag = normalizeIssueGroupLabel(resolveBracketedCommonTag(spot));
-    if (bracketTag) {
-      return "[" + bracketTag + "]";
-    }
-    const issueRefId = normalizeIssueCatalogId(spot && spot.issueRefId);
-    if (issueRefId && state.issueCatalogMap.has(issueRefId)) {
-      const catalogIssue = state.issueCatalogMap.get(issueRefId);
-      const catalogTitle = String(catalogIssue && catalogIssue.title ? catalogIssue.title : "").trim();
-      if (catalogTitle) {
-        return catalogTitle;
-      }
-    }
-    const title = String(spot && spot.title ? spot.title : "").trim();
-    return title || "현안";
-  }
-
-  function normalizeIssueGroupLabel(value) {
-    return String(value || "").trim();
   }
 
   function resolvePopupAwareCenterCoordinate(coordinate, options) {
@@ -5930,29 +7227,184 @@ import APP_CONFIG from './config.js';
     }
 
     const hasPhoto = Boolean(options && options.hasPhoto);
+    const defaultPopupHeight = getMapPopupRenderedHeight(hasPhoto ? 248 : 132);
     const popupHeightPx = readPositiveNumber(
       options && options.popupHeightPx,
-      hasPhoto ? 248 : 132
+      defaultPopupHeight
     );
+    const sheetHeight = getMobileBottomSheetCoveredHeight(options);
+    const bottomCoveredPx = sheetHeight > 0 ? sheetHeight + 22 : 0;
+    const visibleBottomY = Math.max(80, mapHeight - bottomCoveredPx);
     const centerY = mapHeight / 2;
+    const visibleCenterY = visibleBottomY / 2;
+    const popupAnchorGapPx = 26;
     const topMarginPx = hasPhoto ? 20 : 14;
-    const bottomMarginPx = 20;
-    const requiredMarkerY = popupHeightPx + topMarginPx;
-    const maxMarkerY = Math.max(centerY, mapHeight - bottomMarginPx);
-    let desiredMarkerY = Math.max(centerY, Math.max(mapHeight * 0.66, requiredMarkerY));
+    const bottomMarginPx = sheetHeight > 0 ? 16 : 20;
+    const minMarkerY = popupHeightPx + popupAnchorGapPx + topMarginPx;
+    const maxMarkerY = Math.max(minMarkerY, visibleBottomY - bottomMarginPx);
+    let desiredMarkerY = visibleCenterY + (popupHeightPx / 2) + popupAnchorGapPx;
+    if (desiredMarkerY < minMarkerY) {
+      desiredMarkerY = minMarkerY;
+    }
     if (desiredMarkerY > maxMarkerY) {
       desiredMarkerY = maxMarkerY;
     }
 
     const pixelOffsetY = desiredMarkerY - centerY;
-    if (!Number.isFinite(pixelOffsetY) || pixelOffsetY <= 0.5) {
+    if (!Number.isFinite(pixelOffsetY) || Math.abs(pixelOffsetY) <= 0.5) {
       return coordinate;
     }
 
     return [coordinateX, coordinateY + (pixelOffsetY * resolution)];
   }
 
-  function animateMapToHotspotSelection(coordinate, spot) {
+  function isMapPopupVisible() {
+    return Boolean(
+      elements.mapPopup &&
+      !elements.mapPopup.classList.contains("hidden") &&
+      !elements.mapPopup.classList.contains("map-popup-closing")
+    );
+  }
+
+  function getOpenMapPopupCoordinate() {
+    if (!state.popupOverlay || typeof state.popupOverlay.getPosition !== "function") {
+      return null;
+    }
+    const coordinate = state.popupOverlay.getPosition();
+    return Array.isArray(coordinate) && coordinate.length >= 2
+      ? coordinate
+      : null;
+  }
+
+  function getOpenMapPopupHasPhoto() {
+    return Boolean(
+      isMapPopupVisible() &&
+      elements.mapPopup &&
+      elements.mapPopup.querySelector(".map-popup-photo, .map-popup-photo-wrap")
+    );
+  }
+
+  function getMapPopupRenderedHeight(fallbackHeight) {
+    const fallback = readPositiveNumber(fallbackHeight, 132);
+    if (!isMapPopupVisible() || !elements.mapPopup || !elements.mapPopup.getBoundingClientRect) {
+      return fallback;
+    }
+    const rect = elements.mapPopup.getBoundingClientRect();
+    return Number.isFinite(rect.height) && rect.height > 0
+      ? rect.height
+      : fallback;
+  }
+
+  function resolveRenderedPopupAlignedCenter(options) {
+    if (!isMobileLayout() || !state.map || !isMapPopupVisible()) {
+      return null;
+    }
+    const view = state.map.getView();
+    const currentCenter = view && typeof view.getCenter === "function" ? view.getCenter() : null;
+    const size = typeof state.map.getSize === "function" ? state.map.getSize() : null;
+    if (!view || !Array.isArray(currentCenter) || !Array.isArray(size) || size.length < 2) {
+      return null;
+    }
+    if (!elements.mapPopup || !elements.mapPopup.getBoundingClientRect || !elements.mapWrap || !elements.mapWrap.getBoundingClientRect) {
+      return null;
+    }
+
+    const resolution = Number(view.getResolution());
+    const mapHeight = Number(size[1]);
+    if (!Number.isFinite(resolution) || resolution <= 0 || !Number.isFinite(mapHeight) || mapHeight <= 0) {
+      return null;
+    }
+
+    const popupRect = elements.mapPopup.getBoundingClientRect();
+    const mapRect = elements.mapWrap.getBoundingClientRect();
+    if (
+      !Number.isFinite(popupRect.top) ||
+      !Number.isFinite(popupRect.bottom) ||
+      !Number.isFinite(mapRect.top)
+    ) {
+      return null;
+    }
+
+    const sheetHeight = getMobileBottomSheetCoveredHeight(options);
+    const bottomCoveredPx = sheetHeight > 0 ? sheetHeight + 22 : 0;
+    const visibleBottomY = Math.max(80, mapHeight - bottomCoveredPx);
+    const visibleCenterPageY = mapRect.top + (visibleBottomY / 2);
+    const popupCenterPageY = (popupRect.top + popupRect.bottom) / 2;
+    const pixelOffsetY = visibleCenterPageY - popupCenterPageY;
+    if (!Number.isFinite(pixelOffsetY) || Math.abs(pixelOffsetY) <= 0.5) {
+      return currentCenter;
+    }
+
+    return [
+      currentCenter[0],
+      currentCenter[1] + (pixelOffsetY * resolution)
+    ];
+  }
+
+  function alignMapToPopupCoordinate(coordinate, options) {
+    if (!state.map || !Array.isArray(coordinate) || coordinate.length < 2) {
+      return false;
+    }
+    const view = state.map.getView();
+    if (!view) {
+      return false;
+    }
+
+    const hasPhoto = options && Object.prototype.hasOwnProperty.call(options, "hasPhoto")
+      ? Boolean(options.hasPhoto)
+      : getOpenMapPopupHasPhoto();
+    const popupHeightPx = readPositiveNumber(
+      options && options.popupHeightPx,
+      getMapPopupRenderedHeight(hasPhoto ? 248 : 132)
+    );
+    const estimatedTargetCenter = resolvePopupAwareCenterCoordinate(coordinate, {
+      hasPhoto,
+      popupHeightPx,
+      mobileSheetState: options && options.mobileSheetState
+    });
+    const renderedTargetCenter = resolveRenderedPopupAlignedCenter({
+      mobileSheetState: options && options.mobileSheetState
+    });
+    const targetCenter = renderedTargetCenter
+      ? [estimatedTargetCenter[0], renderedTargetCenter[1]]
+      : estimatedTargetCenter;
+    if (!Array.isArray(targetCenter) || targetCenter.length < 2) {
+      return true;
+    }
+
+    const currentZoom = view.getZoom();
+    const animateOptions = {
+      center: targetCenter,
+      duration: options && options.duration
+    };
+    if (Number.isFinite(currentZoom)) {
+      animateOptions.zoom = currentZoom;
+    }
+
+    const currentCenter = typeof view.getCenter === "function" ? view.getCenter() : null;
+    const moved = !Array.isArray(currentCenter) ||
+      Math.abs(Number(currentCenter[0]) - Number(targetCenter[0])) > 0.5 ||
+      Math.abs(Number(currentCenter[1]) - Number(targetCenter[1])) > 0.5;
+    if (!moved) {
+      return true;
+    }
+
+    const duration = resolveMapAnimationDuration(options && options.duration, MAP_VIEW_CENTER_ANIMATION_MS);
+    suppressPopupCloseForNextMapMove(duration);
+    return animateMapView(view, animateOptions, MAP_VIEW_CENTER_ANIMATION_MS, () => {
+      clearPopupMoveSuppression();
+    });
+  }
+
+  function alignOpenMapPopupToVisibleCenter(options) {
+    const coordinate = getOpenMapPopupCoordinate();
+    if (!coordinate || !isMapPopupVisible()) {
+      return false;
+    }
+    return alignMapToPopupCoordinate(coordinate, options);
+  }
+
+  function animateMapToHotspotSelection(coordinate, spot, options) {
     if (!state.map || !Array.isArray(coordinate) || coordinate.length < 2) {
       return;
     }
@@ -5962,58 +7414,30 @@ import APP_CONFIG from './config.js';
     }
     const hasPhoto = getSpotPhotoDataUrls(spot).length > 0;
     const targetCenter = resolvePopupAwareCenterCoordinate(coordinate, {
-      hasPhoto
+      hasPhoto,
+      mobileSheetState: options && options.mobileSheetState
     });
     const currentZoom = mapView.getZoom();
     const animateOptions = {
       center: targetCenter,
-      duration: 240
+      duration: options && options.duration
     };
     if (Number.isFinite(currentZoom)) {
       animateOptions.zoom = currentZoom;
     }
-    state.suppressPopupCloseOnNextMoveStart = true;
-    mapView.animate(animateOptions, () => {
-      state.suppressPopupCloseOnNextMoveStart = false;
+    const duration = resolveMapAnimationDuration(options && options.duration, MAP_VIEW_CENTER_ANIMATION_MS);
+    suppressPopupCloseForNextMapMove(duration);
+    animateMapView(mapView, animateOptions, MAP_VIEW_CENTER_ANIMATION_MS, () => {
+      clearPopupMoveSuppression();
     });
-  }
-
-  function focusIssueGroup(groupKey) {
-    const key = String(groupKey || "").trim();
-    if (!key || !state.map || !state.issueGroupMap.has(key)) {
-      return;
-    }
-    const group = state.issueGroupMap.get(key);
-    if (group && String(group.categoryLabel || "").trim() === "동별 묶음") {
-      focusDongIssues(group.title);
-      return;
-    }
-    setHighlightedHotspots((group && Array.isArray(group.spots) ? group.spots : []).map((spot) => spot.id));
-    const extentMeta = resolveHotspotExtentMeta(group ? group.spots : []);
-    if (!extentMeta) {
-      return;
-    }
-
-    const view = state.map.getView();
-    if (!view) {
-      return;
-    }
-    const currentZoom = view.getZoom();
-    const animateOptions = {
-      center: extentMeta.center,
-      duration: extentMeta.count === 1 ? 240 : 250
-    };
-    if (Number.isFinite(currentZoom)) {
-      animateOptions.zoom = currentZoom;
-    }
-    state.suppressPopupCloseOnNextMoveStart = true;
-    view.animate(animateOptions, () => {
-      state.suppressPopupCloseOnNextMoveStart = false;
-    });
-    openIssueGroupPopup(extentMeta.center, group);
   }
 
   function resolveBoundaryCenterCoordinate(boundaryFeature) {
+    const extent = resolveBoundaryFeatureExtent(boundaryFeature);
+    return extent ? ol.extent.getCenter(extent) : null;
+  }
+
+  function resolveBoundaryFeatureExtent(boundaryFeature) {
     if (!boundaryFeature || typeof boundaryFeature.getGeometry !== "function") {
       return null;
     }
@@ -6025,7 +7449,47 @@ import APP_CONFIG from './config.js';
     if (!extent || extent.length !== 4 || !extent.every((value) => Number.isFinite(value))) {
       return null;
     }
-    return ol.extent.getCenter(extent);
+    return extent;
+  }
+
+  function resolveBoundaryExtentByDongName(dongName, fallbackFeature) {
+    const normalizedDong = resolveMergedDongName(dongName);
+    if (!normalizedDong) {
+      return resolveBoundaryFeatureExtent(fallbackFeature);
+    }
+
+    const combinedExtent = ol.extent.createEmpty();
+    let matchCount = 0;
+    if (state.boundarySource) {
+      state.boundarySource.getFeatures().forEach((feature) => {
+        const featureDong = resolveMergedDongName(feature && feature.get ? feature.get("dongName") : "");
+        if (featureDong !== normalizedDong) {
+          return;
+        }
+        const featureExtent = resolveBoundaryFeatureExtent(feature);
+        if (!featureExtent) {
+          return;
+        }
+        ol.extent.extend(combinedExtent, featureExtent);
+        matchCount += 1;
+      });
+    }
+
+    if (matchCount > 0) {
+      return combinedExtent;
+    }
+    return resolveBoundaryFeatureExtent(fallbackFeature);
+  }
+
+  function findBoundaryFeatureByDongName(dongName) {
+    const normalizedDong = resolveMergedDongName(dongName);
+    if (!normalizedDong || !state.boundarySource) {
+      return null;
+    }
+    const features = state.boundarySource.getFeatures();
+    return features.find((feature) => {
+      return resolveMergedDongName(feature && feature.get ? feature.get("dongName") : "") === normalizedDong;
+    }) || null;
   }
 
   function resolveIssuesByDongName(dongName) {
@@ -6036,7 +7500,15 @@ import APP_CONFIG from './config.js';
     return state.issues.filter((spot) => resolveSpotDongForAggregation(spot) === normalizedDong);
   }
 
-  function openDongIssueSummaryPopup(coordinate, dongName, count) {
+  function resolveIssuesByCategoryFilter(categoryKey, categoryLabel) {
+    const filter = buildIssueFilterState("category", categoryKey, categoryLabel);
+    if (!filter.key) {
+      return [];
+    }
+    return state.issues.filter((spot) => resolveIssueCategoryFilterKey(spot) === filter.key);
+  }
+
+  function openDongIssueSummaryPopup(coordinate, dongName, count, options) {
     if (!coordinate) {
       return;
     }
@@ -6047,9 +7519,230 @@ import APP_CONFIG from './config.js';
       "<strong>" + safeDong + "</strong>" +
       "<div>현안 건수: " + String(safeCount) + "건</div>",
       {
-        dismissClearsDongFilter: true
+        dismissClearsDongFilter: true,
+        alignToVisibleCenter: Boolean(options && options.alignToVisibleCenter),
+        alignDuration: options && options.alignDuration
       }
     );
+  }
+
+  function normalizeMobileSheetFocusState(value) {
+    const stateName = String(value || "").trim().toLowerCase();
+    if (stateName === "expanded" || stateName === "collapsed" || stateName === "current") {
+      return stateName;
+    }
+    return state.mobileSheetExpanded ? "expanded" : "collapsed";
+  }
+
+  function getMobileViewportHeight() {
+    const visualViewportHeight = window.visualViewport && Number.isFinite(window.visualViewport.height)
+      ? window.visualViewport.height
+      : 0;
+    if (visualViewportHeight > 0) {
+      return visualViewportHeight;
+    }
+    return window.innerHeight || document.documentElement.clientHeight || 0;
+  }
+
+  function getMobileMapViewportHeight() {
+    const mapRect = elements.mapWrap && elements.mapWrap.getBoundingClientRect
+      ? elements.mapWrap.getBoundingClientRect()
+      : null;
+    if (mapRect && Number.isFinite(mapRect.height) && mapRect.height > 0) {
+      return mapRect.height;
+    }
+    return getMobileViewportHeight();
+  }
+
+  function getMobileSheetExpandedTargetHeight() {
+    const viewportHeight = getMobileViewportHeight();
+    const mapHeight = getMobileMapViewportHeight();
+    const preferredHeight = Math.min(viewportHeight * 0.54, 520);
+    const maxHeight = Math.max(MOBILE_SHEET_COLLAPSED_HEIGHT_PX, mapHeight - 86);
+    const minHeight = Math.min(344, maxHeight);
+    const targetHeight = Math.min(maxHeight, Math.max(preferredHeight, minHeight));
+    return Number.isFinite(targetHeight) && targetHeight > 0
+      ? Math.round(targetHeight)
+      : 0;
+  }
+
+  function getMobileSheetCollapsedTargetHeight() {
+    if (elements.sidePanel && elements.sidePanel.classList.contains("mobile-sheet-collapsed")) {
+      const computedMaxHeight = window.getComputedStyle
+        ? Number.parseFloat(window.getComputedStyle(elements.sidePanel).maxHeight)
+        : 0;
+      if (Number.isFinite(computedMaxHeight) && computedMaxHeight > 0 && computedMaxHeight <= 120) {
+        return computedMaxHeight;
+      }
+    }
+    return MOBILE_SHEET_COLLAPSED_HEIGHT_PX;
+  }
+
+  function getMobileBottomSheetCoveredHeight(options) {
+    if (!isMobileLayout() || document.body.dataset.mapMode !== "view") {
+      return 0;
+    }
+    const sheetState = normalizeMobileSheetFocusState(options && (options.mobileSheetState || options.sheetState));
+    if (sheetState === "expanded") {
+      return getMobileSheetExpandedTargetHeight();
+    }
+    if (sheetState === "collapsed") {
+      return getMobileSheetCollapsedTargetHeight();
+    }
+    if (!elements.sidePanel || !elements.sidePanel.getBoundingClientRect) {
+      return 0;
+    }
+    const sheetRect = elements.sidePanel.getBoundingClientRect();
+    return Number.isFinite(sheetRect.height) && sheetRect.height > 0
+      ? sheetRect.height
+      : 0;
+  }
+
+  function getRegionMapFocusPadding(options) {
+    if (!isMobileLayout()) {
+      return [22, 22, 22, 22];
+    }
+    const mapHeight = elements.mapWrap && elements.mapWrap.getBoundingClientRect
+      ? elements.mapWrap.getBoundingClientRect().height
+      : 0;
+    const sheetHeight = getMobileBottomSheetCoveredHeight(options);
+    const sheetState = normalizeMobileSheetFocusState(options && (options.mobileSheetState || options.sheetState));
+    const top = Math.round(Math.max(42, Math.min(72, mapHeight * 0.1)));
+    const bottom = sheetHeight > 0
+      ? (
+        sheetState === "collapsed"
+          ? Math.round(Math.max(70, Math.min(108, sheetHeight + 28)))
+          : Math.round(Math.max(140, Math.min(mapHeight * 0.68, sheetHeight + 28)))
+      )
+      : Math.round(Math.max(56, Math.min(96, mapHeight * 0.14)));
+    return [top, 24, bottom, 24];
+  }
+
+  function getIssueMapFocusPadding(options) {
+    if (!isMobileLayout()) {
+      return [96, 96, 112, 96];
+    }
+    const mapHeight = elements.mapWrap && elements.mapWrap.getBoundingClientRect
+      ? elements.mapWrap.getBoundingClientRect().height
+      : 0;
+    const sheetHeight = getMobileBottomSheetCoveredHeight(options);
+    const top = Math.round(Math.max(56, Math.min(92, mapHeight * 0.14)));
+    const coveredBottom = sheetHeight > 0 ? sheetHeight + 22 : mapHeight * 0.18;
+    const bottom = Math.round(Math.max(120, Math.min(mapHeight * 0.64, coveredBottom)));
+    return [top, 34, bottom, 34];
+  }
+
+  function resolvePaddedCenterCoordinate(coordinate, padding, zoom) {
+    if (!state.map || !Array.isArray(coordinate) || coordinate.length < 2) {
+      return coordinate;
+    }
+    const size = typeof state.map.getSize === "function" ? state.map.getSize() : null;
+    const view = typeof state.map.getView === "function" ? state.map.getView() : null;
+    if (!Array.isArray(size) || size.length < 2 || !view) {
+      return coordinate;
+    }
+    const safePadding = Array.isArray(padding) && padding.length === 4
+      ? padding
+      : [0, 0, 0, 0];
+    const targetZoom = Number.isFinite(zoom)
+      ? zoom
+      : (typeof view.getZoom === "function" ? view.getZoom() : null);
+    const resolution = Number.isFinite(targetZoom) && typeof view.getResolutionForZoom === "function"
+      ? view.getResolutionForZoom(targetZoom)
+      : (typeof view.getResolution === "function" ? view.getResolution() : null);
+    if (!Number.isFinite(resolution) || resolution <= 0) {
+      return coordinate;
+    }
+    const horizontalOffsetPx = (safePadding[3] - safePadding[1]) / 2;
+    const verticalOffsetPx = (safePadding[0] - safePadding[2]) / 2;
+    return [
+      coordinate[0] - horizontalOffsetPx * resolution,
+      coordinate[1] + verticalOffsetPx * resolution
+    ];
+  }
+
+  function hasUsableExtentArea(extent) {
+    if (!extent || extent.length !== 4) {
+      return false;
+    }
+    const width = ol.extent.getWidth(extent);
+    const height = ol.extent.getHeight(extent);
+    return Number.isFinite(width) && Number.isFinite(height) && (width > 1 || height > 1);
+  }
+
+  function focusMapOnIssueSpots(spots, options) {
+    if (!state.map) {
+      return false;
+    }
+    const extentMeta = resolveHotspotExtentMeta(spots);
+    if (!extentMeta) {
+      return false;
+    }
+
+    const view = state.map.getView();
+    if (!view) {
+      return false;
+    }
+
+    const callback = typeof (options && options.callback) === "function"
+      ? options.callback
+      : undefined;
+    const maxZoom = readPositiveNumber(options && options.maxZoom, 16);
+    const focusPadding = getIssueMapFocusPadding(options);
+    if (extentMeta.count > 1 && hasUsableExtentArea(extentMeta.extent)) {
+      return fitMapViewToExtent(view, extentMeta.extent, {
+        padding: focusPadding,
+        maxZoom,
+        duration: options && options.duration
+      }, MAP_VIEW_FIT_ANIMATION_MS, callback);
+    }
+
+    const currentZoom = view.getZoom();
+    const minZoom = readPositiveNumber(options && options.singlePointMinZoom, null);
+    const targetZoom = Number.isFinite(currentZoom)
+      ? (minZoom === null ? currentZoom : Math.min(Math.max(currentZoom, minZoom), maxZoom))
+      : (minZoom === null ? null : Math.min(minZoom, maxZoom));
+    const animateOptions = {
+      center: resolvePaddedCenterCoordinate(extentMeta.center, focusPadding, targetZoom),
+      duration: options && options.duration
+    };
+    if (Number.isFinite(targetZoom)) {
+      animateOptions.zoom = targetZoom;
+    }
+    return animateMapView(view, animateOptions, MAP_VIEW_CENTER_ANIMATION_MS, callback);
+  }
+
+  function focusMapOnBoundaryFeature(boundaryFeature, options) {
+    const extent = resolveBoundaryFeatureExtent(boundaryFeature);
+    return focusMapOnBoundaryExtent(extent, options);
+  }
+
+  function focusMapOnBoundaryExtent(extent, options) {
+    if (!state.map) {
+      return false;
+    }
+    if (!extent) {
+      return false;
+    }
+    const view = state.map.getView();
+    if (!view) {
+      return false;
+    }
+    const maxZoom = readPositiveNumber(options && options.maxZoom, 15);
+    const callback = typeof (options && options.callback) === "function"
+      ? options.callback
+      : undefined;
+    if (hasUsableExtentArea(extent)) {
+      return fitMapViewToExtent(view, extent, {
+        padding: getIssueMapFocusPadding(options),
+        maxZoom,
+        duration: options && options.duration
+      }, MAP_VIEW_FIT_ANIMATION_MS, callback);
+    }
+    return animateMapView(view, {
+      center: ol.extent.getCenter(extent),
+      duration: options && options.duration
+    }, MAP_VIEW_CENTER_ANIMATION_MS, callback);
   }
 
   function focusDongIssues(dongName, options) {
@@ -6065,71 +7758,177 @@ import APP_CONFIG from './config.js';
     const spots = resolveIssuesByDongName(normalizedDong);
     setHighlightedHotspots(spots.map((spot) => spot.id));
     const extentMeta = resolveHotspotExtentMeta(spots);
+    const boundaryFeature = options && options.boundaryFeature ? options.boundaryFeature : null;
+    const boundaryExtent = resolveBoundaryExtentByDongName(normalizedDong, boundaryFeature);
+    const boundaryCenter = boundaryExtent ? ol.extent.getCenter(boundaryExtent) : null;
     const fallbackCoordinate = options && options.fallbackCoordinate
       ? options.fallbackCoordinate
-      : resolveBoundaryCenterCoordinate(options && options.boundaryFeature ? options.boundaryFeature : null);
-    const targetCoordinate = extentMeta ? extentMeta.center : fallbackCoordinate;
+      : null;
+    const targetCoordinate = boundaryCenter || (extentMeta ? extentMeta.center : fallbackCoordinate);
 
-    const view = state.map.getView();
-    if (view && targetCoordinate) {
-      const currentZoom = view.getZoom();
-      const animateOptions = {
-        center: targetCoordinate,
-        duration: extentMeta && extentMeta.count > 1 ? 250 : 240
-      };
-      if (Number.isFinite(currentZoom)) {
-        animateOptions.zoom = currentZoom;
+    const shouldOpenSummaryPopup = Boolean(targetCoordinate && !(options && options.skipPopup));
+    const finishDongFocus = () => {
+      clearPopupMoveSuppression();
+      if (!shouldOpenSummaryPopup) {
+        return;
       }
-      state.suppressPopupCloseOnNextMoveStart = true;
-      view.animate(animateOptions, () => {
-        state.suppressPopupCloseOnNextMoveStart = false;
+      window.requestAnimationFrame(() => {
+        alignOpenMapPopupToVisibleCenter({
+          duration: MAP_VIEW_CENTER_ANIMATION_MS
+        });
       });
-    }
+    };
 
     if (targetCoordinate) {
-      openDongIssueSummaryPopup(targetCoordinate, normalizedDong, spots.length);
+      suppressPopupCloseForNextMapMove(MAP_VIEW_FIT_ANIMATION_MS);
+      if (shouldOpenSummaryPopup) {
+        openDongIssueSummaryPopup(targetCoordinate, normalizedDong, spots.length);
+      }
+      let didScheduleFocus = false;
+      const didFocusBoundary = focusMapOnBoundaryExtent(boundaryExtent, {
+        duration: MAP_VIEW_FIT_ANIMATION_MS,
+        maxZoom: 15,
+        callback: finishDongFocus
+      });
+      didScheduleFocus = didScheduleFocus || didFocusBoundary;
+      if (!didFocusBoundary) {
+        const didFocusSpots = focusMapOnIssueSpots(spots, {
+          duration: MAP_VIEW_FIT_ANIMATION_MS,
+          maxZoom: 16,
+          singlePointMinZoom: 15,
+          callback: finishDongFocus
+        });
+        didScheduleFocus = didScheduleFocus || didFocusSpots;
+        if (!didFocusSpots) {
+          const view = state.map.getView();
+          const currentZoom = view && view.getZoom ? view.getZoom() : null;
+          const animateOptions = {
+            center: targetCoordinate,
+            duration: MAP_VIEW_CENTER_ANIMATION_MS
+          };
+          if (Number.isFinite(currentZoom)) {
+            animateOptions.zoom = currentZoom;
+          }
+          didScheduleFocus = animateMapView(view, animateOptions, MAP_VIEW_CENTER_ANIMATION_MS, finishDongFocus);
+        }
+      }
+      if (!didScheduleFocus) {
+        finishDongFocus();
+      }
     }
+  }
+
+  function refocusActiveIssueFilterOnMap(options) {
+    if (alignOpenMapPopupToVisibleCenter({
+      duration: options && options.duration
+    })) {
+      return true;
+    }
+
+    if (state.selectedHotspotId && state.hotspotSource && state.hotspotData) {
+      const selectedFeature = state.hotspotSource.getFeatureById(state.selectedHotspotId);
+      const selectedSpot = state.hotspotData.get(state.selectedHotspotId);
+      const selectedGeometry = selectedFeature && typeof selectedFeature.getGeometry === "function"
+        ? selectedFeature.getGeometry()
+        : null;
+      if (selectedGeometry && typeof selectedGeometry.getCoordinates === "function" && selectedSpot) {
+        animateMapToHotspotSelection(selectedGeometry.getCoordinates(), selectedSpot, {
+          duration: options && options.duration
+        });
+        return true;
+      }
+    }
+
+    const activeFilter = getActiveIssueFilter();
+    if (!activeFilter.type || !state.map) {
+      if (!activeFilter.type && state.map && isMobileLayout() && document.body.dataset.mapMode === "view") {
+        return resetMapToRegionView({
+          duration: options && options.duration
+        });
+      }
+      return false;
+    }
+    const focusOptions = {
+      duration: options && options.duration,
+      maxZoom: 16,
+      singlePointMinZoom: 15
+    };
+    if (activeFilter.type === "dong") {
+      focusDongIssues(activeFilter.key, {
+        boundaryFeature: findBoundaryFeatureByDongName(activeFilter.key),
+        duration: focusOptions.duration,
+        maxZoom: 15,
+        skipPopup: true
+      });
+      return true;
+    }
+    if (activeFilter.type === "category") {
+      const spots = resolveIssuesByCategoryFilter(activeFilter.key, activeFilter.label);
+      setHighlightedHotspots(spots.map((spot) => spot.id));
+      return focusMapOnIssueSpots(spots, focusOptions);
+    }
+    if (activeFilter.type === "common") {
+      const spots = state.commonIssueTagMap && state.commonIssueTagMap.has(activeFilter.label)
+        ? state.commonIssueTagMap.get(activeFilter.label)
+        : state.issues.filter((spot) => resolveBracketedCommonTag(spot) === activeFilter.label);
+      setHighlightedHotspots(spots.map((spot) => spot.id));
+      return focusMapOnIssueSpots(spots, focusOptions);
+    }
+    return false;
+  }
+
+  function focusCategoryIssues(categoryKey, options) {
+    const nextFilter = buildIssueFilterState("category", categoryKey, options && options.label);
+    if (!nextFilter.key || !state.map) {
+      return false;
+    }
+
+    const didChangeFilter = setActiveIssueFilter("category", nextFilter.key, {
+      label: nextFilter.label
+    });
+    if (!didChangeFilter) {
+      closePopup();
+      clearHighlightedHotspots();
+    }
+
+    const spots = resolveIssuesByCategoryFilter(nextFilter.key, nextFilter.label);
+    setHighlightedHotspots(spots.map((spot) => spot.id));
+    focusMapOnIssueSpots(spots, {
+      duration: MAP_VIEW_FIT_ANIMATION_MS,
+      maxZoom: 16,
+      singlePointMinZoom: 15
+    });
+
+    if (options && options.animateList) {
+      animateSpotListRefresh();
+    }
+    return true;
   }
 
   function focusCommonIssueTag(commonTag) {
     const normalizedTag = String(commonTag || "").trim();
     if (!normalizedTag || !state.map) {
-      return;
+      return false;
+    }
+    const nextFilter = buildIssueFilterState("common", normalizedTag, normalizedTag);
+    const didChangeFilter = setActiveIssueFilter("common", nextFilter.key, {
+      label: nextFilter.label
+    });
+    if (!didChangeFilter) {
+      closePopup();
+      clearHighlightedHotspots();
     }
     const spots = state.commonIssueTagMap && state.commonIssueTagMap.has(normalizedTag)
       ? state.commonIssueTagMap.get(normalizedTag)
       : state.issues.filter((spot) => resolveBracketedCommonTag(spot) === normalizedTag);
     setHighlightedHotspots(spots.map((spot) => spot.id));
-    const extentMeta = resolveHotspotExtentMeta(spots);
-    if (!extentMeta) {
-      return;
-    }
-
-    const view = state.map.getView();
-    if (!view) {
-      return;
-    }
-    const currentZoom = view.getZoom();
-    const animateOptions = {
-      center: extentMeta.center,
-      duration: extentMeta.count === 1 ? 240 : 250
-    };
-    if (Number.isFinite(currentZoom)) {
-      animateOptions.zoom = currentZoom;
-    }
-    state.suppressPopupCloseOnNextMoveStart = true;
-    view.animate(animateOptions, () => {
-      state.suppressPopupCloseOnNextMoveStart = false;
+    focusMapOnIssueSpots(spots, {
+      duration: MAP_VIEW_FIT_ANIMATION_MS,
+      maxZoom: 16,
+      singlePointMinZoom: 15
     });
-
-    const group = {
-      title: "[" + normalizedTag + "]",
-      categoryId: "",
-      categoryLabel: "공통 현안",
-      spots,
-      dongNames: Array.from(new Set(spots.map((spot) => formatSpotDongLabel(spot)))).sort(compareDongLabelForDisplay)
-    };
-    openIssueGroupPopup(extentMeta.center, group);
+    animateSpotListRefresh();
+    return true;
   }
 
   function resolveHotspotExtentMeta(spots) {
@@ -7589,8 +9388,8 @@ import APP_CONFIG from './config.js';
           const isOutsideBoundary = !boundaryMeta.dongName && !boundaryMeta.emdCode;
           if (isOutsideBoundary) {
             const fitted = fitMapToBoundaryExtent({
-              padding: [22, 22, 22, 22],
-              duration: 240,
+              padding: getRegionMapFocusPadding(),
+              duration: MAP_VIEW_FIT_ANIMATION_MS,
               maxZoom: 16
             });
             if (fitted) {
@@ -7601,11 +9400,11 @@ import APP_CONFIG from './config.js';
         const view = state.map.getView();
         const currentZoom = view.getZoom();
         const nextZoom = Number.isFinite(currentZoom) && currentZoom > 16 ? currentZoom : 16;
-        view.animate({
+        animateMapView(view, {
           center: ol.proj.fromLonLat([lng, lat]),
           zoom: nextZoom,
-          duration: 260
-        });
+          duration: MAP_VIEW_CENTER_ANIMATION_MS
+        }, MAP_VIEW_CENTER_ANIMATION_MS);
       }
     } catch (error) {
       window.alert("현재 위치 불러오기 실패: " + toMessage(error));
@@ -7708,7 +9507,7 @@ import APP_CONFIG from './config.js';
     );
   }
 
-  function openHotspotPopup(coordinate, spot) {
+  function openHotspotPopup(coordinate, spot, options) {
     if (!spot) {
       return;
     }
@@ -7760,7 +9559,11 @@ import APP_CONFIG from './config.js';
       editorInfo +
       popupActions,
       {
-        clearsHotspotSelection: true
+        clearsHotspotSelection: true,
+        alignToVisibleCenter: true,
+        hasPhoto: photoDataUrls.length > 0,
+        returnFocusElement: options && options.returnFocusElement,
+        focusPopup: Boolean(options && options.focusPopup)
       }
     );
   }
@@ -7787,12 +9590,38 @@ import APP_CONFIG from './config.js';
     );
   }
 
+  function resolvePopupReturnFocusElement(candidate) {
+    if (candidate instanceof HTMLElement && candidate.isConnected) {
+      return candidate;
+    }
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLElement &&
+      activeElement !== document.body &&
+      activeElement !== elements.mapPopup &&
+      !(elements.mapPopup && elements.mapPopup.contains(activeElement))
+    ) {
+      return activeElement;
+    }
+    return elements.map instanceof HTMLElement ? elements.map : null;
+  }
+
+  function restoreMapPopupFocus() {
+    const focusTarget = resolvePopupReturnFocusElement(state.mapPopupReturnFocusElement);
+    state.mapPopupReturnFocusElement = null;
+    if (!focusTarget || typeof focusTarget.focus !== "function") {
+      return;
+    }
+    focusTarget.focus({ preventScroll: true });
+  }
+
   function openPopup(coordinate, html, options) {
     if (!state.popupOverlay || !elements.mapPopup) {
       return;
     }
     clearMapPopupCloseTimer();
     clearPhotoSlideshowsByPrefix("map-popup-");
+    state.mapPopupReturnFocusElement = resolvePopupReturnFocusElement(options && options.returnFocusElement);
     state.mapPopupDismissClearsDongFilter = Boolean(options && options.dismissClearsDongFilter);
     state.mapPopupClearsHotspotSelection = Boolean(options && options.clearsHotspotSelection);
     elements.mapPopup.innerHTML =
@@ -7809,6 +9638,27 @@ import APP_CONFIG from './config.js';
       popupPhoto.style.cursor = "zoom-in";
     }
     state.popupOverlay.setPosition(coordinate);
+    window.dispatchEvent(new CustomEvent("map-popup-opened", {
+      detail: {
+        hasPhoto: Boolean(options && options.hasPhoto)
+      }
+    }));
+    if (options && options.alignToVisibleCenter) {
+      window.requestAnimationFrame(() => {
+        alignOpenMapPopupToVisibleCenter({
+          duration: options.alignDuration,
+          hasPhoto: Boolean(options.hasPhoto)
+        });
+      });
+    }
+    if (options && options.focusPopup) {
+      window.requestAnimationFrame(() => {
+        const closeButton = elements.mapPopup && elements.mapPopup.querySelector("[data-action='close-popup']");
+        if (closeButton instanceof HTMLElement) {
+          closeButton.focus({ preventScroll: true });
+        }
+      });
+    }
   }
 
   function closePopup(options) {
@@ -7820,6 +9670,7 @@ import APP_CONFIG from './config.js';
     }
 
     const immediate = Boolean(options && options.immediate);
+    const shouldRestoreFocus = Boolean(options && options.restoreFocus);
     const shouldClearHotspotSelection = Boolean(state.mapPopupClearsHotspotSelection);
     elements.mapPopup.classList.add("map-popup-closing");
     elements.mapPopup.setAttribute("aria-hidden", "true");
@@ -7840,6 +9691,11 @@ import APP_CONFIG from './config.js';
       state.mapPopupDismissClearsDongFilter = false;
       state.mapPopupClearsHotspotSelection = false;
       state.mapPopupCloseTimer = null;
+      if (shouldRestoreFocus) {
+        restoreMapPopupFocus();
+      } else {
+        state.mapPopupReturnFocusElement = null;
+      }
     };
 
     if (immediate || prefersReducedMotion()) {
@@ -7854,14 +9710,16 @@ import APP_CONFIG from './config.js';
   }
 
   function dismissMapPopup(options) {
-    const shouldClearDongFilter = Boolean(state.mapPopupDismissClearsDongFilter && state.activeDongName);
-    const didClose = closePopup(options);
+    const shouldClearDongFilter = Boolean(state.mapPopupDismissClearsDongFilter && getActiveDongFilterName());
+    const didClose = closePopup({
+      immediate: Boolean(options && options.immediate),
+      restoreFocus: true
+    });
     if (!didClose) {
       return false;
     }
     if (shouldClearDongFilter) {
-      clearHighlightedHotspots();
-      setActiveDongFilter("", {
+      clearActiveIssueFilter({
         animateList: true
       });
     }

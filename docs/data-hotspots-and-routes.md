@@ -88,8 +88,8 @@
   - 정렬: `compareHotspotByTitle`
 - 렌더:
   - 지도 포인트(OL feature): `app.js#L3960 renderHotspots(hotspots)`
-  - 리스트(동별 고정): `renderVisibleIssueList()` → `renderIssueDongList(hotspots)`
-  - 동별 묶음 생성: `buildIssueDongGroups(hotspots)`
+  - 현안 통계: `renderIssueStatsSummary(hotspots)`에서 카테고리/동 필터 버튼 렌더
+  - 리스트: `renderVisibleIssueList()` → `applyIssueFilter(hotspots)` → `renderHotspotList(filtered)`
 - 캐시/상태:
   - `state.hotspotData: Map(id -> spot)`은 리스트 클릭/편집 진입에서 사용
   - `state.hotspotSource`는 지도 feature 검색(`getFeatureById`)에 사용

@@ -39,12 +39,22 @@ async function blockFirestore(page) {
   });
 }
 
+async function waitForSpotListHook(page) {
+  await page.waitForFunction(() => {
+    return (
+      window.__spotListTestHooks &&
+      typeof window.__spotListTestHooks.renderHotspotList === "function" &&
+      document.querySelector("#issue-stats-summary") &&
+      document.querySelector("#issue-stats-summary").textContent.trim().length > 0
+    );
+  });
+}
+
 // 두 장의 사진을 가진 현안으로 슬라이드쇼를 렌더링한다.
 async function renderSpotWithPhotos(page) {
   await blockFirestore(page);
   await page.goto("/map/");
-  // 빈 스냅샷 로딩이 완료될 때까지 대기한다.
-  await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
+  await waitForSpotListHook(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.renderHotspotList([
       {
@@ -68,8 +78,7 @@ async function renderSpotWithPhotos(page) {
 async function renderSpotWithSinglePhoto(page) {
   await blockFirestore(page);
   await page.goto("/map/");
-  // 빈 스냅샷 로딩이 완료될 때까지 대기한다.
-  await page.waitForSelector("#spot-list li.empty", { timeout: 30000 });
+  await waitForSpotListHook(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.renderHotspotList([
       {
@@ -113,6 +122,20 @@ test("Single photo spot has no prev/next buttons", async ({ page }) => {
   await renderSpotWithSinglePhoto(page);
   const prevBtn = page.locator("#spot-list .photo-slide-arrow-prev");
   expect(await prevBtn.count()).toBe(0);
+});
+
+test("Spot list photo fills width and centers image", async ({ page }) => {
+  // 목록 사진은 카드 폭을 꽉 채우고 프레임 중앙에 맞춤
+  await renderSpotWithSinglePhoto(page);
+  const styles = await page.locator("#spot-list .spot-photo-thumb").first().evaluate((element) => {
+    const computed = window.getComputedStyle(element);
+    return {
+      objectFit: computed.objectFit,
+      objectPosition: computed.objectPosition
+    };
+  });
+  expect(styles.objectFit).toBe("cover");
+  expect(styles.objectPosition).toBe("50% 50%");
 });
 
 test("Clicking photo image opens lightbox", async ({ page }) => {
