@@ -284,9 +284,25 @@ test("Escape closes dong popup and clears dong filter together", async ({ page }
     return (
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.renderVisibleIssueListWithData === "function" &&
-      typeof window.__spotListTestHooks.focusDongIssues === "function"
+      typeof window.__spotListTestHooks.focusDongIssues === "function" &&
+      typeof window.__spotListTestHooks.getMapViewState === "function" &&
+      typeof window.__spotListTestHooks.getBoundaryExtentCenter === "function" &&
+      window.__spotListTestHooks.getBoundaryExtentCenter()
     );
   });
+  const distanceFromRegionCenter = () => {
+    return page.evaluate(() => {
+      const viewState = window.__spotListTestHooks.getMapViewState();
+      const regionCenter = window.__spotListTestHooks.getBoundaryExtentCenter();
+      if (!viewState || !viewState.center || !regionCenter) {
+        return 0;
+      }
+      return (
+        Math.abs(viewState.center[0] - regionCenter[0]) +
+        Math.abs(viewState.center[1] - regionCenter[1])
+      );
+    });
+  };
   await page.evaluate(() => {
     window.__spotListTestHooks.renderVisibleIssueListWithData([
       { id: "popup-p", title: "판교 팝업 현안", categoryId: "traffic_parking", dongName: "판교동", lat: 37.394, lng: 127.111 },
@@ -300,6 +316,7 @@ test("Escape closes dong popup and clears dong filter together", async ({ page }
   await expect(popup).not.toHaveClass(/hidden/);
   await expect(popup).toHaveAttribute("aria-hidden", "false");
   await expect(clearBtn).not.toHaveClass(/issue-stats-clear-btn-inactive/);
+  await expect.poll(distanceFromRegionCenter, { timeout: 5000 }).toBeGreaterThan(0.003);
 
   await page.keyboard.press("Escape");
 
@@ -315,6 +332,7 @@ test("Escape closes dong popup and clears dong filter together", async ({ page }
   await expect(popup).toHaveClass(/hidden/);
   await expect(clearBtn).toHaveClass(/issue-stats-clear-btn-inactive/);
   await expect(clearBtn).toBeDisabled();
+  await expect.poll(distanceFromRegionCenter, { timeout: 5000 }).toBeLessThan(0.003);
 });
 
 test("Map popup close button uses close animation", async ({ page }) => {
@@ -689,8 +707,8 @@ test("Common issue tag filters list and focuses map markers", async ({ page }) =
   ).toBeGreaterThan(0.001);
 });
 
-test("Clear issue filter returns map to full region", async ({ page }) => {
-  // 전체 보기 버튼을 누르면 필터를 해제하고 지역 전체가 보이는 화면으로 돌아감
+test("Clear issue filter controls return map to full region", async ({ page }) => {
+  // 전체 보기 버튼과 Esc는 같은 필터 해제 경로로 지역 전체가 보이는 화면으로 돌아감
   await blockFirestore(page, [
     {
       id: "region-reset-focus",
@@ -745,6 +763,12 @@ test("Clear issue filter returns map to full region", async ({ page }) => {
   await expect.poll(distanceFromRegionCenter, { timeout: 5000 }).toBeGreaterThan(0.01);
 
   await page.locator("#issue-stats-summary #clear-issue-filter-btn").click();
+  await expect.poll(distanceFromRegionCenter, { timeout: 5000 }).toBeLessThan(0.003);
+
+  await page.locator("#issue-stats-summary [data-filter-type='category'][data-filter-label='🚌 교통·주차']").click();
+  await expect.poll(distanceFromRegionCenter, { timeout: 5000 }).toBeGreaterThan(0.01);
+
+  await page.keyboard.press("Escape");
   await expect.poll(distanceFromRegionCenter, { timeout: 5000 }).toBeLessThan(0.003);
 });
 

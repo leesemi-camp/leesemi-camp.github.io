@@ -342,6 +342,8 @@ test("Desktop side panel prioritizes selected result", async ({ page }) => {
   await expect(sidePanel).toHaveAttribute("data-issue-filter-type", "dong");
   await expect(page.locator("#issue-list-title")).toHaveText("판교동 현안");
   await expect(page.locator("#issue-list-panel")).toHaveAttribute("aria-label", "판교동 현안");
+  await expect(page.locator("#issue-list-clear-filter-btn")).toBeVisible();
+  await expect(page.locator("#issue-list-clear-filter-btn")).toBeEnabled();
 
   const orderState = await page.evaluate(() => {
     const listPanel = document.querySelector("#issue-list-panel");
@@ -353,7 +355,7 @@ test("Desktop side panel prioritizes selected result", async ({ page }) => {
   });
   expect(orderState.listOrder).toBeLessThan(orderState.statsOrder);
 
-  await page.locator("#issue-stats-summary #clear-issue-filter-btn").click();
+  await page.locator("#issue-list-clear-filter-btn").click();
   await expect(sidePanel).not.toHaveClass(/side-panel-has-filter/);
   await expect(page.locator("#issue-list-title")).toHaveText("우리동네 현안");
 });
