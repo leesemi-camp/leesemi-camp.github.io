@@ -5634,13 +5634,19 @@ import APP_CONFIG from './config.js';
       }
     }
     if (didChange) {
+      const shouldRefocusActiveFilter = Boolean(options && options.refocusActiveFilter);
+      const shouldPreserveOpenPopup = shouldRefocusActiveFilter && isMapPopupVisible();
+      if (shouldPreserveOpenPopup) {
+        suppressPopupCloseForNextMapMove(MOBILE_SHEET_MOTION_TRACK_MS + MAP_VIEW_FIT_ANIMATION_MS);
+      }
       syncMobileDependentLayout();
-      if (options && options.refocusActiveFilter) {
+      if (shouldRefocusActiveFilter) {
         const mobileSheetState = nextExpanded ? "expanded" : "collapsed";
         const refocusForSheetState = () => {
           refocusActiveIssueFilterOnMap({
             duration: MAP_VIEW_FIT_ANIMATION_MS,
-            mobileSheetState
+            mobileSheetState,
+            preservePopup: shouldPreserveOpenPopup
           });
         };
         window.requestAnimationFrame(refocusForSheetState);
@@ -7820,13 +7826,6 @@ import APP_CONFIG from './config.js';
   }
 
   function refocusActiveIssueFilterOnMap(options) {
-    if (alignOpenMapPopupToVisibleCenter({
-      duration: options && options.duration,
-      mobileSheetState: options && options.mobileSheetState
-    })) {
-      return true;
-    }
-
     if (state.selectedHotspotId && state.hotspotSource && state.hotspotData) {
       const selectedFeature = state.hotspotSource.getFeatureById(state.selectedHotspotId);
       const selectedSpot = state.hotspotData.get(state.selectedHotspotId);
@@ -7843,14 +7842,6 @@ import APP_CONFIG from './config.js';
     }
 
     const activeFilter = getActiveIssueFilter();
-    if (!activeFilter.type || !state.map) {
-      if (!activeFilter.type && state.map && isMobileLayout() && document.body.dataset.mapMode === "view") {
-        return resetMapToRegionView({
-          duration: options && options.duration
-        });
-      }
-      return false;
-    }
     const focusOptions = {
       duration: options && options.duration,
       maxZoom: 16,
@@ -7863,9 +7854,25 @@ import APP_CONFIG from './config.js';
         duration: focusOptions.duration,
         maxZoom: 15,
         mobileSheetState: focusOptions.mobileSheetState,
-        skipPopup: true
+        skipPopup: !(options && options.preservePopup)
       });
       return true;
+    }
+
+    if (alignOpenMapPopupToVisibleCenter({
+      duration: options && options.duration,
+      mobileSheetState: options && options.mobileSheetState
+    })) {
+      return true;
+    }
+
+    if (!activeFilter.type || !state.map) {
+      if (!activeFilter.type && state.map && isMobileLayout() && document.body.dataset.mapMode === "view") {
+        return resetMapToRegionView({
+          duration: options && options.duration
+        });
+      }
+      return false;
     }
     if (activeFilter.type === "category") {
       const spots = resolveIssuesByCategoryFilter(activeFilter.key, activeFilter.label);
