@@ -177,6 +177,10 @@ body[data-map-mode="view"] .workspace {
         color: var(--selection-text);
     }
 
+    body[data-map-mode="view"] .side-panel-has-filter .issue-list-clear-btn {
+        display: inline-flex;
+    }
+
     body[data-map-mode="view"] .side-panel-has-filter .issue-stats-summary,
     body[data-map-mode="view"] .side-panel-has-filter .pledge-panel {
         margin-top: 0;

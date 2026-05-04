@@ -22,7 +22,7 @@ test.afterEach(async ({ page }, testInfo) => {
 });
 
 // Firestore 요청을 차단하여 슬라이드쇼가 재렌더링되지 않도록 한다.
-async function blockFirestore(page) {
+async function blockFirestore(page, hotspots = []) {
   await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
   await page.route("**/data/hotspots.public.json", (route) => {
     route.fulfill({
@@ -32,8 +32,8 @@ async function blockFirestore(page) {
         generatedAt: "2026-01-01T00:00:00.000Z",
         source: "firestore",
         collection: "crowd_hotspots",
-        count: 0,
-        hotspots: []
+        count: hotspots.length,
+        hotspots
       })
     });
   });
@@ -115,6 +115,41 @@ test("Photo slideshow next button navigates to next slide", async ({ page }) => 
   const indicator = page.locator("#spot-list .photo-slide-indicator").first();
   const text = await indicator.textContent();
   expect(text).toMatch(/\d+ \/ 2/);
+});
+
+test("Map popup photo slideshow next button navigates to next slide", async ({ page }) => {
+  // 지도 팝업에서도 슬라이드쇼 상태가 유지되어 다음 사진으로 이동해야 한다.
+  await blockFirestore(page, [
+    {
+      id: "map-popup-photo-test",
+      title: "팝업 사진 현안",
+      categoryId: "traffic_parking",
+      categoryLabel: "교통·주차",
+      dongName: "판교동",
+      lat: 37.394,
+      lng: 127.111,
+      photoDataUrls: [
+        "https://example.com/map-popup-photo-1.jpg",
+        "https://example.com/map-popup-photo-2.jpg"
+      ]
+    }
+  ]);
+  await page.goto("/map/");
+  await waitForSpotListHook(page);
+  await page.evaluate(() => {
+    window.__spotListTestHooks.setActiveDongFilter("판교동");
+  });
+
+  const spotItem = page.locator("#spot-list [data-spot-id='map-popup-photo-test']");
+  await spotItem.focus();
+  await spotItem.press("Enter");
+  await expect(page.locator("#map-popup")).not.toHaveClass(/hidden/);
+
+  const indicator = page.locator("#map-popup .photo-slide-indicator");
+  await expect(indicator).toHaveText("1 / 2");
+  await page.locator("#map-popup [data-action='photo-slide-next']").click();
+  await expect(indicator).toHaveText("2 / 2");
+  await expect(page.locator("#map-popup .photo-slide-image")).toHaveAttribute("data-photo-index", "1");
 });
 
 test("Single photo spot has no prev/next buttons", async ({ page }) => {

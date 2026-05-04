@@ -299,6 +299,41 @@ test("Static boundary mask stays after boundary GeoJSON completes", async ({ pag
   expect(loadedMaskState).toEqual(initialMaskState);
 });
 
+test("Initial mobile map drag pans before zoom controls", async ({ page }) => {
+  // +/- 컨트롤을 누르기 전 첫 드래그부터 지도가 이동해야 한다.
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/map/");
+  await page.waitForFunction(() => {
+    const hooks = window.__spotListTestHooks;
+    const mapWrap = document.querySelector(".map-wrap");
+    const mapViewport = document.querySelector(".map .ol-viewport");
+    const viewState = hooks && typeof hooks.getMapViewState === "function"
+      ? hooks.getMapViewState()
+      : null;
+    return (
+      hooks &&
+      mapWrap &&
+      mapViewport &&
+      !mapWrap.classList.contains("map-wrap-initializing") &&
+      viewState &&
+      !viewState.animating
+    );
+  });
+
+  const beforeCenter = await page.evaluate(() => window.__spotListTestHooks.getMapViewState().center);
+  await page.mouse.move(90, 260);
+  await page.mouse.down();
+  await page.mouse.move(260, 260, { steps: 10 });
+  await page.mouse.up();
+
+  await expect.poll(async () => {
+    return page.evaluate((before) => {
+      const center = window.__spotListTestHooks.getMapViewState().center;
+      return Math.abs(Number(center[0]) - Number(before[0]));
+    }, beforeCenter);
+  }).toBeGreaterThan(0.0001);
+});
+
 test("Helper shadow is layered", async ({ page }) => {
   // 캐릭터 PNG의 알파 채널이 사각 그림자를 만들지 않도록 이미지 필터를 쓰지 않는다.
   await page.goto("/map/");
@@ -343,6 +378,22 @@ test("Mobile helper introduces itself then stays docked", async ({ page }) => {
     return Math.abs(helperRect.bottom - (sheetRect.top - 10)) <= 24;
   });
 
+  const expandedHelperHitState = await page.locator(".issue-helper").evaluate((helper) => {
+    const bubble = helper.querySelector(".issue-helper-bubble");
+    const bubbleRect = bubble.getBoundingClientRect();
+    const hitElement = document.elementFromPoint(
+      Math.round(bubbleRect.left + 20),
+      Math.round(bubbleRect.top + 12)
+    );
+    return {
+      bubblePointerEvents: window.getComputedStyle(bubble).pointerEvents,
+      mapHitBlockedByBubble: Boolean(hitElement && hitElement.closest(".issue-helper"))
+    };
+  });
+
+  expect(expandedHelperHitState.bubblePointerEvents).toBe("none");
+  expect(expandedHelperHitState.mapHitBlockedByBubble).toBe(false);
+
   await page.locator("#issue-stats-summary").evaluate((element) => {
     element.scrollTop = 180;
   });
@@ -379,13 +430,18 @@ test("Mobile helper introduces itself then stays docked", async ({ page }) => {
     const helperRect = helper.getBoundingClientRect();
     const mapRect = mapWrap.getBoundingClientRect();
     const sheetRect = sidePanel.getBoundingClientRect();
+    const hitX = Math.round(mapRect.left + mapRect.width * 0.54);
+    const hitY = Math.round(mapRect.top + mapRect.height * 0.28);
+    const hitElement = document.elementFromPoint(hitX, hitY);
 
     return {
       ariaExpanded: document.querySelector("#issue-helper-toggle").getAttribute("aria-expanded"),
       helperBottom: helperRect.bottom,
       helperRight: window.innerWidth - helperRect.right,
       mapBottom: mapRect.bottom,
-      sheetTop: sheetRect.top
+      sheetTop: sheetRect.top,
+      helperPointerEvents: window.getComputedStyle(helper).pointerEvents,
+      mapHitBlockedByHelper: Boolean(hitElement && hitElement.closest(".issue-helper"))
     };
   });
 
@@ -393,6 +449,8 @@ test("Mobile helper introduces itself then stays docked", async ({ page }) => {
   expect(collapsedHelperMetrics.helperRight).toBeGreaterThanOrEqual(8);
   expect(collapsedHelperMetrics.helperBottom).toBeLessThanOrEqual(collapsedHelperMetrics.sheetTop + 4);
   expect(collapsedHelperMetrics.helperBottom).toBeGreaterThan(collapsedHelperMetrics.sheetTop - 24);
+  expect(collapsedHelperMetrics.helperPointerEvents).toBe("none");
+  expect(collapsedHelperMetrics.mapHitBlockedByHelper).toBe(false);
 });
 
 test("Map spot memo state", async ({ page }) => {
