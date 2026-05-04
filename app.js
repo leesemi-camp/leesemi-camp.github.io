@@ -5635,8 +5635,16 @@ import APP_CONFIG from './config.js';
     }
     if (didChange) {
       const shouldRefocusActiveFilter = Boolean(options && options.refocusActiveFilter);
-      const shouldPreserveOpenPopup = shouldRefocusActiveFilter && isMapPopupVisible();
+      const activeFilterForRefocus = shouldRefocusActiveFilter ? getActiveIssueFilter() : { type: null };
+      const hasActivePopupContext = Boolean(
+        state.selectedHotspotId ||
+        (activeFilterForRefocus && activeFilterForRefocus.type)
+      );
+      const shouldPreserveOpenPopup = shouldRefocusActiveFilter &&
+        hasActivePopupContext &&
+        isMapPopupDisplayed();
       if (shouldPreserveOpenPopup) {
+        restoreClosingMapPopup();
         suppressPopupCloseForNextMapMove(MOBILE_SHEET_MOTION_TRACK_MS + MAP_VIEW_FIT_ANIMATION_MS);
       }
       syncMobileDependentLayout();
@@ -7271,6 +7279,24 @@ import APP_CONFIG from './config.js';
       !elements.mapPopup.classList.contains("hidden") &&
       !elements.mapPopup.classList.contains("map-popup-closing")
     );
+  }
+
+  function isMapPopupDisplayed() {
+    return Boolean(
+      elements.mapPopup &&
+      !elements.mapPopup.classList.contains("hidden")
+    );
+  }
+
+  function restoreClosingMapPopup() {
+    if (!elements.mapPopup || !elements.mapPopup.classList.contains("map-popup-closing")) {
+      return false;
+    }
+    clearMapPopupCloseTimer();
+    elements.mapPopup.classList.remove("map-popup-closing");
+    elements.mapPopup.setAttribute("aria-hidden", "false");
+    elements.mapPopup.style.pointerEvents = "auto";
+    return true;
   }
 
   function getOpenMapPopupCoordinate() {
