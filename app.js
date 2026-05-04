@@ -5650,7 +5650,10 @@ import APP_CONFIG from './config.js';
       syncMobileDependentLayout();
       if (shouldRefocusActiveFilter) {
         const mobileSheetState = nextExpanded ? "expanded" : "collapsed";
-        const refocusForSheetState = () => {
+        const refocusForSheetState = (refocusOptions) => {
+          if (refocusOptions && refocusOptions.onlyWhenPopupNotVisible && isMapPopupVisible()) {
+            return;
+          }
           refocusActiveIssueFilterOnMap({
             duration: MAP_VIEW_FIT_ANIMATION_MS,
             mobileSheetState,
@@ -5659,6 +5662,11 @@ import APP_CONFIG from './config.js';
         };
         window.requestAnimationFrame(refocusForSheetState);
         window.setTimeout(refocusForSheetState, MOBILE_SHEET_MOTION_TRACK_MS);
+        window.setTimeout(() => {
+          refocusForSheetState({
+            onlyWhenPopupNotVisible: true
+          });
+        }, MOBILE_SHEET_MOTION_TRACK_MS + MAP_VIEW_FIT_ANIMATION_MS + MAP_POPUP_CLOSE_ANIMATION_MS);
       }
     }
     return didChange;
