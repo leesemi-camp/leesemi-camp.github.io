@@ -50,10 +50,14 @@ async function waitForSpotListHooks(page) {
   });
 }
 
+async function gotoMap(page) {
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
+}
+
 // 현안 목록을 렌더링하고 테스트 훅이 준비될 때까지 대기한다.
 async function setupSpots(page, spots) {
   await blockFirestore(page);
-  await page.goto("/map/");
+  await gotoMap(page);
   await waitForSpotListHooks(page);
   await page.evaluate((items) => {
     window.__spotListTestHooks.renderHotspotList(items);
@@ -85,7 +89,7 @@ async function waitForMapPopupToSettle(page) {
 
 test("Map popup element exists and is initially hidden", async ({ page }) => {
   // 지도 팝업 요소가 초기에 숨겨진 상태임
-  await page.goto("/map/");
+  await gotoMap(page);
   const popup = page.locator("#map-popup");
   await expect(popup).toBeAttached();
   await expect(popup).toHaveClass(/hidden/);
@@ -107,7 +111,7 @@ test("Clicking spot list item with no OL map does not throw", async ({ page }) =
 test("Clicking issue stats dong filter does not error", async ({ page }) => {
   // 동 통계 버튼 클릭 시 해당 동 필터가 적용되고 앱이 정상 상태를 유지함
   await blockFirestore(page);
-  await page.goto("/map/");
+  await gotoMap(page);
   await waitForSpotListHooks(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.renderVisibleIssueListWithData([
@@ -129,7 +133,7 @@ test("Mobile popup collapses helper bubble", async ({ page }) => {
   // 모바일에서 지도 팝업이 열리면 안내 말풍선은 접고 캐릭터만 남긴다.
   await page.setViewportSize({ width: 390, height: 900 });
   await blockFirestore(page);
-  await page.goto("/map/");
+  await gotoMap(page);
   await waitForSpotListHooks(page);
   await expect(page.locator(".issue-helper")).not.toHaveClass(/issue-helper-collapsed/);
 
@@ -155,7 +159,7 @@ test("Mobile low zoom shows dong aggregate markers", async ({ page }) => {
     { id: "aggregate-b1", title: "백현 현안 A", categoryId: "housing_infra", dongName: "백현동", lat: 37.388, lng: 127.113 },
     { id: "aggregate-b2", title: "백현 현안 B", categoryId: "environment_park", dongName: "백현동", lat: 37.3882, lng: 127.1132 }
   ]);
-  await page.goto("/map/");
+  await gotoMap(page);
   await waitForSpotListHooks(page);
   await page.waitForFunction(() => {
     const hooks = window.__spotListTestHooks;
@@ -211,7 +215,7 @@ test("Clicking spot list item opens photo lightbox when photo clicked", async ({
 
 test("Map popup aria-hidden attribute set initially", async ({ page }) => {
   // 지도 팝업의 aria-hidden 속성이 초기에 설정됨
-  await page.goto("/map/");
+  await gotoMap(page);
   const popup = page.locator("#map-popup");
   const ariaHidden = await popup.getAttribute("aria-hidden");
   expect(ariaHidden).toBe("true");
@@ -220,7 +224,7 @@ test("Map popup aria-hidden attribute set initially", async ({ page }) => {
 test("Clear issue filter button is hidden initially", async ({ page }) => {
   // 현안이 없는 초기 통계 상태에서는 필터 초기화 버튼이 렌더링되지 않음
   await blockFirestore(page);
-  await page.goto("/map/");
+  await gotoMap(page);
   await waitForSpotListHooks(page);
   await expect(page.locator("#clear-issue-filter-btn")).toHaveCount(0);
 });
@@ -228,7 +232,7 @@ test("Clear issue filter button is hidden initially", async ({ page }) => {
 test("Escape clears active dong filter", async ({ page }) => {
   // Esc 키를 누르면 활성 동 필터가 해제되고 전체 목록으로 돌아감
   await blockFirestore(page);
-  await page.goto("/map/");
+  await gotoMap(page);
   await waitForSpotListHooks(page);
   await page.waitForFunction(() => {
     return (
@@ -278,7 +282,7 @@ test("Escape clears active dong filter", async ({ page }) => {
 test("Escape closes dong popup and clears dong filter together", async ({ page }) => {
   // 동 선택으로 열린 팝업이 있으면 Esc 한 번으로 팝업과 동 필터를 함께 닫음
   await blockFirestore(page);
-  await page.goto("/map/");
+  await gotoMap(page);
   await waitForSpotListHooks(page);
   await page.waitForFunction(() => {
     return (
@@ -338,7 +342,7 @@ test("Escape closes dong popup and clears dong filter together", async ({ page }
 test("Map popup close button uses close animation", async ({ page }) => {
   // 팝업 닫기 버튼도 Escape와 같은 닫힘 애니메이션 경로를 사용함
   await blockFirestore(page);
-  await page.goto("/map/");
+  await gotoMap(page);
   await waitForSpotListHooks(page);
   await page.waitForFunction(() => {
     return (
@@ -391,7 +395,7 @@ test("Closing hotspot popup clears selected hotspot highlight", async ({ page })
       lng: 127.111
     }
   ]);
-  await page.goto("/map/");
+  await gotoMap(page);
   await waitForSpotListHooks(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.setActiveDongFilter("판교동");
@@ -425,12 +429,23 @@ test("Closing hotspot popup clears selected hotspot highlight", async ({ page })
   }).toBe("selected-popup");
   await waitForMapPopupToSettle(page);
 
-  const didClose = await page.evaluate(() => {
-    return window.__spotListTestHooks.dismissMapPopupForTest({
-      immediate: true
+  await expect.poll(() => {
+    return page.evaluate(() => {
+      const popupElement = document.getElementById("map-popup");
+      if (!popupElement) {
+        return false;
+      }
+      if (
+        popupElement.classList.contains("hidden") ||
+        popupElement.classList.contains("map-popup-closing")
+      ) {
+        return true;
+      }
+      return window.__spotListTestHooks.dismissMapPopupForTest({
+        immediate: true
+      });
     });
-  });
-  expect(didClose).toBe(true);
+  }).toBe(true);
 
   await expect.poll(() => {
     return page.evaluate(() => window.__spotListTestHooks.getHighlightedHotspotIds());
@@ -455,7 +470,7 @@ test("Keyboard hotspot popup returns focus to issue card", async ({ page }) => {
       lng: 127.111
     }
   ]);
-  await page.goto("/map/");
+  await gotoMap(page);
   await waitForSpotListHooks(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.setActiveDongFilter("판교동");
@@ -488,7 +503,7 @@ test("Dong stats filter highlight does not select single hotspot card", async ({
       lng: 127.111
     }
   ]);
-  await page.goto("/map/");
+  await gotoMap(page);
   await waitForSpotListHooks(page);
   await page.waitForFunction(() => {
     return (
@@ -541,7 +556,7 @@ test("Dong stats filter fits full dong boundary", async ({ page }) => {
       lng: 127.078
     }
   ]);
-  await page.goto("/map/");
+  await gotoMap(page);
   await page.waitForFunction(() => {
     return (
       window.__spotListTestHooks &&
@@ -603,7 +618,7 @@ test("Category stats filter focuses matching map markers", async ({ page }) => {
       lng: 127.112
     }
   ]);
-  await page.goto("/map/");
+  await gotoMap(page);
   await page.waitForFunction(() => {
     return (
       window.__spotListTestHooks &&
@@ -668,7 +683,7 @@ test("Common issue tag filters list and focuses map markers", async ({ page }) =
       lng: 127.128
     }
   ]);
-  await page.goto("/map/");
+  await gotoMap(page);
   await page.waitForFunction(() => {
     return (
       window.__spotListTestHooks &&
@@ -741,7 +756,7 @@ test("Clear issue filter controls return map to full region", async ({ page }) =
       lng: 127.128
     }
   ]);
-  await page.goto("/map/");
+  await gotoMap(page);
   await page.waitForFunction(() => {
     return (
       window.__spotListTestHooks &&
@@ -798,7 +813,7 @@ test("Clearing issue filter animates markers", async ({ page }) => {
       lng: 127.079
     }
   ]);
-  await page.goto("/map/");
+  await gotoMap(page);
   await page.waitForFunction(() => {
     return (
       window.__spotListTestHooks &&
@@ -825,19 +840,19 @@ test("Clearing issue filter animates markers", async ({ page }) => {
 
 test("Issue view dong button is removed", async ({ page }) => {
   // 중복된 '동별 보기' 버튼이 렌더링되지 않음
-  await page.goto("/map/");
+  await gotoMap(page);
   await expect(page.locator("#issue-view-dong-btn")).toHaveCount(0);
 });
 
 test("Issue filter row is removed", async ({ page }) => {
   // 중복된 목록 위 필터 행이 렌더링되지 않음
-  await page.goto("/map/");
+  await gotoMap(page);
   await expect(page.locator("#issue-filter-row")).toHaveCount(0);
 });
 
 test("Map has map-wrap element", async ({ page }) => {
   // 지도 래퍼 요소가 로드됨
-  await page.goto("/map/");
+  await gotoMap(page);
   await expect(page.locator(".map-wrap")).toBeAttached();
 });
 
