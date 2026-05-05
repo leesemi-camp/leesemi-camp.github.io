@@ -56,29 +56,6 @@ async function waitForSpotListHook(page) {
   });
 }
 
-async function waitForMapPopupToSettle(page) {
-  await page.waitForFunction(() => {
-    const popup = document.getElementById("map-popup");
-    if (!popup || popup.classList.contains("hidden") || popup.classList.contains("map-popup-closing")) {
-      return false;
-    }
-    const firstRect = popup.getBoundingClientRect();
-    return new Promise((resolve) => {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          const secondRect = popup.getBoundingClientRect();
-          resolve(
-            Math.abs(firstRect.left - secondRect.left) < 0.5 &&
-            Math.abs(firstRect.top - secondRect.top) < 0.5 &&
-            Math.abs(firstRect.width - secondRect.width) < 0.5 &&
-            Math.abs(firstRect.height - secondRect.height) < 0.5
-          );
-        });
-      });
-    });
-  });
-}
-
 // 두 장의 사진을 가진 현안으로 슬라이드쇼를 렌더링한다.
 async function renderSpotWithPhotos(page) {
   await blockFirestore(page);
@@ -174,19 +151,42 @@ test("Map popup photo slideshow next button navigates to next slide", async ({ p
   await spotItem.press("Enter");
   await expect(page.locator("#map-popup")).not.toHaveClass(/hidden/);
 
-  const indicator = page.locator("#map-popup .photo-slide-indicator");
-  await expect(indicator).toHaveText("1 / 2");
-  await waitForMapPopupToSettle(page);
-  const slideshow = page.locator("#map-popup .photo-slideshow");
-  await expect(slideshow).toHaveAttribute("data-photo-count", "2");
-  const slideshowId = await slideshow.getAttribute("data-photo-slideshow-id");
-  expect(slideshowId).toBeTruthy();
+  const slideshowHandle = await page.waitForFunction(() => {
+    const slideshow = document.querySelector("#map-popup .photo-slideshow");
+    const indicator = document.querySelector("#map-popup .photo-slide-indicator");
+    if (!(slideshow instanceof HTMLElement) || !indicator) {
+      return null;
+    }
+    const slideshowId = String(slideshow.getAttribute("data-photo-slideshow-id") || "").trim();
+    const count = String(slideshow.getAttribute("data-photo-count") || "").trim();
+    const label = String(indicator.textContent || "").trim();
+    if (!slideshowId || count !== "2" || label !== "1 / 2") {
+      return null;
+    }
+    return {
+      slideshowId
+    };
+  });
+  const { slideshowId } = await slideshowHandle.jsonValue();
   const didMove = await page.evaluate((id) => {
     return window.__spotListTestHooks.movePhotoSlideshowForTest(id, 1);
   }, slideshowId);
   expect(didMove).toBe(true);
-  await expect(indicator).toHaveText("2 / 2");
-  await expect(page.locator("#map-popup .photo-slide-image")).toHaveAttribute("data-photo-index", "1");
+  await expect.poll(() => {
+    return page.evaluate(() => {
+      const indicator = document.querySelector("#map-popup .photo-slide-indicator");
+      const image = document.querySelector("#map-popup .photo-slide-image");
+      return {
+        label: String(indicator ? indicator.textContent : "").trim(),
+        index: image instanceof HTMLImageElement
+          ? String(image.getAttribute("data-photo-index") || "")
+          : ""
+      };
+    });
+  }).toEqual({
+    label: "2 / 2",
+    index: "1"
+  });
 });
 
 test("Single photo spot has no prev/next buttons", async ({ page }) => {
