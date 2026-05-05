@@ -42,7 +42,7 @@ async function blockFirestore(page) {
 // 테스트 훅이 준비될 때까지 대기한다.
 async function waitForHooks(page) {
   await blockFirestore(page);
-  await page.goto("/map/");
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => {
     return (
       window.__spotListTestHooks &&

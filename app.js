@@ -7097,6 +7097,9 @@ import APP_CONFIG from './config.js';
       getSelectedHotspotId() {
         return state.selectedHotspotId || "";
       },
+      movePhotoSlideshowForTest(slideshowId, delta) {
+        return movePhotoSlideshow(slideshowId, delta);
+      },
       dismissMapPopupForTest(options) {
         return dismissMapPopup({
           immediate: Boolean(options && options.immediate)

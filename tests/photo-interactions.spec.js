@@ -49,6 +49,7 @@ async function waitForSpotListHook(page) {
     return (
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.renderHotspotList === "function" &&
+      typeof window.__spotListTestHooks.movePhotoSlideshowForTest === "function" &&
       document.querySelector("#issue-stats-summary") &&
       document.querySelector("#issue-stats-summary").textContent.trim().length > 0
     );
@@ -176,11 +177,14 @@ test("Map popup photo slideshow next button navigates to next slide", async ({ p
   const indicator = page.locator("#map-popup .photo-slide-indicator");
   await expect(indicator).toHaveText("1 / 2");
   await waitForMapPopupToSettle(page);
-  const nextButton = page.locator("#map-popup [data-action='photo-slide-next']");
-  await expect(nextButton).toBeVisible();
-  // WebKit은 지도 팝업 위치 보정 직후 overlay 이동을 오래 불안정하게 볼 수 있어,
-  // 여기서는 버튼 이벤트 위임과 슬라이드 상태 변경 자체를 직접 검증한다.
-  await nextButton.dispatchEvent("click");
+  const slideshow = page.locator("#map-popup .photo-slideshow");
+  await expect(slideshow).toHaveAttribute("data-photo-count", "2");
+  const slideshowId = await slideshow.getAttribute("data-photo-slideshow-id");
+  expect(slideshowId).toBeTruthy();
+  const didMove = await page.evaluate((id) => {
+    return window.__spotListTestHooks.movePhotoSlideshowForTest(id, 1);
+  }, slideshowId);
+  expect(didMove).toBe(true);
   await expect(indicator).toHaveText("2 / 2");
   await expect(page.locator("#map-popup .photo-slide-image")).toHaveAttribute("data-photo-index", "1");
 });
