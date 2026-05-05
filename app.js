@@ -2447,6 +2447,9 @@ import APP_CONFIG from './config.js';
 
     state.map = new ol.Map({
       target: elements.map,
+      interactions: ol.interaction.defaults.defaults({
+        onFocusOnly: false
+      }),
       layers: [
         new ol.layer.Tile({
           source: createBaseTileSource()
