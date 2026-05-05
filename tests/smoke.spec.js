@@ -352,7 +352,8 @@ test("Initial mobile map pans and zooms before controls are primed", async ({ pa
       const target = document.elementFromPoint(x, y);
       return Boolean(
         target &&
-        target.closest(".map") &&
+        target.closest(".ol-viewport") === mapViewport &&
+        !target.closest(".ol-overlaycontainer-stopevent") &&
         !target.closest(".ol-control") &&
         !target.closest(".side-panel") &&
         !target.closest(".issue-helper") &&
@@ -378,8 +379,10 @@ test("Initial mobile map pans and zooms before controls are primed", async ({ pa
   expect(interactionPoint).not.toBeNull();
 
   const initialViewState = await page.evaluate(() => window.__spotListTestHooks.getMapViewState());
-  await page.mouse.move(interactionPoint.startX, interactionPoint.startY);
-  await page.mouse.wheel(0, -500);
+  await page.mouse.move(interactionPoint.startX, interactionPoint.startY, { steps: 8 });
+  for (let i = 0; i < 3; i += 1) {
+    await page.mouse.wheel(0, -600);
+  }
   await expect.poll(() => {
     return page.evaluate(() => window.__spotListTestHooks.getMapViewState().zoom);
   }).toBeGreaterThan(initialViewState.zoom + 0.1);
