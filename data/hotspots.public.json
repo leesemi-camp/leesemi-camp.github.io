@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-02T16:27:21.752Z",
+  "generatedAt": "2026-05-05T10:45:33.826Z",
   "source": "firestore",
   "collection": "crowd_hotspots",
   "count": 62,
@@ -594,15 +594,18 @@
       "categoryLabel": "🌳 환경·공원",
       "lat": 37.360236,
       "lng": 127.069636,
-      "dongName": "경기도 성남시 분당구 대장동",
+      "dongName": "대장동",
       "emdCode": "41135116",
       "dongSelectionMode": "auto",
-      "dongKey": "",
+      "dongKey": "name:대장동",
       "groupLabel": "",
-      "photoUrls": [],
-      "photoUrl": "",
-      "photoProcessingVersion": 0,
-      "updatedAt": "2026-03-22T12:02:43.396Z"
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FdeTVUXdlYl5HMK54UuR8%2F1777967785892-58cfd08b3d3fea47.jpg?alt=media&token=b4f70954-84ec-48d8-babe-bb8c637083e1",
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FdeTVUXdlYl5HMK54UuR8%2F1777967788454-ae0736e76fdd8d4c.jpg?alt=media&token=31ee1fea-e92d-4f06-b1e1-ad58d31ab4ee"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FdeTVUXdlYl5HMK54UuR8%2F1777967785892-58cfd08b3d3fea47.jpg?alt=media&token=b4f70954-84ec-48d8-babe-bb8c637083e1",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-05-05T07:56:34.672Z"
     },
     {
       "id": "5JN3TmR3EQpcbthXZhxk",
@@ -763,10 +766,13 @@
       "dongSelectionMode": "auto",
       "dongKey": "name:대장동",
       "groupLabel": "",
-      "photoUrls": [],
-      "photoUrl": "",
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FsVmcdQ058t1dwUXYfjfP%2F1777967757530-662fa6ad505601ca.jpg?alt=media&token=22feb744-81f8-4d91-8f41-db6aee90eb2f",
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FsVmcdQ058t1dwUXYfjfP%2F1777967760470-ef5bbefb68ee0b4b.jpg?alt=media&token=b3134714-ce0b-4a5e-8fde-8260be9c61e6"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FsVmcdQ058t1dwUXYfjfP%2F1777967757530-662fa6ad505601ca.jpg?alt=media&token=22feb744-81f8-4d91-8f41-db6aee90eb2f",
       "photoProcessingVersion": 3,
-      "updatedAt": "2026-04-28T11:15:35.623Z"
+      "updatedAt": "2026-05-05T07:56:04.529Z"
     },
     {
       "id": "rz73S7tYES75JQwI3l9I",
@@ -1142,10 +1148,13 @@
       "dongSelectionMode": "auto",
       "dongKey": "name:대장동",
       "groupLabel": "",
-      "photoUrls": [],
-      "photoUrl": "",
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FKI8rcRa0hLwYE5PndrQr%2F1777967725850-1be54df024bbb350.jpg?alt=media&token=d7990a3e-fdbb-475e-8802-a1e7c7f0487e",
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FKI8rcRa0hLwYE5PndrQr%2F1777967729105-884199342bf0faf6.jpg?alt=media&token=919e1ebb-5cb1-4cc1-b1d8-0b2efd7e1eef"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FKI8rcRa0hLwYE5PndrQr%2F1777967725850-1be54df024bbb350.jpg?alt=media&token=d7990a3e-fdbb-475e-8802-a1e7c7f0487e",
       "photoProcessingVersion": 3,
-      "updatedAt": "2026-04-28T11:08:39.607Z"
+      "updatedAt": "2026-05-05T07:55:34.268Z"
     },
     {
       "id": "VsBwypOG6KVC7LzhHwPQ",
