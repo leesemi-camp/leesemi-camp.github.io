@@ -1,6 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { addCoverageReport } from "monocart-reporter";
 
+const TEST_PHOTO_BLUE =
+  "data:image/gif;base64,R0lGODlhAQABAPAAAFqJzAAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==";
+const TEST_PHOTO_GREEN =
+  "data:image/gif;base64,R0lGODlhAQABAPAAAGKpXQAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==";
+
 // Chromium에서만 V8 커버리지를 수집한다.
 test.beforeEach(async ({ page }, testInfo) => {
   if (testInfo.project.use.browserName === "chromium") {
@@ -22,7 +27,7 @@ test.afterEach(async ({ page }, testInfo) => {
 });
 
 // Firestore 요청을 차단하여 슬라이드쇼가 재렌더링되지 않도록 한다.
-async function blockFirestore(page) {
+async function blockFirestore(page, hotspots = []) {
   await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
   await page.route("**/data/hotspots.public.json", (route) => {
     route.fulfill({
@@ -32,8 +37,8 @@ async function blockFirestore(page) {
         generatedAt: "2026-01-01T00:00:00.000Z",
         source: "firestore",
         collection: "crowd_hotspots",
-        count: 0,
-        hotspots: []
+        count: hotspots.length,
+        hotspots
       })
     });
   });
@@ -44,6 +49,7 @@ async function waitForSpotListHook(page) {
     return (
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.renderHotspotList === "function" &&
+      typeof window.__spotListTestHooks.movePhotoSlideshowForTest === "function" &&
       document.querySelector("#issue-stats-summary") &&
       document.querySelector("#issue-stats-summary").textContent.trim().length > 0
     );
@@ -53,9 +59,9 @@ async function waitForSpotListHook(page) {
 // 두 장의 사진을 가진 현안으로 슬라이드쇼를 렌더링한다.
 async function renderSpotWithPhotos(page) {
   await blockFirestore(page);
-  await page.goto("/map/");
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page);
-  await page.evaluate(() => {
+  await page.evaluate(([firstPhoto, secondPhoto]) => {
     window.__spotListTestHooks.renderHotspotList([
       {
         id: "photo-test-1",
@@ -64,12 +70,12 @@ async function renderSpotWithPhotos(page) {
         categoryLabel: "교통",
         dongName: "판교동",
         photoDataUrls: [
-          "https://example.com/photo1.jpg",
-          "https://example.com/photo2.jpg"
+          firstPhoto,
+          secondPhoto
         ]
       }
     ]);
-  });
+  }, [TEST_PHOTO_BLUE, TEST_PHOTO_GREEN]);
   // 슬라이드쇼 이미지가 DOM에 나타날 때까지 대기
   await page.waitForSelector("#spot-list .photo-slide-image");
 }
@@ -77,9 +83,9 @@ async function renderSpotWithPhotos(page) {
 // 한 장의 사진을 가진 현안으로 렌더링한다.
 async function renderSpotWithSinglePhoto(page) {
   await blockFirestore(page);
-  await page.goto("/map/");
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page);
-  await page.evaluate(() => {
+  await page.evaluate((photoUrl) => {
     window.__spotListTestHooks.renderHotspotList([
       {
         id: "single-photo-1",
@@ -87,10 +93,10 @@ async function renderSpotWithSinglePhoto(page) {
         categoryId: "env",
         categoryLabel: "환경",
         dongName: "운중동",
-        photoDataUrls: ["https://example.com/single.jpg"]
+        photoDataUrls: [photoUrl]
       }
     ]);
-  });
+  }, TEST_PHOTO_BLUE);
   await page.waitForSelector("#spot-list .photo-slide-image");
 }
 
@@ -115,6 +121,72 @@ test("Photo slideshow next button navigates to next slide", async ({ page }) => 
   const indicator = page.locator("#spot-list .photo-slide-indicator").first();
   const text = await indicator.textContent();
   expect(text).toMatch(/\d+ \/ 2/);
+});
+
+test("Map popup photo slideshow next button navigates to next slide", async ({ page }) => {
+  // 지도 팝업에서도 슬라이드쇼 상태가 유지되어 다음 사진으로 이동해야 한다.
+  await blockFirestore(page, [
+    {
+      id: "map-popup-photo-test",
+      title: "팝업 사진 현안",
+      categoryId: "traffic_parking",
+      categoryLabel: "교통·주차",
+      dongName: "판교동",
+      lat: 37.394,
+      lng: 127.111,
+      photoDataUrls: [
+        TEST_PHOTO_BLUE,
+        TEST_PHOTO_GREEN
+      ]
+    }
+  ]);
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
+  await waitForSpotListHook(page);
+  await page.evaluate(() => {
+    window.__spotListTestHooks.setActiveDongFilter("판교동");
+  });
+
+  const spotItem = page.locator("#spot-list [data-spot-id='map-popup-photo-test']");
+  await spotItem.focus();
+  await spotItem.press("Enter");
+  await expect(page.locator("#map-popup")).not.toHaveClass(/hidden/);
+
+  const slideshowHandle = await page.waitForFunction(() => {
+    const slideshow = document.querySelector("#map-popup .photo-slideshow");
+    const indicator = document.querySelector("#map-popup .photo-slide-indicator");
+    if (!(slideshow instanceof HTMLElement) || !indicator) {
+      return null;
+    }
+    const slideshowId = String(slideshow.getAttribute("data-photo-slideshow-id") || "").trim();
+    const count = String(slideshow.getAttribute("data-photo-count") || "").trim();
+    const label = String(indicator.textContent || "").trim();
+    if (!slideshowId || count !== "2" || label !== "1 / 2") {
+      return null;
+    }
+    return {
+      slideshowId
+    };
+  });
+  const { slideshowId } = await slideshowHandle.jsonValue();
+  const didMove = await page.evaluate((id) => {
+    return window.__spotListTestHooks.movePhotoSlideshowForTest(id, 1);
+  }, slideshowId);
+  expect(didMove).toBe(true);
+  await expect.poll(() => {
+    return page.evaluate(() => {
+      const indicator = document.querySelector("#map-popup .photo-slide-indicator");
+      const image = document.querySelector("#map-popup .photo-slide-image");
+      return {
+        label: String(indicator ? indicator.textContent : "").trim(),
+        index: image instanceof HTMLImageElement
+          ? String(image.getAttribute("data-photo-index") || "")
+          : ""
+      };
+    });
+  }).toEqual({
+    label: "2 / 2",
+    index: "1"
+  });
 });
 
 test("Single photo spot has no prev/next buttons", async ({ page }) => {

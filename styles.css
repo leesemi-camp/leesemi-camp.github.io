@@ -174,6 +174,7 @@ p {
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
+  pointer-events: none;
   transition: right 0.22s ease;
 }
 
@@ -196,6 +197,7 @@ p {
   overflow: hidden;
   transform-origin: right bottom;
   animation: issue-helper-bubble-float 4.2s ease-in-out infinite;
+  pointer-events: none;
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease,
@@ -239,6 +241,7 @@ p {
   cursor: pointer;
   padding: 0;
   box-shadow: 0 2px 6px rgba(12, 35, 63, 0.1);
+  pointer-events: auto;
 }
 
 .issue-helper-close-btn:hover {
@@ -267,6 +270,7 @@ p {
   color: #19457f;
   font-weight: 700;
   text-decoration: none;
+  pointer-events: auto;
 }
 
 .issue-helper-contact-link-row {
@@ -304,6 +308,7 @@ p {
   cursor: pointer;
   line-height: 0;
   display: block;
+  pointer-events: auto;
   animation: issue-helper-character-bounce 1.75s ease-in-out infinite;
   transition: transform 0.18s ease;
 }
@@ -590,6 +595,10 @@ body[data-map-mode="view"] .workspace {
     color: var(--selection-text);
   }
 
+  body[data-map-mode="view"] .side-panel-has-filter .issue-list-clear-btn {
+    display: inline-flex;
+  }
+
   body[data-map-mode="view"] .side-panel-has-filter .issue-stats-summary,
   body[data-map-mode="view"] .side-panel-has-filter .pledge-panel {
     margin-top: 0;
@@ -612,6 +621,10 @@ body[data-map-mode="view"] .map,
 body[data-map-mode="view"] .map .ol-viewport {
   overflow: visible;
   border-radius: 0;
+}
+
+.map .ol-viewport {
+  touch-action: none;
 }
 
 .map-wrap.map-wrap-initializing {

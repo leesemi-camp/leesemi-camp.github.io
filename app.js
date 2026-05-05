@@ -709,9 +709,8 @@ import APP_CONFIG from './config.js';
         }
         const clearButton = target.closest("[data-action='clear-issue-filter']");
         if (clearButton instanceof HTMLElement) {
-          clearActiveIssueFilter({
-            animateList: true,
-            resetMapToRegion: true
+          clearActiveIssueFilterAndReturnToRegion({
+            animateList: true
           });
         }
       });
@@ -719,11 +718,9 @@ import APP_CONFIG from './config.js';
 
     if (elements.issueListClearFilterButton) {
       elements.issueListClearFilterButton.addEventListener("click", () => {
-        clearActiveIssueFilter({
+        clearActiveIssueFilterAndReturnToRegion({
           animateList: true,
-          resetMapToRegion: true
-        });
-        setMobileSheetExpanded(true, {
+          expandMobileSheet: true,
           userInitiated: true
         });
       });
@@ -1121,7 +1118,7 @@ import APP_CONFIG from './config.js';
           event.preventDefault();
           return;
         }
-        if (clearActiveIssueFilter({
+        if (clearActiveIssueFilterAndReturnToRegion({
           animateList: true
         })) {
           event.preventDefault();
@@ -2479,14 +2476,14 @@ import APP_CONFIG from './config.js';
       className: "map-popup-overlay"
     });
     state.map.addOverlay(state.popupOverlay);
+    primeMapPointerFocus();
     syncHotspotMarkerDisplayMode();
     state.map.on("moveend", () => {
       syncHotspotMarkerDisplayMode();
     });
 
-    if (applyStaticBoundaryMaskFallback()) {
-      revealMapViewport();
-    }
+    applyStaticBoundaryMaskFallback();
+    revealMapViewport();
 
     state.map.on("singleclick", (event) => {
       if (handleMapPopupClickThrough(event)) {
@@ -2723,6 +2720,20 @@ import APP_CONFIG from './config.js';
     if (state.map) {
       window.setTimeout(() => state.map.updateSize(), 0);
     }
+  }
+
+  function primeMapPointerFocus() {
+    if (!(elements.map instanceof HTMLElement)) {
+      return;
+    }
+    elements.map.addEventListener("pointerdown", () => {
+      if (document.activeElement === elements.map || typeof elements.map.focus !== "function") {
+        return;
+      }
+      elements.map.focus({ preventScroll: true });
+    }, {
+      capture: true
+    });
   }
 
   async function loadBoundaries() {
@@ -5566,6 +5577,20 @@ import APP_CONFIG from './config.js';
     return true;
   }
 
+  function clearActiveIssueFilterAndReturnToRegion(options) {
+    const didClear = clearActiveIssueFilter({
+      animateList: Boolean(options && options.animateList),
+      resetMapToRegion: true,
+      duration: options && options.duration
+    });
+    if (didClear && options && options.expandMobileSheet) {
+      setMobileSheetExpanded(true, {
+        userInitiated: Boolean(options.userInitiated)
+      });
+    }
+    return didClear;
+  }
+
   function setIssueListPanelVisibility(isVisible) {
     if (!elements.issueListPanel) {
       return;
@@ -7071,6 +7096,47 @@ import APP_CONFIG from './config.js';
       },
       getSelectedHotspotId() {
         return state.selectedHotspotId || "";
+      },
+      movePhotoSlideshowForTest(slideshowId, delta) {
+        return movePhotoSlideshow(slideshowId, delta);
+      },
+      dismissMapPopupForTest(options) {
+        return dismissMapPopup({
+          immediate: Boolean(options && options.immediate)
+        });
+      },
+      panMapByPixelsForTest(deltaX, deltaY) {
+        if (!state.map || typeof state.map.getView !== "function") {
+          return null;
+        }
+        const view = state.map.getView();
+        const center = view && typeof view.getCenter === "function" ? view.getCenter() : null;
+        const resolution = view && typeof view.getResolution === "function" ? Number(view.getResolution()) : NaN;
+        if (!Array.isArray(center) || center.length < 2 || !Number.isFinite(resolution) || resolution <= 0) {
+          return null;
+        }
+        const before = ol.proj.toLonLat(center);
+        const nextCenter = [
+          Number(center[0]) - (Number(deltaX) || 0) * resolution,
+          Number(center[1]) + (Number(deltaY) || 0) * resolution
+        ];
+        if (!Number.isFinite(nextCenter[0]) || !Number.isFinite(nextCenter[1])) {
+          return null;
+        }
+        if (typeof view.setCenter === "function") {
+          view.setCenter(nextCenter);
+        }
+        const afterCenter = typeof view.getCenter === "function" ? view.getCenter() : nextCenter;
+        const after = Array.isArray(afterCenter) ? ol.proj.toLonLat(afterCenter) : null;
+        if (!Array.isArray(after)) {
+          return null;
+        }
+        return {
+          before,
+          after,
+          deltaLng: Math.abs(Number(after[0]) - Number(before[0])),
+          deltaLat: Math.abs(Number(after[1]) - Number(before[1]))
+        };
       },
       getHotspotStyleAnimationCount() {
         return state.hotspotStyleAnimations instanceof Set
@@ -9667,7 +9733,6 @@ import APP_CONFIG from './config.js';
       return;
     }
     clearMapPopupCloseTimer();
-    clearPhotoSlideshowsByPrefix("map-popup-");
     state.mapPopupReturnFocusElement = resolvePopupReturnFocusElement(options && options.returnFocusElement);
     state.mapPopupDismissClearsDongFilter = Boolean(options && options.dismissClearsDongFilter);
     state.mapPopupClearsHotspotSelection = Boolean(options && options.clearsHotspotSelection);
@@ -9766,7 +9831,7 @@ import APP_CONFIG from './config.js';
       return false;
     }
     if (shouldClearDongFilter) {
-      clearActiveIssueFilter({
+      clearActiveIssueFilterAndReturnToRegion({
         animateList: true
       });
     }
