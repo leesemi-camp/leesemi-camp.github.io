@@ -336,7 +336,13 @@ test("Escape closes dong popup and clears dong filter together", async ({ page }
   await expect(popup).toHaveClass(/hidden/);
   await expect(clearBtn).toHaveClass(/issue-stats-clear-btn-inactive/);
   await expect(clearBtn).toBeDisabled();
-  await expect.poll(distanceFromRegionCenter, { timeout: 5000 }).toBeLessThan(0.003);
+  await page.waitForFunction(() => {
+    const viewState = window.__spotListTestHooks && window.__spotListTestHooks.getMapViewState
+      ? window.__spotListTestHooks.getMapViewState()
+      : null;
+    return viewState && !viewState.animating;
+  });
+  await expect.poll(distanceFromRegionCenter, { timeout: 10000 }).toBeLessThan(0.003);
 });
 
 test("Map popup close button uses close animation", async ({ page }) => {
