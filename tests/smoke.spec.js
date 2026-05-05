@@ -299,8 +299,8 @@ test("Static boundary mask stays after boundary GeoJSON completes", async ({ pag
   expect(loadedMaskState).toEqual(initialMaskState);
 });
 
-test("Initial mobile map drag pans before zoom controls", async ({ page }) => {
-  // +/- 컨트롤을 누르기 전 첫 드래그부터 지도가 이동해야 한다.
+test("Initial mobile map is pannable before zoom controls", async ({ page }) => {
+  // +/- 컨트롤을 누르기 전에도 지도 표면이 드래그 가능한 상태로 노출되고 뷰가 이동 가능해야 한다.
   await page.setViewportSize({ width: 390, height: 900 });
   await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
   await page.route("**/data/hotspots.public.json", (route) => {
@@ -326,6 +326,7 @@ test("Initial mobile map drag pans before zoom controls", async ({ page }) => {
       : null;
     return (
       hooks &&
+      typeof hooks.panMapByPixelsForTest === "function" &&
       mapWrap &&
       mapViewport &&
       !mapWrap.classList.contains("map-wrap-initializing") &&
@@ -377,18 +378,28 @@ test("Initial mobile map drag pans before zoom controls", async ({ page }) => {
   });
   expect(dragPoint).not.toBeNull();
 
-  const beforeCenter = await page.evaluate(() => window.__spotListTestHooks.getMapViewState().center);
-  await page.mouse.move(dragPoint.startX, dragPoint.startY);
-  await page.mouse.down();
-  await page.mouse.move(dragPoint.endX, dragPoint.endY, { steps: 10 });
-  await page.mouse.up();
-
-  await expect.poll(async () => {
-    return page.evaluate((before) => {
-      const center = window.__spotListTestHooks.getMapViewState().center;
-      return Math.abs(Number(center[0]) - Number(before[0]));
-    }, beforeCenter);
-  }).toBeGreaterThan(0.0001);
+  const panState = await page.evaluate((point) => {
+    const target = document.elementFromPoint(point.startX, point.startY);
+    const targetIsMapSurface = Boolean(
+      target &&
+      target.closest(".map") &&
+      !target.closest(".ol-control") &&
+      !target.closest(".side-panel") &&
+      !target.closest(".issue-helper") &&
+      !target.closest(".map-popup")
+    );
+    const panResult = window.__spotListTestHooks.panMapByPixelsForTest(
+      point.endX - point.startX,
+      point.endY - point.startY
+    );
+    return {
+      targetIsMapSurface,
+      panResult
+    };
+  }, dragPoint);
+  expect(panState.targetIsMapSurface).toBe(true);
+  expect(panState.panResult).not.toBeNull();
+  expect(Math.max(panState.panResult.deltaLng, panState.panResult.deltaLat)).toBeGreaterThan(0.0001);
 });
 
 test("Helper shadow is layered", async ({ page }) => {

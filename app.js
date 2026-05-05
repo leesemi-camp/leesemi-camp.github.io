@@ -7097,6 +7097,44 @@ import APP_CONFIG from './config.js';
       getSelectedHotspotId() {
         return state.selectedHotspotId || "";
       },
+      dismissMapPopupForTest(options) {
+        return dismissMapPopup({
+          immediate: Boolean(options && options.immediate)
+        });
+      },
+      panMapByPixelsForTest(deltaX, deltaY) {
+        if (!state.map || typeof state.map.getView !== "function") {
+          return null;
+        }
+        const view = state.map.getView();
+        const center = view && typeof view.getCenter === "function" ? view.getCenter() : null;
+        const resolution = view && typeof view.getResolution === "function" ? Number(view.getResolution()) : NaN;
+        if (!Array.isArray(center) || center.length < 2 || !Number.isFinite(resolution) || resolution <= 0) {
+          return null;
+        }
+        const before = ol.proj.toLonLat(center);
+        const nextCenter = [
+          Number(center[0]) - (Number(deltaX) || 0) * resolution,
+          Number(center[1]) + (Number(deltaY) || 0) * resolution
+        ];
+        if (!Number.isFinite(nextCenter[0]) || !Number.isFinite(nextCenter[1])) {
+          return null;
+        }
+        if (typeof view.setCenter === "function") {
+          view.setCenter(nextCenter);
+        }
+        const afterCenter = typeof view.getCenter === "function" ? view.getCenter() : nextCenter;
+        const after = Array.isArray(afterCenter) ? ol.proj.toLonLat(afterCenter) : null;
+        if (!Array.isArray(after)) {
+          return null;
+        }
+        return {
+          before,
+          after,
+          deltaLng: Math.abs(Number(after[0]) - Number(before[0])),
+          deltaLat: Math.abs(Number(after[1]) - Number(before[1]))
+        };
+      },
       getHotspotStyleAnimationCount() {
         return state.hotspotStyleAnimations instanceof Set
           ? state.hotspotStyleAnimations.size

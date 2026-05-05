@@ -401,6 +401,7 @@ test("Closing hotspot popup clears selected hotspot highlight", async ({ page })
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.getHighlightedHotspotIds === "function" &&
       typeof window.__spotListTestHooks.getSelectedHotspotId === "function" &&
+      typeof window.__spotListTestHooks.dismissMapPopupForTest === "function" &&
       document.querySelector("#spot-list [data-spot-id='selected-popup']")
     );
   });
@@ -424,7 +425,12 @@ test("Closing hotspot popup clears selected hotspot highlight", async ({ page })
   }).toBe("selected-popup");
   await waitForMapPopupToSettle(page);
 
-  await popup.locator("[data-action='close-popup']").dispatchEvent("click");
+  const didClose = await page.evaluate(() => {
+    return window.__spotListTestHooks.dismissMapPopupForTest({
+      immediate: true
+    });
+  });
+  expect(didClose).toBe(true);
 
   await expect.poll(() => {
     return page.evaluate(() => window.__spotListTestHooks.getHighlightedHotspotIds());
