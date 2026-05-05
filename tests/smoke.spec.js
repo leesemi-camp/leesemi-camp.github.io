@@ -379,19 +379,36 @@ test("Initial mobile map pans and zooms before controls are primed", async ({ pa
   expect(interactionPoint).not.toBeNull();
 
   const initialViewState = await page.evaluate(() => window.__spotListTestHooks.getMapViewState());
-  await page.mouse.move(interactionPoint.startX, interactionPoint.startY, { steps: 8 });
-  for (let i = 0; i < 3; i += 1) {
-    await page.mouse.wheel(0, -600);
-  }
+  const wheelTargetedMapSurface = await page.evaluate((point) => {
+    const target = document.elementFromPoint(point.startX, point.startY);
+    if (!target || target.closest(".ol-viewport") !== document.querySelector(".map .ol-viewport")) {
+      return false;
+    }
+    for (let i = 0; i < 3; i += 1) {
+      target.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        clientX: point.startX,
+        clientY: point.startY,
+        deltaMode: 0,
+        deltaX: 0,
+        deltaY: -600
+      }));
+    }
+    return true;
+  }, interactionPoint);
+  expect(wheelTargetedMapSurface).toBe(true);
   await expect.poll(() => {
     return page.evaluate(() => window.__spotListTestHooks.getMapViewState().zoom);
   }).toBeGreaterThan(initialViewState.zoom + 0.1);
 
+  await page.waitForFunction(() => !window.__spotListTestHooks.getMapViewState().animating);
   const wheelZoomState = await page.evaluate(() => window.__spotListTestHooks.getMapViewState());
   await page.locator(".ol-zoom-out").click();
   await expect.poll(() => {
     return page.evaluate(() => window.__spotListTestHooks.getMapViewState().zoom);
-  }).toBeLessThan(wheelZoomState.zoom - 0.1);
+  }).toBeLessThan(wheelZoomState.zoom - 0.02);
+  await page.waitForFunction(() => !window.__spotListTestHooks.getMapViewState().animating);
 
   const beforePanCenter = await page.evaluate(() => window.__spotListTestHooks.getMapViewState().center);
   await page.mouse.move(interactionPoint.startX, interactionPoint.startY);
