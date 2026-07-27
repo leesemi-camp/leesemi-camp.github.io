@@ -64,6 +64,7 @@
 - 내용
   - `title`(string)
   - `memo`(string)
+  - `contentTab`: `"issues" | "achievements"` (`"issues"` 또는 누락 시 우리동네 현안 탭, `"achievements"`는 이세미가 해낸 일 탭)
   - `categoryId`(string, 미인식이면 `""`)
   - `categoryLabel`(string)
   - `level`(number, 1~5 범위 보정)
@@ -85,6 +86,7 @@
 - 편집(`/map/edit/`): staff 로그인 성공 후 `onSnapshot`으로 Firestore 원본을 실시간 구독합니다.
 - 정규화: `app.js`의 hotspot record 처리 흐름
   - 좌표 유효성 체크 후, 외부 카탈로그/경계 데이터로 `dongName`/`emdCode`를 보강
+  - `contentTab` 기준으로 `/map/`의 `우리동네 현안` / `이세미가 해낸 일` 탭을 분리
   - 정렬: `compareHotspotByTitle`
 - 렌더:
   - 지도 포인트(OL feature): `app.js#L3960 renderHotspots(hotspots)`

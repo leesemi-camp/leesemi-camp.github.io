@@ -36,6 +36,135 @@ test("Map view renders", async ({ page }) => {
   await expect(page.locator("#spot-list")).toBeAttached();
 });
 
+test("Map content tabs filter items", async ({ page }) => {
+  // 현안과 성과 항목은 각 탭에서 따로 집계하고 표시한다.
+  await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
+  await page.route("**/data/hotspots.public.json", (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        source: "firestore",
+        collection: "crowd_hotspots",
+        count: 4,
+        hotspots: [
+          {
+            id: "issue-1",
+            title: "통학로 정비 요청",
+            memo: "보행 안전 개선 필요",
+            categoryId: "safety_security",
+            dongName: "판교동",
+            lat: 37.394,
+            lng: 127.111
+          },
+          {
+            id: "issue-2",
+            title: "주차장 확충 요청",
+            memo: "주말 주차난 개선 필요",
+            categoryId: "traffic_parking",
+            dongName: "백현동",
+            lat: 37.388,
+            lng: 127.113
+          },
+          {
+            id: "achievement-1",
+            title: "통학로 조명 개선 완료",
+            memo: "야간 보행 안전 개선",
+            contentTab: "achievements",
+            categoryId: "safety_security",
+            dongName: "판교동",
+            lat: 37.395,
+            lng: 127.112
+          },
+          {
+            id: "achievement-2",
+            title: "공원 시설 정비 완료",
+            memo: "노후 시설 개선",
+            contentTab: "achievements",
+            categoryId: "environment_park",
+            dongName: "운중동",
+            lat: 37.39,
+            lng: 127.08
+          }
+        ]
+      })
+    });
+  });
+
+  await page.goto("/map/");
+  await expect(page.locator("#total-issue-count")).toHaveText("총 현안 건수: 2건");
+  await expect(page).toHaveTitle("우리동네 현안도, 이세미입니다");
+
+  await page.getByRole("tab", { name: "이세미가 해낸 일" }).click();
+  const markerTransitionState = await page.evaluate(() => ({
+    reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    markerState: window.__spotListTestHooks.getHotspotAggregateState()
+  }));
+  if (!markerTransitionState.reducedMotion) {
+    expect(markerTransitionState.markerState.contentTransitionActive).toBe(true);
+    const oldLayerOpacity = markerTransitionState.markerState.displayMode === "hotspot"
+      ? markerTransitionState.markerState.transitionHotspotOpacity
+      : markerTransitionState.markerState.transitionAggregateOpacity;
+    const newLayerOpacity = markerTransitionState.markerState.displayMode === "hotspot"
+      ? markerTransitionState.markerState.hotspotOpacity
+      : markerTransitionState.markerState.aggregateOpacity;
+    expect(oldLayerOpacity).toBeGreaterThan(0.5);
+    expect(newLayerOpacity).toBeLessThan(oldLayerOpacity);
+    await page.waitForFunction(() => {
+      const state = window.__spotListTestHooks.getHotspotAggregateState();
+      if (!state || !state.contentTransitionActive) {
+        return false;
+      }
+      const oldOpacity = state.displayMode === "hotspot"
+        ? state.transitionHotspotOpacity
+        : state.transitionAggregateOpacity;
+      const newOpacity = state.displayMode === "hotspot"
+        ? state.hotspotOpacity
+        : state.aggregateOpacity;
+      return oldOpacity < 0.98 && newOpacity > 0.02;
+    });
+  }
+  await expect(page.locator("#total-issue-count")).toHaveText("해낸 일: 2건");
+  await expect(page.locator("#common-pledge-title")).toHaveText("이세미가 해낸 일");
+  await expect(page.locator(".topbar-title")).toHaveText("우리동네 변화도, 이세미입니다");
+  await expect(page).toHaveTitle("우리동네 변화도, 이세미입니다");
+  await page.waitForFunction(() => {
+    const state = window.__spotListTestHooks.getHotspotAggregateState();
+    return state && !state.contentTransitionActive;
+  });
+
+  await page.getByRole("tab", { name: "우리동네 현안" }).click();
+  const reverseMarkerTransitionState = await page.evaluate(() => ({
+    reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    markerState: window.__spotListTestHooks.getHotspotAggregateState()
+  }));
+  if (!reverseMarkerTransitionState.reducedMotion) {
+    expect(reverseMarkerTransitionState.markerState.contentTransitionActive).toBe(true);
+    const reverseOldLayerOpacity = reverseMarkerTransitionState.markerState.displayMode === "hotspot"
+      ? reverseMarkerTransitionState.markerState.transitionHotspotOpacity
+      : reverseMarkerTransitionState.markerState.transitionAggregateOpacity;
+    const reverseNewLayerOpacity = reverseMarkerTransitionState.markerState.displayMode === "hotspot"
+      ? reverseMarkerTransitionState.markerState.hotspotOpacity
+      : reverseMarkerTransitionState.markerState.aggregateOpacity;
+    expect(reverseOldLayerOpacity).toBeGreaterThan(0.5);
+    expect(reverseNewLayerOpacity).toBeLessThan(reverseOldLayerOpacity);
+  }
+  await page.waitForFunction(() => {
+    const state = window.__spotListTestHooks.getHotspotAggregateState();
+    return state && !state.contentTransitionActive;
+  });
+
+  await page.getByRole("tab", { name: "이세미가 해낸 일" }).click();
+  await page.waitForFunction(() => {
+    const state = window.__spotListTestHooks.getHotspotAggregateState();
+    return state && !state.contentTransitionActive;
+  });
+  await page.getByRole("button", { name: "🚨 안전·치안 1건 보기" }).click();
+  await expect(page.locator("#spot-list")).toContainText("통학로 조명 개선 완료");
+  await expect(page.locator("#spot-list")).not.toContainText("통학로 정비 요청");
+});
+
 test("Mobile map header stays compact", async ({ page }) => {
   // 모바일 상단 헤더는 제목을 한 줄로 유지하고 지도 영역을 과도하게 밀어내지 않음
   await page.setViewportSize({ width: 390, height: 900 });

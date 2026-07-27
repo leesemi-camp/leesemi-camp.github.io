@@ -373,9 +373,11 @@ test("Mobile sheet switches to issue tab after filter", async ({ page }) => {
 
   await expect(page.locator("[data-mobile-sheet-tab='stats']")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("[data-mobile-sheet-tab='issues']")).toBeDisabled();
+  await expect(page.locator(".mobile-sheet-tabs")).toBeHidden();
 
   await page.locator("#issue-stats-summary [data-filter-type='category'][data-filter-label='🚌 교통·주차']").click();
 
+  await expect(page.locator(".mobile-sheet-tabs")).toBeVisible();
   await expect(page.locator("[data-mobile-sheet-tab='issues']")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("[data-mobile-sheet-tab='issues']")).toBeEnabled();
   await expect(page.locator("#issue-list-panel")).toBeVisible();

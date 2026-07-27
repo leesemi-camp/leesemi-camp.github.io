@@ -21,6 +21,10 @@ import APP_CONFIG from './config.js';
     hotspotLayer: null,
     hotspotAggregateSource: null,
     hotspotAggregateLayer: null,
+    hotspotTransitionSource: null,
+    hotspotTransitionLayer: null,
+    hotspotTransitionAggregateSource: null,
+    hotspotTransitionAggregateLayer: null,
     selectedCoordSource: null,
     populationSource: null,
     selectedCoordLayer: null,
@@ -73,6 +77,7 @@ import APP_CONFIG from './config.js';
       key: "",
       label: ""
     },
+    activeContentTab: "issues",
     spotPhotoDataUrls: [],
     spotPhotoProcessingInProgress: false,
     photoSlideshowSerial: 0,
@@ -100,10 +105,12 @@ import APP_CONFIG from './config.js';
     mapPopupClearsHotspotSelection: false,
     mapPopupReturnFocusElement: null,
     spotListRefreshTimer: null,
+    contentTabTransitionTimer: null,
     hotspotStyleAnimations: new Set(),
     hotspotStyleAnimationFrame: null,
     hotspotMarkerDisplayMode: "",
     hotspotMarkerTransitionFrame: null,
+    hotspotContentTransitionFrame: null,
     mobileSheetActiveTab: "stats",
     mobileSheetExpanded: true,
     mobileSheetPointerStartY: null,
@@ -130,6 +137,30 @@ import APP_CONFIG from './config.js';
     하산운동: "운중동",
     석운동: "운중동"
   };
+  const CONTENT_TAB_ISSUES = "issues";
+  const CONTENT_TAB_ACHIEVEMENTS = "achievements";
+  const contentTabOptions = [
+    {
+      key: CONTENT_TAB_ISSUES,
+      label: "우리동네 현안",
+      pageTitle: "우리동네 현안도, 이세미입니다",
+      statsTitle: "현안 통계",
+      countPrefix: "총 현안 건수",
+      defaultListTitle: "우리동네 현안",
+      emptyMessage: "등록된 지역 현안이 없습니다.",
+      itemName: "현안"
+    },
+    {
+      key: CONTENT_TAB_ACHIEVEMENTS,
+      label: "이세미가 해낸 일",
+      pageTitle: "우리동네 변화도, 이세미입니다",
+      statsTitle: "성과 통계",
+      countPrefix: "해낸 일",
+      defaultListTitle: "이세미가 해낸 일",
+      emptyMessage: "등록된 성과가 없습니다.",
+      itemName: "성과"
+    }
+  ];
 
   const issueCategories = {
     traffic_parking: "🚌 교통·주차",
@@ -243,8 +274,10 @@ import APP_CONFIG from './config.js';
   const MAP_POPUP_CLOSE_ANIMATION_MS = 160;
   const PHOTO_LIGHTBOX_CLOSE_ANIMATION_MS = 180;
   const SPOT_LIST_REFRESH_ANIMATION_MS = 220;
+  const CONTENT_TAB_TRANSITION_ANIMATION_MS = 220;
   const HOTSPOT_STYLE_ANIMATION_MS = 220;
   const HOTSPOT_MARKER_MODE_TRANSITION_MS = 180;
+  const HOTSPOT_CONTENT_TRANSITION_MS = 240;
   const MAP_VIEW_CENTER_ANIMATION_MS = 420;
   const MAP_VIEW_FIT_ANIMATION_MS = 520;
   const BOUNDARY_MASK_RENDER_BUFFER_PX = 4096;
@@ -262,6 +295,7 @@ import APP_CONFIG from './config.js';
     loginButton: document.getElementById("login-btn"),
     logoutButton: document.getElementById("logout-btn"),
     sidePanel: document.querySelector(".side-panel"),
+    topbarTitle: document.querySelector(".topbar-title"),
     mapWrap: document.querySelector(".map-wrap"),
     map: document.getElementById("map"),
     mapPopup: document.getElementById("map-popup"),
@@ -278,6 +312,7 @@ import APP_CONFIG from './config.js';
     spotSubmitButton: document.getElementById("spot-submit-btn"),
     cancelSpotEditButton: document.getElementById("spot-cancel-edit-btn"),
     spotDongSelect: document.getElementById("spot-dong"),
+    spotContentTabSelect: document.getElementById("spot-content-tab"),
     spotIssueRefField: document.getElementById("spot-issue-ref-field"),
     spotIssueRefSelect: document.getElementById("spot-issue-ref"),
     spotIssueRefHelp: document.getElementById("spot-issue-ref-help"),
@@ -296,7 +331,9 @@ import APP_CONFIG from './config.js';
     issueStatsSummary: document.getElementById("issue-stats-summary"),
     issueListClearFilterButton: document.getElementById("issue-list-clear-filter-btn"),
     totalIssueCount: document.getElementById("total-issue-count"),
+    commonPledgeTitle: document.getElementById("common-pledge-title"),
     commonPledgeList: document.getElementById("common-pledge-list"),
+    contentTabs: Array.from(document.querySelectorAll("[data-content-tab]")),
     mobileSheetTabs: Array.from(document.querySelectorAll("[data-mobile-sheet-tab]")),
     mobileSheetSections: Array.from(document.querySelectorAll("[data-mobile-sheet-section]")),
     mobileSheetToggle: document.getElementById("mobile-sheet-toggle"),
@@ -364,6 +401,7 @@ import APP_CONFIG from './config.js';
       bindUiEvents();
       syncIssueReferenceFieldVisibility();
       renderCommonPledges();
+      syncContentTabs();
       initPopulationMonthOptions();
       initPopulationHourOptions();
       if (isEditMode()) {
@@ -741,6 +779,17 @@ import APP_CONFIG from './config.js';
           return;
         }
         focusCommonIssueTag(commonTag);
+      });
+    }
+
+    if (Array.isArray(elements.contentTabs) && elements.contentTabs.length > 0) {
+      elements.contentTabs.forEach((tabButton) => {
+        tabButton.addEventListener("click", () => {
+          const tabName = String(tabButton.getAttribute("data-content-tab") || "").trim();
+          setActiveContentTab(tabName, {
+            userInitiated: true
+          });
+        });
       });
     }
 
@@ -1713,12 +1762,18 @@ import APP_CONFIG from './config.js';
     if (!elements.commonPledgeList) {
       return;
     }
-    const pledgeConfig = config.data && Array.isArray(config.data.commonPledges) && config.data.commonPledges.length > 0
+    const activeTab = getActiveContentTabKey();
+    const isAchievementTab = shouldUseContentTabs() && activeTab === CONTENT_TAB_ACHIEVEMENTS;
+    const activeHotspots = getContentTabHotspots(state.issues);
+    if (elements.commonPledgeTitle) {
+      elements.commonPledgeTitle.textContent = isAchievementTab ? "이세미가 해낸 일" : "지역구 공통 현안";
+    }
+    const pledgeConfig = !isAchievementTab && config.data && Array.isArray(config.data.commonPledges) && config.data.commonPledges.length > 0
       ? config.data.commonPledges
-      : defaultCommonPledges;
-    const commonIssueTagMap = buildCommonIssueTagMap(state.issues);
+      : (isAchievementTab ? [] : defaultCommonPledges);
+    const commonIssueTagMap = buildCommonIssueTagMap(activeHotspots);
     state.commonIssueTagMap = commonIssueTagMap;
-    const commonIssueTagsByCategory = buildCommonIssueTagsByCategory(state.issues);
+    const commonIssueTagsByCategory = buildCommonIssueTagsByCategory(activeHotspots);
     const usedCategoryIds = new Set();
 
     const html = pledgeConfig.map((item) => {
@@ -1759,6 +1814,16 @@ import APP_CONFIG from './config.js';
         "</li>"
       );
     });
+    if (html.length === 0) {
+      const message = isAchievementTab
+        ? "아직 등록된 성과가 없습니다."
+        : "표시할 공통 현안이 없습니다.";
+      html.push(
+        "<li class='pledge-item pledge-item-empty'>" +
+          "<p>" + escapeHtml(message) + "</p>" +
+        "</li>"
+      );
+    }
     elements.commonPledgeList.innerHTML = html.join("");
     syncCommonIssueTagButtonState();
   }
@@ -2393,6 +2458,8 @@ import APP_CONFIG from './config.js';
     state.boundaryMaskSource = new ol.source.Vector();
     state.hotspotSource = new ol.source.Vector();
     state.hotspotAggregateSource = new ol.source.Vector();
+    state.hotspotTransitionSource = new ol.source.Vector();
+    state.hotspotTransitionAggregateSource = new ol.source.Vector();
     state.selectedCoordSource = new ol.source.Vector();
     state.populationSource = new ol.source.Vector();
     state.overlaySources.vehicle = new ol.source.Vector();
@@ -2444,6 +2511,15 @@ import APP_CONFIG from './config.js';
       style: getHotspotAggregateStyle,
       visible: false
     });
+    state.hotspotTransitionAggregateLayer = new ol.layer.Vector({
+      source: state.hotspotTransitionAggregateSource,
+      style: getHotspotAggregateStyle,
+      visible: false
+    });
+    state.hotspotTransitionLayer = new ol.layer.Vector({
+      source: state.hotspotTransitionSource,
+      visible: false
+    });
 
     state.map = new ol.Map({
       target: elements.map,
@@ -2461,6 +2537,8 @@ import APP_CONFIG from './config.js';
         boundaryLayer,
         state.hotspotAggregateLayer,
         state.hotspotLayer,
+        state.hotspotTransitionAggregateLayer,
+        state.hotspotTransitionLayer,
         state.currentLocationLayer,
         state.selectedCoordLayer
       ],
@@ -3564,12 +3642,90 @@ import APP_CONFIG from './config.js';
     return compareKoreanText(aRaw, bRaw);
   }
 
+  function normalizeContentTab(value) {
+    const raw = String(value || "").trim().toLowerCase();
+    if (!raw) {
+      return CONTENT_TAB_ISSUES;
+    }
+    const compact = raw.replace(/[\s_-]+/g, "");
+    if (
+      compact === CONTENT_TAB_ACHIEVEMENTS ||
+      compact === "achievement" ||
+      compact === "done" ||
+      compact === "completed" ||
+      compact === "complete" ||
+      compact === "result" ||
+      compact === "results" ||
+      compact === "performance" ||
+      compact === "performances" ||
+      compact === "accomplishment" ||
+      compact === "accomplishments" ||
+      compact === "성과" ||
+      compact === "완료" ||
+      compact === "개선" ||
+      compact === "해낸것" ||
+      compact === "해낸일" ||
+      compact === "변화" ||
+      compact === "변화도"
+    ) {
+      return CONTENT_TAB_ACHIEVEMENTS;
+    }
+    return CONTENT_TAB_ISSUES;
+  }
+
+  function resolveHotspotContentTab(value) {
+    if (!value || typeof value !== "object") {
+      return CONTENT_TAB_ISSUES;
+    }
+    return normalizeContentTab(
+      value.contentTab ||
+      value.content_tab ||
+      value.mapTab ||
+      value.map_tab ||
+      value.displayTab ||
+      value.display_tab ||
+      value.status ||
+      ""
+    );
+  }
+
+  function getContentTabMeta(tabName) {
+    const key = normalizeContentTab(tabName);
+    return contentTabOptions.find((item) => item.key === key) || contentTabOptions[0];
+  }
+
+  function shouldUseContentTabs() {
+    return Array.isArray(elements.contentTabs) && elements.contentTabs.length > 0;
+  }
+
+  function getActiveContentTabKey() {
+    return normalizeContentTab(state.activeContentTab);
+  }
+
+  function getActiveContentTabMeta() {
+    return getContentTabMeta(getActiveContentTabKey());
+  }
+
+  function getContentTabItemSubjectParticle(tabMeta) {
+    return tabMeta && tabMeta.key === CONTENT_TAB_ACHIEVEMENTS ? "가" : "이";
+  }
+
+  function getContentTabHotspots(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    if (!shouldUseContentTabs()) {
+      return list;
+    }
+    const activeTab = getActiveContentTabKey();
+    return list.filter((spot) => normalizeContentTab(spot && spot.contentTab) === activeTab);
+  }
+
   function updateTotalIssueCountLabel() {
     if (!elements.totalIssueCount) {
       return;
     }
-    const totalCount = Array.isArray(state.issues) ? state.issues.length : 0;
-    elements.totalIssueCount.textContent = "총 현안 건수: " + String(totalCount) + "건";
+    const totalCount = getContentTabHotspots(state.issues).length;
+    const tabMeta = getActiveContentTabMeta();
+    elements.totalIssueCount.textContent = tabMeta.countPrefix + ": " + String(totalCount) + "건";
   }
 
   function compareKoreanText(a, b) {
@@ -5325,6 +5481,7 @@ import APP_CONFIG from './config.js';
           value.memo ||
           ""
         ),
+        contentTab: resolveHotspotContentTab(value),
         level: Number(value.level) || 3,
         categoryId,
         categoryLabel,
@@ -5355,9 +5512,10 @@ import APP_CONFIG from './config.js';
     hotspots.sort(compareHotspotByTitle);
     state.issues = hotspots;
     renderCommonPledges();
-    renderHotspots(hotspots);
+    renderHotspots(getContentTabHotspots(hotspots));
     renderVisibleIssueList();
     updateIssueFilterUi();
+    syncContentTabs();
   }
 
   function isFirestorePermissionError(error) {
@@ -5512,19 +5670,20 @@ import APP_CONFIG from './config.js';
 
   function getIssueListTitleForActiveFilter() {
     const activeFilter = getActiveIssueFilter();
+    const tabMeta = getActiveContentTabMeta();
     if (!activeFilter.type || !activeFilter.label) {
-      return "우리동네 현안";
+      return tabMeta.defaultListTitle;
     }
     if (activeFilter.type === "dong") {
-      return activeFilter.label + " 현안";
+      return activeFilter.label + " " + tabMeta.itemName;
     }
     if (activeFilter.type === "category") {
-      return activeFilter.label + " 현안";
+      return activeFilter.label + " " + tabMeta.itemName;
     }
     if (activeFilter.type === "common") {
-      return "[" + activeFilter.label + "] 현안";
+      return "[" + activeFilter.label + "] " + tabMeta.itemName;
     }
-    return "선택 현안";
+    return "선택 " + tabMeta.itemName;
   }
 
   function setActiveIssueFilter(type, key, options) {
@@ -5615,6 +5774,67 @@ import APP_CONFIG from './config.js';
       return Boolean(elements.spotList);
     }
     return !elements.issueListPanel.classList.contains("issue-list-panel-hidden");
+  }
+
+  function setActiveContentTab(tabName, options) {
+    const nextTab = normalizeContentTab(tabName);
+    const currentTab = getActiveContentTabKey();
+    if (nextTab === currentTab) {
+      syncContentTabs();
+      return false;
+    }
+    state.activeContentTab = nextTab;
+    closePopup();
+    clearHighlightedHotspots();
+    state.activeIssueFilter = {
+      type: "",
+      key: "",
+      label: ""
+    };
+    const shouldAnimateMapMarkers = shouldAnimateHotspotContentTransition();
+    renderCommonPledges();
+    renderHotspotsWithContentTransition(getContentTabHotspots(state.issues));
+    renderVisibleIssueList({
+      skipMapMarkerSync: shouldAnimateMapMarkers
+    });
+    updateIssueFilterUi();
+    syncContentTabs();
+    animateContentTabTransition();
+    setMobileSheetTab("stats", {
+      allowUnavailable: true
+    });
+    if (options && options.userInitiated && isMobileLayout()) {
+      setMobileSheetExpanded(true, {
+        userInitiated: true
+      });
+    }
+    return true;
+  }
+
+  function syncContentTabs() {
+    if (!shouldUseContentTabs()) {
+      return;
+    }
+    const activeTab = getActiveContentTabKey();
+    const tabMeta = getContentTabMeta(activeTab);
+    if (tabMeta.pageTitle) {
+      document.title = tabMeta.pageTitle;
+      if (elements.topbarTitle) {
+        elements.topbarTitle.textContent = tabMeta.pageTitle;
+      }
+    }
+    elements.contentTabs.forEach((tabButton) => {
+      const tabName = normalizeContentTab(tabButton.getAttribute("data-content-tab"));
+      const isActive = tabName === activeTab;
+      tabButton.classList.toggle("content-tab-active", isActive);
+      tabButton.setAttribute("aria-selected", String(isActive));
+    });
+    if (elements.sidePanel) {
+      elements.sidePanel.setAttribute("data-content-tab", activeTab);
+    }
+    if (document.body) {
+      document.body.setAttribute("data-content-tab", activeTab);
+    }
   }
 
   function isValidMobileSheetTab(tabName) {
@@ -5753,6 +5973,25 @@ import APP_CONFIG from './config.js';
         }
       });
     }
+  }
+
+  function animateContentTabTransition() {
+    if (!document.body || prefersReducedMotion()) {
+      return;
+    }
+    if (state.contentTabTransitionTimer) {
+      window.clearTimeout(state.contentTabTransitionTimer);
+      state.contentTabTransitionTimer = null;
+    }
+    document.body.classList.remove("content-tab-transitioning");
+    void document.body.offsetWidth;
+    document.body.classList.add("content-tab-transitioning");
+    state.contentTabTransitionTimer = window.setTimeout(() => {
+      if (document.body) {
+        document.body.classList.remove("content-tab-transitioning");
+      }
+      state.contentTabTransitionTimer = null;
+    }, CONTENT_TAB_TRANSITION_ANIMATION_MS);
   }
 
   function animateSpotListRefresh() {
@@ -6076,7 +6315,42 @@ import APP_CONFIG from './config.js';
     }
   }
 
+  function renderHotspotsWithContentTransition(hotspots) {
+    if (!shouldAnimateHotspotContentTransition()) {
+      renderHotspots(hotspots);
+      return;
+    }
+
+    clearHotspotContentTransition({
+      clearTransitionLayers: true,
+      restoreDisplayMode: true
+    });
+    clearHotspotMarkerModeTransition();
+    const snapshot = captureHotspotContentTransitionSnapshot();
+    renderHotspots(hotspots);
+    clearHotspotMarkerModeTransition();
+    const mode = state.hotspotMarkerDisplayMode || (shouldShowHotspotAggregates() ? "aggregate" : "hotspot");
+    const targets = resolveHotspotMarkerLayerTargets(mode);
+    setLayerVisibilityAndOpacity(state.hotspotAggregateLayer, true, 0);
+    setLayerVisibilityAndOpacity(state.hotspotLayer, true, 0);
+    animateHotspotContentCrossfade(snapshot, targets, mode);
+  }
+
+  function shouldAnimateHotspotContentTransition() {
+    return Boolean(
+      state.hotspotAggregateLayer &&
+      state.hotspotLayer &&
+      state.hotspotTransitionAggregateLayer &&
+      state.hotspotTransitionLayer &&
+      !isEditMode() &&
+      !prefersReducedMotion()
+    );
+  }
+
   function clearHotspotFeatures() {
+    clearHotspotContentTransition({
+      restoreDisplayMode: true
+    });
     clearHotspotStyleAnimations();
     if (state.hotspotSource) {
       state.hotspotSource.clear();
@@ -6084,6 +6358,161 @@ import APP_CONFIG from './config.js';
     state.hotspotData.clear();
     refreshHotspotAggregateFeatures();
     syncHotspotMarkerDisplayMode();
+  }
+
+  function resolveHotspotMarkerLayerTargets(mode) {
+    const showAggregates = mode === "aggregate";
+    return {
+      aggregateOpacity: showAggregates ? 1 : 0,
+      hotspotOpacity: showAggregates ? 0 : 1
+    };
+  }
+
+  function clearHotspotContentTransition(options) {
+    let didClear = false;
+    if (state.hotspotContentTransitionFrame) {
+      if (typeof window.cancelAnimationFrame === "function") {
+        window.cancelAnimationFrame(state.hotspotContentTransitionFrame);
+      } else {
+        window.clearTimeout(state.hotspotContentTransitionFrame);
+      }
+      state.hotspotContentTransitionFrame = null;
+      didClear = true;
+    }
+    if (options && options.clearTransitionLayers) {
+      clearHotspotTransitionLayers();
+    }
+    if (options && options.restoreDisplayMode) {
+      const mode = state.hotspotMarkerDisplayMode || (shouldShowHotspotAggregates() ? "aggregate" : "hotspot");
+      applyHotspotMarkerDisplayMode(mode);
+    }
+    return didClear;
+  }
+
+  function captureHotspotContentTransitionSnapshot() {
+    const aggregateOpacity = readLayerOpacity(state.hotspotAggregateLayer, 0);
+    const hotspotOpacity = readLayerOpacity(state.hotspotLayer, 0);
+    replaceVectorSourceFeatures(state.hotspotTransitionAggregateSource, state.hotspotAggregateSource);
+    replaceVectorSourceFeatures(state.hotspotTransitionSource, state.hotspotSource);
+    setLayerVisibilityAndOpacity(
+      state.hotspotTransitionAggregateLayer,
+      aggregateOpacity > 0,
+      aggregateOpacity
+    );
+    setLayerVisibilityAndOpacity(
+      state.hotspotTransitionLayer,
+      hotspotOpacity > 0,
+      hotspotOpacity
+    );
+    return {
+      aggregateOpacity,
+      hotspotOpacity
+    };
+  }
+
+  function replaceVectorSourceFeatures(targetSource, source) {
+    if (!targetSource || !source) {
+      return;
+    }
+    targetSource.clear();
+    if (typeof source.getFeatures !== "function") {
+      return;
+    }
+    const features = source.getFeatures().map(cloneVectorFeature).filter(Boolean);
+    if (features.length > 0 && typeof targetSource.addFeatures === "function") {
+      targetSource.addFeatures(features);
+    }
+  }
+
+  function cloneVectorFeature(feature) {
+    if (!feature || typeof feature.clone !== "function") {
+      return null;
+    }
+    const clone = feature.clone();
+    if (typeof clone.setId === "function" && typeof feature.getId === "function") {
+      clone.setId(feature.getId());
+    }
+    if (typeof clone.setStyle === "function" && typeof feature.getStyle === "function") {
+      clone.setStyle(feature.getStyle());
+    }
+    return clone;
+  }
+
+  function clearHotspotTransitionLayers() {
+    if (state.hotspotTransitionAggregateSource) {
+      state.hotspotTransitionAggregateSource.clear();
+    }
+    if (state.hotspotTransitionSource) {
+      state.hotspotTransitionSource.clear();
+    }
+    setLayerVisibilityAndOpacity(state.hotspotTransitionAggregateLayer, false, 0);
+    setLayerVisibilityAndOpacity(state.hotspotTransitionLayer, false, 0);
+  }
+
+  function animateHotspotContentCrossfade(snapshot, targets, mode) {
+    const aggregateLayer = state.hotspotAggregateLayer;
+    const hotspotLayer = state.hotspotLayer;
+    const transitionAggregateLayer = state.hotspotTransitionAggregateLayer;
+    const transitionLayer = state.hotspotTransitionLayer;
+    if (!aggregateLayer || !hotspotLayer || !transitionAggregateLayer || !transitionLayer) {
+      return;
+    }
+    const duration = HOTSPOT_CONTENT_TRANSITION_MS;
+    const start = typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+    const oldAggregateOpacity = Number(snapshot && snapshot.aggregateOpacity) || 0;
+    const oldHotspotOpacity = Number(snapshot && snapshot.hotspotOpacity) || 0;
+    const newAggregateOpacity = Number(targets && targets.aggregateOpacity) || 0;
+    const newHotspotOpacity = Number(targets && targets.hotspotOpacity) || 0;
+
+    const step = (timestamp) => {
+      const now = Number.isFinite(timestamp) ? timestamp : Date.now();
+      const progress = Math.max(0, Math.min(1, (now - start) / duration));
+      const eased = easeOutCubic(progress);
+      setLayerVisibilityAndOpacity(
+        aggregateLayer,
+        true,
+        lerpNumber(0, newAggregateOpacity, eased)
+      );
+      setLayerVisibilityAndOpacity(
+        hotspotLayer,
+        true,
+        lerpNumber(0, newHotspotOpacity, eased)
+      );
+      setLayerVisibilityAndOpacity(
+        transitionAggregateLayer,
+        oldAggregateOpacity > 0,
+        lerpNumber(oldAggregateOpacity, 0, eased)
+      );
+      setLayerVisibilityAndOpacity(
+        transitionLayer,
+        oldHotspotOpacity > 0,
+        lerpNumber(oldHotspotOpacity, 0, eased)
+      );
+
+      if (progress >= 1) {
+        state.hotspotContentTransitionFrame = null;
+        clearHotspotTransitionLayers();
+        syncHotspotMarkerDisplayMode();
+        if (!state.hotspotMarkerTransitionFrame) {
+          applyHotspotMarkerDisplayMode(state.hotspotMarkerDisplayMode || mode);
+        }
+        return;
+      }
+
+      if (typeof window.requestAnimationFrame === "function") {
+        state.hotspotContentTransitionFrame = window.requestAnimationFrame(step);
+      } else {
+        state.hotspotContentTransitionFrame = window.setTimeout(() => step(Date.now()), 16);
+      }
+    };
+
+    if (typeof window.requestAnimationFrame === "function") {
+      state.hotspotContentTransitionFrame = window.requestAnimationFrame(step);
+    } else {
+      state.hotspotContentTransitionFrame = window.setTimeout(() => step(Date.now()), 16);
+    }
   }
 
   function resolveAggregateIssueList() {
@@ -6094,7 +6523,7 @@ import APP_CONFIG from './config.js';
     if (activeFilter.type === "dong") {
       return [];
     }
-    return applyIssueFilter(state.issues).filter((spot) => {
+    return applyIssueFilter(getContentTabHotspots(state.issues)).filter((spot) => {
       return Number.isFinite(Number(spot && spot.lat)) && Number.isFinite(Number(spot && spot.lng));
     });
   }
@@ -6178,10 +6607,15 @@ import APP_CONFIG from './config.js';
       return;
     }
 
+    if (state.hotspotContentTransitionFrame) {
+      return;
+    }
+
     if (state.hotspotMarkerDisplayMode === nextMode) {
       return;
     }
 
+    clearHotspotContentTransition();
     const shouldAnimate = Boolean(state.hotspotMarkerDisplayMode) && !prefersReducedMotion();
     if (!shouldAnimate) {
       clearHotspotMarkerModeTransition();
@@ -6755,13 +7189,16 @@ import APP_CONFIG from './config.js';
     return true;
   }
 
-  function renderVisibleIssueList() {
+  function renderVisibleIssueList(options) {
     updateTotalIssueCountLabel();
-    const filtered = applyIssueFilter(state.issues);
-    renderIssueStatsSummary(state.issues);
+    const activeHotspots = getContentTabHotspots(state.issues);
+    const filtered = applyIssueFilter(activeHotspots);
+    renderIssueStatsSummary(activeHotspots);
     const shouldShowList = hasActiveIssueFilter();
-    refreshHotspotAggregateFeatures();
-    syncHotspotMarkerDisplayMode();
+    if (!(options && options.skipMapMarkerSync)) {
+      refreshHotspotAggregateFeatures();
+      syncHotspotMarkerDisplayMode();
+    }
     setIssueListPanelVisibility(shouldShowList);
     renderHotspotList(shouldShowList ? filtered : [], {
       preservePanelVisibility: true
@@ -6783,11 +7220,12 @@ import APP_CONFIG from './config.js';
     }
 
     const activeFilter = getActiveIssueFilter();
+    const tabMeta = getActiveContentTabMeta();
     const scopeLabel = activeFilter.type === "category"
       ? "카테고리: " + activeFilter.label
       : (activeFilter.type === "dong"
         ? "동: " + activeFilter.label
-        : (activeFilter.type === "common" ? "공통 현안: [" + activeFilter.label + "]" : "전체 기준"));
+        : (activeFilter.type === "common" ? "공통 " + tabMeta.itemName + ": [" + activeFilter.label + "]" : "전체 기준"));
     const isFiltered = hasActiveIssueFilter();
     const clearButtonClassName = isFiltered
       ? "issue-stats-clear-btn"
@@ -6848,7 +7286,7 @@ import APP_CONFIG from './config.js';
 
     elements.issueStatsSummary.innerHTML =
       "<div class='issue-stats-head'>" +
-        "<span class='issue-stats-title'>현안 통계 <span class='issue-stats-scope'>(" + scopeLabel + ")</span></span>" +
+        "<span class='issue-stats-title'>" + escapeHtml(tabMeta.statsTitle) + " <span class='issue-stats-scope'>(" + scopeLabel + ")</span></span>" +
         clearButtonMarkup +
       "</div>" +
       "<div class='issue-stats-grid'>" +
@@ -6930,13 +7368,15 @@ import APP_CONFIG from './config.js';
 
   function getActiveIssueFilterEmptyMessage() {
     const activeFilter = getActiveIssueFilter();
+    const tabMeta = getActiveContentTabMeta();
+    const subjectParticle = getContentTabItemSubjectParticle(tabMeta);
     if (activeFilter.type === "dong") {
-      return activeFilter.label + "에 등록된 현안이 없습니다.";
+      return activeFilter.label + "에 등록된 " + tabMeta.itemName + subjectParticle + " 없습니다.";
     }
     if (activeFilter.type === "category") {
-      return activeFilter.label + " 카테고리에 등록된 현안이 없습니다.";
+      return activeFilter.label + " 카테고리에 등록된 " + tabMeta.itemName + subjectParticle + " 없습니다.";
     }
-    return "등록된 지역 현안이 없습니다.";
+    return tabMeta.emptyMessage;
   }
 
   function activateSpotListItem(item, options) {
@@ -6994,8 +7434,9 @@ import APP_CONFIG from './config.js';
     }
 
     const showEditorActions = isEditMode();
+    const tabMeta = getActiveContentTabMeta();
     const items = list.map((spot) => {
-      const rawTitle = String(spot.title || "").trim() || "현안";
+      const rawTitle = String(spot.title || "").trim() || tabMeta.itemName;
       const title = escapeHtml(rawTitle);
       const memoRaw = typeof spot.memo === "string" ? spot.memo.trim() : "";
       const memo = memoRaw ? escapeHtml(memoRaw) : "";
@@ -7070,6 +7511,7 @@ import APP_CONFIG from './config.js';
       renderIssueStatsSummary,
       setActiveDongFilter,
       setActiveIssueFilter,
+      setActiveContentTab,
       setMobileSheetExpanded,
       getIssueMapFocusPadding,
       getRegionMapFocusPadding,
@@ -7092,7 +7534,12 @@ import APP_CONFIG from './config.js';
       focusCategoryIssues,
       renderVisibleIssueListWithData(issues) {
         state.issues = Array.isArray(issues) ? issues : [];
+        renderHotspots(getContentTabHotspots(state.issues));
+        renderCommonPledges();
         renderVisibleIssueList();
+      },
+      getActiveContentTab() {
+        return getActiveContentTabKey();
       },
       getHighlightedHotspotIds() {
         return Array.from(state.highlightedHotspotIds || []);
@@ -7171,6 +7618,7 @@ import APP_CONFIG from './config.js';
         })).filter((entry) => entry.dongName && entry.count > 0)
           .sort((a, b) => a.dongName.localeCompare(b.dongName, "ko"));
         return {
+          displayMode: state.hotspotMarkerDisplayMode || "",
           visible: Boolean(
             state.hotspotAggregateLayer &&
             typeof state.hotspotAggregateLayer.getVisible === "function" &&
@@ -7183,9 +7631,25 @@ import APP_CONFIG from './config.js';
             state.hotspotLayer.getVisible()
           ),
           hotspotOpacity: readLayerOpacity(state.hotspotLayer, 0),
+          transitionAggregateVisible: Boolean(
+            state.hotspotTransitionAggregateLayer &&
+            typeof state.hotspotTransitionAggregateLayer.getVisible === "function" &&
+            state.hotspotTransitionAggregateLayer.getVisible()
+          ),
+          transitionAggregateOpacity: readLayerOpacity(state.hotspotTransitionAggregateLayer, 0),
+          transitionHotspotVisible: Boolean(
+            state.hotspotTransitionLayer &&
+            typeof state.hotspotTransitionLayer.getVisible === "function" &&
+            state.hotspotTransitionLayer.getVisible()
+          ),
+          transitionHotspotOpacity: readLayerOpacity(state.hotspotTransitionLayer, 0),
           transitionActive: Boolean(state.hotspotMarkerTransitionFrame),
+          contentTransitionActive: Boolean(state.hotspotContentTransitionFrame),
           featureCount: state.hotspotSource && typeof state.hotspotSource.getFeatures === "function"
             ? state.hotspotSource.getFeatures().length
+            : 0,
+          transitionFeatureCount: state.hotspotTransitionSource && typeof state.hotspotTransitionSource.getFeatures === "function"
+            ? state.hotspotTransitionSource.getFeatures().length
             : 0,
           aggregateCount: aggregates.length,
           aggregates
@@ -7607,7 +8071,7 @@ import APP_CONFIG from './config.js';
     if (!normalizedDong) {
       return [];
     }
-    return state.issues.filter((spot) => resolveSpotDongForAggregation(spot) === normalizedDong);
+    return getContentTabHotspots(state.issues).filter((spot) => resolveSpotDongForAggregation(spot) === normalizedDong);
   }
 
   function resolveIssuesByCategoryFilter(categoryKey, categoryLabel) {
@@ -7615,7 +8079,7 @@ import APP_CONFIG from './config.js';
     if (!filter.key) {
       return [];
     }
-    return state.issues.filter((spot) => resolveIssueCategoryFilterKey(spot) === filter.key);
+    return getContentTabHotspots(state.issues).filter((spot) => resolveIssueCategoryFilterKey(spot) === filter.key);
   }
 
   function openDongIssueSummaryPopup(coordinate, dongName, count, options) {
@@ -7624,10 +8088,11 @@ import APP_CONFIG from './config.js';
     }
     const safeDong = escapeHtml(resolveMergedDongName(dongName) || "동 정보 없음");
     const safeCount = Number.isFinite(Number(count)) ? Math.max(0, Number(count)) : 0;
+    const tabMeta = getActiveContentTabMeta();
     openPopup(
       coordinate,
       "<strong>" + safeDong + "</strong>" +
-      "<div>현안 건수: " + String(safeCount) + "건</div>",
+      "<div>" + escapeHtml(tabMeta.itemName) + " 건수: " + String(safeCount) + "건</div>",
       {
         dismissClearsDongFilter: true,
         alignToVisibleCenter: Boolean(options && options.alignToVisibleCenter),
@@ -7986,7 +8451,7 @@ import APP_CONFIG from './config.js';
     if (activeFilter.type === "common") {
       const spots = state.commonIssueTagMap && state.commonIssueTagMap.has(activeFilter.label)
         ? state.commonIssueTagMap.get(activeFilter.label)
-        : state.issues.filter((spot) => resolveBracketedCommonTag(spot) === activeFilter.label);
+        : getContentTabHotspots(state.issues).filter((spot) => resolveBracketedCommonTag(spot) === activeFilter.label);
       setHighlightedHotspots(spots.map((spot) => spot.id));
       return focusMapOnIssueSpots(spots, focusOptions);
     }
@@ -8036,7 +8501,7 @@ import APP_CONFIG from './config.js';
     }
     const spots = state.commonIssueTagMap && state.commonIssueTagMap.has(normalizedTag)
       ? state.commonIssueTagMap.get(normalizedTag)
-      : state.issues.filter((spot) => resolveBracketedCommonTag(spot) === normalizedTag);
+      : getContentTabHotspots(state.issues).filter((spot) => resolveBracketedCommonTag(spot) === normalizedTag);
     setHighlightedHotspots(spots.map((spot) => spot.id));
     focusMapOnIssueSpots(spots, {
       duration: MAP_VIEW_FIT_ANIMATION_MS,
@@ -8174,7 +8639,7 @@ import APP_CONFIG from './config.js';
   }
 
   function getSpotSubmitIdleText() {
-    return state.editingHotspotId ? "수정 저장" : "현안 저장";
+    return state.editingHotspotId ? "수정 저장" : "저장";
   }
 
   function countHotspotPhotoUploads(photoRefs) {
@@ -8189,7 +8654,7 @@ import APP_CONFIG from './config.js';
     if (count > 0) {
       return "사진 " + String(count) + "장을 업로드한 뒤 현안을 저장합니다. 완료될 때까지 잠시만 기다려 주세요.";
     }
-    return "현안 내용을 저장하는 중입니다. 완료될 때까지 잠시만 기다려 주세요.";
+    return "내용을 저장하는 중입니다. 완료될 때까지 잠시만 기다려 주세요.";
   }
 
   function setSpotSaveStatus(message, isError) {
@@ -9063,6 +9528,7 @@ import APP_CONFIG from './config.js';
       const formData = new FormData(elements.form);
       const title = String(formData.get("title") || "").trim();
       const memo = String(formData.get("memo") || "").trim();
+      const contentTab = normalizeContentTab(formData.get("contentTab"));
       const level = Number(formData.get("level") || 3);
       const categoryId = String(formData.get("categoryId") || "").trim();
       const issueRefId = normalizeIssueCatalogId(formData.get("issueRefId"));
@@ -9095,7 +9561,7 @@ import APP_CONFIG from './config.js';
       );
 
       if (!resolvedTitle) {
-        window.alert("현안명을 입력하세요.");
+        window.alert("제목을 입력하세요.");
         return;
       }
 
@@ -9155,10 +9621,11 @@ import APP_CONFIG from './config.js';
           }
         );
         uploadedStoragePaths = persistedPhotos.uploadedStoragePaths;
-        setSpotSaveStatus("현안 내용을 저장하는 중입니다.", false);
+        setSpotSaveStatus("내용을 저장하는 중입니다.", false);
         const payload = {
           title: resolvedTitle,
           memo: resolvedMemo,
+          contentTab,
           level: level >= 1 && level <= 5 ? level : 3,
           categoryId: issueCategories[resolvedCategoryId] ? resolvedCategoryId : "",
           categoryLabel,
@@ -9202,7 +9669,7 @@ import APP_CONFIG from './config.js';
         }
         unlockStatusMessage = "저장에 실패했습니다. 내용을 확인한 뒤 다시 시도하세요.";
         unlockStatusIsError = true;
-        window.alert("현안 저장 실패: " + toMessage(error));
+        window.alert("저장 실패: " + toMessage(error));
       }
     } finally {
       state.hotspotSubmitInProgress = false;
@@ -9219,6 +9686,7 @@ import APP_CONFIG from './config.js';
 
     state.editingHotspotId = spot.id || null;
     const titleInput = elements.form.querySelector("#spot-title");
+    const contentTabInput = elements.form.querySelector("#spot-content-tab");
     const levelInput = elements.form.querySelector("#spot-level");
     const categoryInput = elements.form.querySelector("#spot-category");
     const memoInput = elements.form.querySelector("#spot-memo");
@@ -9227,6 +9695,9 @@ import APP_CONFIG from './config.js';
     if (titleInput) {
       titleInput.value = spot.title || "";
       titleInput.readOnly = false;
+    }
+    if (contentTabInput) {
+      contentTabInput.value = normalizeContentTab(spot.contentTab);
     }
     if (levelInput) {
       levelInput.value = String(Number(spot.level) || 3);
@@ -9283,7 +9754,7 @@ import APP_CONFIG from './config.js';
   function exitHotspotEditMode(resetForm) {
     state.editingHotspotId = null;
     if (elements.spotSubmitButton) {
-      elements.spotSubmitButton.textContent = "현안 저장";
+      elements.spotSubmitButton.textContent = "저장";
     }
     if (elements.cancelSpotEditButton) {
       elements.cancelSpotEditButton.classList.add("hidden");
@@ -9291,6 +9762,9 @@ import APP_CONFIG from './config.js';
     if (resetForm) {
       if (elements.form) {
         elements.form.reset();
+      }
+      if (elements.spotContentTabSelect) {
+        elements.spotContentTabSelect.value = CONTENT_TAB_ISSUES;
       }
       setSpotPhotoDataUrls([]);
       setSpotPhotoReprocessStatus("", false);

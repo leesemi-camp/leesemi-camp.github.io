@@ -74,6 +74,7 @@ function assertValidHotspot(hotspot, index) {
     "issueRefId",
     "title",
     "memo",
+    "contentTab",
     "categoryId",
     "categoryLabel",
     "dongName",

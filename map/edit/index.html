@@ -3,23 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>우리동네 현안도, 이세미입니다 - 수정</title>
-  <meta name="description" content="우리동네 현안도, 이세미입니다. 현안 등록·수정 화면입니다.">
+  <title>우리동네 현안도 수정 - 성남시의원(판교·운중·백현·대장) 이세미</title>
+  <meta name="description" content="성남시의원(판교·운중·백현·대장) 이세미의 우리동네 현안도 등록·수정 화면입니다.">
   <meta property="og:locale" content="ko_KR">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="이세미 캠프">
-  <meta property="og:title" content="우리동네 현안도, 이세미입니다 - 수정">
+  <meta property="og:site_name" content="성남시의원(판교·운중·백현·대장) 이세미">
+  <meta property="og:title" content="우리동네 현안도 수정 - 성남시의원(판교·운중·백현·대장) 이세미">
   <meta property="og:description" content="현안 등록·수정 화면입니다.">
   <meta property="og:url" content="https://leesemi-camp.github.io/map/edit/">
   <meta property="og:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
   <meta property="og:image:url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
   <meta property="og:image:secure_url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
   <meta property="og:image:type" content="image/png">
-  <meta property="og:image:width" content="2206">
-  <meta property="og:image:height" content="1572">
-  <meta property="og:image:alt" content="이세미 캠프 링크 미리보기 이미지">
+  <meta property="og:image:width" content="2000">
+  <meta property="og:image:height" content="700">
+  <meta property="og:image:alt" content="성남시의원(판교·운중·백현·대장) 이세미 링크 미리보기 이미지">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="우리동네 현안도, 이세미입니다 - 수정">
+  <meta name="twitter:title" content="우리동네 현안도 수정 - 성남시의원(판교·운중·백현·대장) 이세미">
   <meta name="twitter:description" content="현안 등록·수정 화면입니다.">
   <meta name="twitter:url" content="https://leesemi-camp.github.io/map/edit/">
   <meta name="twitter:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
@@ -39,8 +39,8 @@
 <body data-map-mode="edit">
   <main class="layout">
     <section id="login-panel" class="panel">
-      <h1>우리동네 현안도, 이세미입니다</h1>
-      <p class="muted">허용된 선거사무원 계정으로 로그인한 사용자만 현안을 등록/수정할 수 있습니다.</p>
+      <h1>우리동네 현안도 수정</h1>
+      <p class="muted">허용된 계정으로 로그인한 사용자만 현안을 등록/수정할 수 있습니다.</p>
       <button id="login-btn" type="button" class="btn-primary">Google 계정으로 로그인</button>
       <p id="status-text" class="status">초기화 중...</p>
     </section>
@@ -49,7 +49,7 @@
       <header class="topbar">
         <div class="topbar-texts">
           <div class="topbar-title-row">
-            <h2 class="topbar-title">우리동네 현안도, 이세미입니다</h2>
+            <h2 class="topbar-title">우리동네 현안도 수정</h2>
             <span id="total-issue-count" class="topbar-total-issue-count">총 현안 건수: 0건</span>
           </div>
         </div>
@@ -86,7 +86,7 @@
         <aside class="side-panel">
           <section id="spot-form-sheet" class="spot-form-sheet">
             <div class="spot-form-head">
-              <h3>지역 현안 등록</h3>
+              <h3>지도 항목 등록</h3>
               <button id="spot-form-close-btn" type="button" class="icon-btn spot-form-close-btn" aria-label="등록 창 닫기" title="닫기">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M6 6l12 12M18 6 6 18"/>
@@ -96,10 +96,16 @@
             <p class="muted spot-form-hint">지도 클릭 또는 현위치 입력 후 저장</p>
 
             <form id="spot-form">
-              <label for="spot-title">현안명</label>
+              <label for="spot-title">제목</label>
               <input id="spot-title" name="title" type="text" maxlength="40" required>
 
               <input id="spot-level" name="level" type="hidden" value="3">
+
+              <label for="spot-content-tab">표시 탭</label>
+              <select id="spot-content-tab" name="contentTab">
+                <option value="issues">우리동네 현안</option>
+                <option value="achievements">이세미가 해낸 일</option>
+              </select>
 
             <div id="spot-issue-ref-field" class="spot-issue-ref-field hidden">
               <label for="spot-issue-ref">연동 현안 선택(시트)</label>
@@ -109,7 +115,7 @@
               <p id="spot-issue-ref-help" class="field-note">시트에서 현안을 선택하면 제목/분류/내용이 자동 반영됩니다.</p>
             </div>
 
-            <label for="spot-category">현안 분류</label>
+            <label for="spot-category">분류</label>
             <select id="spot-category" name="categoryId" required>
               <option value="traffic_parking">🚌 교통·주차 (출퇴근과 이동의 편리함)</option>
                 <option value="education_childcare">🏫 교육·보육 (아이 키우기 좋은 동네)</option>
@@ -125,10 +131,10 @@
                 <option value="__common__">공통 (전체 동)</option>
               </select>
 
-              <label for="spot-memo">현안 내용</label>
+              <label for="spot-memo">내용</label>
               <textarea id="spot-memo" name="memo" rows="3" maxlength="200" placeholder="예: 출근 시간 교차로 정체로 민원 다수"></textarea>
 
-              <label for="spot-photo-file">현안 사진 (선택, 여러 장 가능)</label>
+              <label for="spot-photo-file">사진 (선택, 여러 장 가능)</label>
               <input id="spot-photo-file" name="photoFile" type="file" accept="image/*,.heic,.heif" multiple>
               <input id="spot-photo-data-urls" name="photoDataUrls" type="hidden" value="">
               <p class="field-note">사진은 가로 최대 800px로 조정하고 중앙 워터마크를 넣은 뒤 JPG로 저장됩니다. (HEIC/HEIF 포함)</p>
@@ -155,7 +161,7 @@
               <p id="spot-save-status" class="spot-save-status hidden" aria-live="polite"></p>
 
               <div class="form-actions">
-                <button id="spot-submit-btn" type="submit" class="btn-primary">현안 저장</button>
+                <button id="spot-submit-btn" type="submit" class="btn-primary">저장</button>
                 <button id="spot-cancel-edit-btn" type="button" class="btn-secondary hidden">수정 취소</button>
               </div>
             </form>
@@ -163,7 +169,7 @@
 
           <section id="issue-stats-summary" class="issue-stats-summary" aria-live="polite"></section>
           <section class="pledge-panel">
-            <h3>지역구 공통 현안</h3>
+            <h3 id="common-pledge-title">지역구 공통 현안</h3>
             <ul id="common-pledge-list" class="pledge-list"></ul>
           </section>
 

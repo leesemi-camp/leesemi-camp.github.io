@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>우리동네 현안도, 이세미입니다</title>
-    <meta name="description" content="우리동네 현안도, 이세미입니다. 판교·운중·백현·대장 동별 현안을 지도에서 확인하세요.">
+    <meta name="description" content="성남시의원(판교·운중·백현·대장) 이세미의 우리동네 현안도입니다. 판교·운중·백현·대장 동별 현안을 지도에서 확인하세요.">
     <meta property="og:locale" content="ko_KR">
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="이세미 캠프">
+    <meta property="og:site_name" content="성남시의원(판교·운중·백현·대장) 이세미">
     <meta property="og:title" content="우리동네 현안도, 이세미입니다">
     <meta property="og:description" content="판교·운중·백현·대장 동별 현안을 지도에서 확인하세요.">
     <meta property="og:url" content="https://leesemi-camp.github.io/map/">
@@ -15,9 +15,9 @@
     <meta property="og:image:url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
     <meta property="og:image:secure_url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
     <meta property="og:image:type" content="image/png">
-    <meta property="og:image:width" content="2206">
-    <meta property="og:image:height" content="1572">
-    <meta property="og:image:alt" content="이세미 캠프 링크 미리보기 이미지">
+    <meta property="og:image:width" content="2000">
+    <meta property="og:image:height" content="700">
+    <meta property="og:image:alt" content="성남시의원(판교·운중·백현·대장) 이세미 링크 미리보기 이미지">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="우리동네 현안도, 이세미입니다">
     <meta name="twitter:description" content="판교·운중·백현·대장 동별 현안을 지도에서 확인하세요.">
@@ -67,6 +67,10 @@
             <aside class="side-panel" aria-label="현안 정보">
                 <button id="mobile-sheet-toggle" type="button" class="mobile-sheet-grip" aria-expanded="true" aria-controls="mobile-sheet-content" aria-label="현안 정보 시트 접기"></button>
                 <div id="mobile-sheet-content" class="mobile-sheet-content">
+                    <div class="content-tabs" role="tablist" aria-label="현안도 보기 선택">
+                        <button type="button" class="content-tab content-tab-active" data-content-tab="issues" role="tab" aria-selected="true">우리동네 현안</button>
+                        <button type="button" class="content-tab" data-content-tab="achievements" role="tab" aria-selected="false">이세미가 해낸 일</button>
+                    </div>
                     <div class="mobile-sheet-tabs" role="tablist" aria-label="현안 정보 보기">
                         <button type="button" class="mobile-sheet-tab mobile-sheet-tab-active" data-mobile-sheet-tab="stats" role="tab" aria-selected="true" aria-controls="mobile-stats-panel">통계</button>
                         <button type="button" class="mobile-sheet-tab" data-mobile-sheet-tab="issues" role="tab" aria-selected="false" aria-controls="issue-list-panel" disabled>현안</button>
@@ -74,7 +78,7 @@
                     <div id="mobile-stats-panel" class="mobile-sheet-section mobile-sheet-section-active" data-mobile-sheet-section="stats" role="tabpanel">
                         <section id="issue-stats-summary" class="issue-stats-summary" aria-live="polite"></section>
                         <section id="common-pledge-panel" class="pledge-panel">
-                            <h3>지역구 공통 현안</h3>
+                            <h3 id="common-pledge-title">지역구 공통 현안</h3>
                             <ul id="common-pledge-list" class="pledge-list"></ul>
                         </section>
                     </div>

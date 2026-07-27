@@ -537,8 +537,89 @@ body[data-map-mode="view"] .workspace {
   display: none;
 }
 
+.content-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid #d7e3f4;
+  border-radius: 14px;
+  background: #edf4ff;
+}
+
+.content-tab {
+  min-width: 0;
+  min-height: 36px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: #466286;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.content-tab-active {
+  background: #ffffff;
+  color: #173f70;
+  box-shadow: 0 2px 8px rgba(31, 63, 102, 0.11);
+}
+
+.content-tab:focus-visible {
+  outline: 2px solid #2f6fb8;
+  outline-offset: 2px;
+}
+
+body.content-tab-transitioning .mobile-sheet-section-active {
+  animation: tab-content-enter 0.2s ease-out !important;
+}
+
+body.content-tab-transitioning .topbar-title {
+  animation: tab-title-fade 0.16s ease-out !important;
+}
+
 .mobile-sheet-section {
   min-height: 0;
+}
+
+@keyframes tab-content-enter {
+  from {
+    opacity: 0.82;
+    transform: translateY(3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tab-title-fade {
+  from {
+    opacity: 0.88;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tab-control-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (min-width: 981px) {
@@ -1615,6 +1696,10 @@ textarea {
 @supports (corner-shape: squircle) {
   .app-shell,
   .icon-btn,
+  .content-tabs,
+  .content-tab,
+  .mobile-sheet-tabs,
+  .mobile-sheet-tab,
   .pledge-panel,
   .pledge-item,
   .issue-list-panel,
@@ -2488,7 +2573,11 @@ body.photo-lightbox-open {
     transition: none;
   }
 
+  body.content-tab-transitioning .topbar-title,
+  body.content-tab-transitioning .mobile-sheet-section-active,
+  body[data-map-mode="view"] .side-panel-has-filter .mobile-sheet-tabs,
+  body[data-map-mode="view"] .mobile-sheet-section-active,
   .spot-list.spot-list-refreshing {
-    animation: none;
+    animation: none !important;
   }
 }
