@@ -111,6 +111,8 @@ import APP_CONFIG from './config.js';
     hotspotMarkerDisplayMode: "",
     hotspotMarkerTransitionFrame: null,
     hotspotContentTransitionFrame: null,
+    hotspotContentTransitionSequence: 0,
+    lastHotspotContentTransition: null,
     mobileSheetActiveTab: "stats",
     mobileSheetExpanded: true,
     mobileSheetPointerStartY: null,
@@ -6331,6 +6333,13 @@ import APP_CONFIG from './config.js';
     clearHotspotMarkerModeTransition();
     const mode = state.hotspotMarkerDisplayMode || (shouldShowHotspotAggregates() ? "aggregate" : "hotspot");
     const targets = resolveHotspotMarkerLayerTargets(mode);
+    state.hotspotContentTransitionSequence += 1;
+    state.lastHotspotContentTransition = {
+      sequence: state.hotspotContentTransitionSequence,
+      oldFeatureCount: snapshot.aggregateFeatureCount + snapshot.hotspotFeatureCount,
+      oldOpacitySum: snapshot.aggregateOpacity + snapshot.hotspotOpacity,
+      targetOpacitySum: targets.aggregateOpacity + targets.hotspotOpacity
+    };
     setLayerVisibilityAndOpacity(state.hotspotAggregateLayer, true, 0);
     setLayerVisibilityAndOpacity(state.hotspotLayer, true, 0);
     animateHotspotContentCrossfade(snapshot, targets, mode);
@@ -6394,6 +6403,8 @@ import APP_CONFIG from './config.js';
     const hotspotOpacity = readLayerOpacity(state.hotspotLayer, 0);
     replaceVectorSourceFeatures(state.hotspotTransitionAggregateSource, state.hotspotAggregateSource);
     replaceVectorSourceFeatures(state.hotspotTransitionSource, state.hotspotSource);
+    const aggregateFeatureCount = countVectorSourceFeatures(state.hotspotTransitionAggregateSource);
+    const hotspotFeatureCount = countVectorSourceFeatures(state.hotspotTransitionSource);
     setLayerVisibilityAndOpacity(
       state.hotspotTransitionAggregateLayer,
       aggregateOpacity > 0,
@@ -6406,8 +6417,16 @@ import APP_CONFIG from './config.js';
     );
     return {
       aggregateOpacity,
-      hotspotOpacity
+      hotspotOpacity,
+      aggregateFeatureCount,
+      hotspotFeatureCount
     };
+  }
+
+  function countVectorSourceFeatures(source) {
+    return source && typeof source.getFeatures === "function"
+      ? source.getFeatures().length
+      : 0;
   }
 
   function replaceVectorSourceFeatures(targetSource, source) {
@@ -7645,12 +7664,10 @@ import APP_CONFIG from './config.js';
           transitionHotspotOpacity: readLayerOpacity(state.hotspotTransitionLayer, 0),
           transitionActive: Boolean(state.hotspotMarkerTransitionFrame),
           contentTransitionActive: Boolean(state.hotspotContentTransitionFrame),
-          featureCount: state.hotspotSource && typeof state.hotspotSource.getFeatures === "function"
-            ? state.hotspotSource.getFeatures().length
-            : 0,
-          transitionFeatureCount: state.hotspotTransitionSource && typeof state.hotspotTransitionSource.getFeatures === "function"
-            ? state.hotspotTransitionSource.getFeatures().length
-            : 0,
+          lastContentTransition: state.lastHotspotContentTransition,
+          featureCount: countVectorSourceFeatures(state.hotspotSource),
+          transitionFeatureCount: countVectorSourceFeatures(state.hotspotTransitionSource),
+          transitionAggregateFeatureCount: countVectorSourceFeatures(state.hotspotTransitionAggregateSource),
           aggregateCount: aggregates.length,
           aggregates
         };

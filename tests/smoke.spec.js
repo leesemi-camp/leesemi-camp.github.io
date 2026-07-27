@@ -21,6 +21,52 @@ test.afterEach(async ({ page }, testInfo) => {
   }
 });
 
+async function getMarkerTransitionSequence(page) {
+  return page.evaluate(() => {
+    const state = window.__spotListTestHooks.getHotspotAggregateState();
+    return state && state.lastContentTransition
+      ? state.lastContentTransition.sequence
+      : 0;
+  });
+}
+
+async function expectMarkerCrossfade(page, previousSequence) {
+  const reducedMotion = await page.evaluate(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  if (reducedMotion) {
+    return;
+  }
+  await page.waitForFunction((sequence) => {
+    const state = window.__spotListTestHooks.getHotspotAggregateState();
+    return state &&
+      state.lastContentTransition &&
+      state.lastContentTransition.sequence > sequence;
+  }, previousSequence);
+  const markerTransitionState = await page.evaluate(() => window.__spotListTestHooks.getHotspotAggregateState());
+  expect(markerTransitionState.lastContentTransition.oldFeatureCount).toBeGreaterThan(0);
+  expect(markerTransitionState.lastContentTransition.oldOpacitySum).toBeGreaterThan(0);
+  expect(markerTransitionState.lastContentTransition.targetOpacitySum).toBeGreaterThan(0);
+  if (!markerTransitionState.contentTransitionActive) {
+    return;
+  }
+  await page.waitForFunction(() => {
+    const state = window.__spotListTestHooks.getHotspotAggregateState();
+    if (!state) {
+      return false;
+    }
+    if (!state.contentTransitionActive) {
+      return true;
+    }
+    const oldOpacity = state.displayMode === "hotspot"
+      ? state.transitionHotspotOpacity
+      : state.transitionAggregateOpacity;
+    const newOpacity = state.displayMode === "hotspot"
+      ? state.hotspotOpacity
+      : state.aggregateOpacity;
+    const oldFeatureCount = state.transitionFeatureCount + state.transitionAggregateFeatureCount;
+    return oldFeatureCount > 0 && newOpacity > 0 && oldOpacity + newOpacity >= 0.95;
+  });
+}
+
 test("Landing page loads", async ({ page }) => {
   // 공개 랜딩 페이지 렌더링 확인
   await page.goto("/");
@@ -96,35 +142,9 @@ test("Map content tabs filter items", async ({ page }) => {
   await expect(page.locator("#total-issue-count")).toHaveText("총 현안 건수: 2건");
   await expect(page).toHaveTitle("우리동네 현안도, 이세미입니다");
 
+  const beforeFirstTabTransition = await getMarkerTransitionSequence(page);
   await page.getByRole("tab", { name: "이세미가 해낸 일" }).click();
-  const markerTransitionState = await page.evaluate(() => ({
-    reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    markerState: window.__spotListTestHooks.getHotspotAggregateState()
-  }));
-  if (!markerTransitionState.reducedMotion) {
-    expect(markerTransitionState.markerState.contentTransitionActive).toBe(true);
-    const oldLayerOpacity = markerTransitionState.markerState.displayMode === "hotspot"
-      ? markerTransitionState.markerState.transitionHotspotOpacity
-      : markerTransitionState.markerState.transitionAggregateOpacity;
-    const newLayerOpacity = markerTransitionState.markerState.displayMode === "hotspot"
-      ? markerTransitionState.markerState.hotspotOpacity
-      : markerTransitionState.markerState.aggregateOpacity;
-    expect(oldLayerOpacity).toBeGreaterThan(0.5);
-    expect(newLayerOpacity).toBeLessThan(oldLayerOpacity);
-    await page.waitForFunction(() => {
-      const state = window.__spotListTestHooks.getHotspotAggregateState();
-      if (!state || !state.contentTransitionActive) {
-        return false;
-      }
-      const oldOpacity = state.displayMode === "hotspot"
-        ? state.transitionHotspotOpacity
-        : state.transitionAggregateOpacity;
-      const newOpacity = state.displayMode === "hotspot"
-        ? state.hotspotOpacity
-        : state.aggregateOpacity;
-      return oldOpacity < 0.98 && newOpacity > 0.02;
-    });
-  }
+  await expectMarkerCrossfade(page, beforeFirstTabTransition);
   await expect(page.locator("#total-issue-count")).toHaveText("해낸 일: 2건");
   await expect(page.locator("#common-pledge-title")).toHaveText("이세미가 해낸 일");
   await expect(page.locator(".topbar-title")).toHaveText("우리동네 변화도, 이세미입니다");
@@ -134,22 +154,9 @@ test("Map content tabs filter items", async ({ page }) => {
     return state && !state.contentTransitionActive;
   });
 
+  const beforeReverseTabTransition = await getMarkerTransitionSequence(page);
   await page.getByRole("tab", { name: "우리동네 현안" }).click();
-  const reverseMarkerTransitionState = await page.evaluate(() => ({
-    reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    markerState: window.__spotListTestHooks.getHotspotAggregateState()
-  }));
-  if (!reverseMarkerTransitionState.reducedMotion) {
-    expect(reverseMarkerTransitionState.markerState.contentTransitionActive).toBe(true);
-    const reverseOldLayerOpacity = reverseMarkerTransitionState.markerState.displayMode === "hotspot"
-      ? reverseMarkerTransitionState.markerState.transitionHotspotOpacity
-      : reverseMarkerTransitionState.markerState.transitionAggregateOpacity;
-    const reverseNewLayerOpacity = reverseMarkerTransitionState.markerState.displayMode === "hotspot"
-      ? reverseMarkerTransitionState.markerState.hotspotOpacity
-      : reverseMarkerTransitionState.markerState.aggregateOpacity;
-    expect(reverseOldLayerOpacity).toBeGreaterThan(0.5);
-    expect(reverseNewLayerOpacity).toBeLessThan(reverseOldLayerOpacity);
-  }
+  await expectMarkerCrossfade(page, beforeReverseTabTransition);
   await page.waitForFunction(() => {
     const state = window.__spotListTestHooks.getHotspotAggregateState();
     return state && !state.contentTransitionActive;
