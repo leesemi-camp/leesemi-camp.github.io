@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-28T16:05:42.245Z",
+  "generatedAt": "2026-07-28T16:09:32.196Z",
   "source": "firestore",
   "collection": "crowd_hotspots",
   "count": 66,
@@ -244,9 +244,9 @@
       "title": "[스마트그린쉼터] 설치됨",
       "memo": "20250731 확인",
       "level": 3,
-      "contentTab": "issues",
-      "itemType": "issue",
-      "progressStatus": "review_closed",
+      "contentTab": "changes",
+      "itemType": "improvement",
+      "progressStatus": "completed",
       "categoryId": "traffic_parking",
       "categoryLabel": "🚌 교통·주차",
       "lat": 37.391558,
@@ -259,7 +259,7 @@
       "photoUrls": [],
       "photoUrl": "",
       "photoProcessingVersion": 3,
-      "updatedAt": "2026-07-28T16:02:44.869Z"
+      "updatedAt": "2026-07-28T16:08:25.355Z"
     },
     {
       "id": "HTT4riq4ALZoFkdCShc1",
@@ -267,9 +267,9 @@
       "title": "[스마트그린쉼터] 설치됨",
       "memo": "20250731 확인",
       "level": 3,
-      "contentTab": "issues",
-      "itemType": "issue",
-      "progressStatus": "review_closed",
+      "contentTab": "changes",
+      "itemType": "improvement",
+      "progressStatus": "completed",
       "categoryId": "traffic_parking",
       "categoryLabel": "🚌 교통·주차",
       "lat": 37.389207,
@@ -282,7 +282,7 @@
       "photoUrls": [],
       "photoUrl": "",
       "photoProcessingVersion": 3,
-      "updatedAt": "2026-07-28T15:59:55.543Z"
+      "updatedAt": "2026-07-28T16:08:45.344Z"
     },
     {
       "id": "MO9gNqT5O86FhIYgKdym",
@@ -290,9 +290,9 @@
       "title": "[스마트그린쉼터] 설치됨",
       "memo": "20250731 확인",
       "level": 3,
-      "contentTab": "issues",
-      "itemType": "issue",
-      "progressStatus": "review_closed",
+      "contentTab": "changes",
+      "itemType": "improvement",
+      "progressStatus": "completed",
       "categoryId": "traffic_parking",
       "categoryLabel": "🚌 교통·주차",
       "lat": 37.400134,
@@ -305,7 +305,7 @@
       "photoUrls": [],
       "photoUrl": "",
       "photoProcessingVersion": 3,
-      "updatedAt": "2026-07-28T15:59:37.096Z"
+      "updatedAt": "2026-07-28T16:08:56.022Z"
     },
     {
       "id": "qbwWXPKFe250naauseq5",
@@ -313,9 +313,9 @@
       "title": "[스마트그린쉼터] 설치됨",
       "memo": "20250731 확인",
       "level": 3,
-      "contentTab": "issues",
-      "itemType": "issue",
-      "progressStatus": "review_closed",
+      "contentTab": "changes",
+      "itemType": "improvement",
+      "progressStatus": "completed",
       "categoryId": "traffic_parking",
       "categoryLabel": "🚌 교통·주차",
       "lat": 37.389942,
@@ -328,7 +328,7 @@
       "photoUrls": [],
       "photoUrl": "",
       "photoProcessingVersion": 3,
-      "updatedAt": "2026-07-28T16:00:45.381Z"
+      "updatedAt": "2026-07-28T16:08:35.186Z"
     },
     {
       "id": "yoYj9PiKKXWEgrdmRsoH",
