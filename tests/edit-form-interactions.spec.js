@@ -23,6 +23,7 @@ test.afterEach(async ({ page }, testInfo) => {
 
 async function waitForEditAuthSettled(page) {
   await expect(page.locator("#login-panel")).toBeVisible();
+  await expect(page.locator("#status-text")).toContainText("로그인이 필요합니다", { timeout: 15000 });
 }
 
 test("Edit page form has title input", async ({ page }) => {
