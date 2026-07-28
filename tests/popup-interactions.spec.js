@@ -500,6 +500,46 @@ test("Hotspot popup renders classification badges", async ({ page }) => {
   await expect(popup.locator(".spot-progress-step.is-current")).toContainText("현재");
 });
 
+test("Hotspot popup links and wraps long memo URLs", async ({ page }) => {
+  // 긴 URL 메모는 팝업 안에서 링크가 되고 폭 밖으로 밀려나지 않음
+  const longUrl = "https://example.com/" + "very-long-path-segment".repeat(8);
+  await blockFirestore(page, [
+    {
+      id: "memo-link-popup",
+      title: "긴 링크 현안",
+      memo: "상세 안내 " + longUrl,
+      categoryId: "traffic_parking",
+      dongName: "판교동",
+      lat: 37.394,
+      lng: 127.111
+    }
+  ]);
+  await gotoMap(page);
+  await waitForSpotListHooks(page);
+  await page.evaluate(() => {
+    window.__spotListTestHooks.setActiveDongFilter("판교동");
+  });
+
+  const spotItem = page.locator("#spot-list [data-spot-id='memo-link-popup']");
+  await expect(spotItem).toBeVisible();
+  await spotItem.click();
+
+  const result = await page.locator("#map-popup .map-popup-memo").evaluate((element) => {
+    const link = element.querySelector("a");
+    const style = window.getComputedStyle(element);
+    return {
+      href: link ? link.getAttribute("href") : "",
+      linkText: link ? link.textContent.trim() : "",
+      overflowWrap: style.overflowWrap,
+      overflows: element.scrollWidth > element.clientWidth + 1
+    };
+  });
+  expect(result.href).toBe(longUrl);
+  expect(result.linkText).toBe(longUrl);
+  expect(result.overflowWrap).toBe("anywhere");
+  expect(result.overflows).toBe(false);
+});
+
 test("Keyboard hotspot popup returns focus to issue card", async ({ page }) => {
   // 키보드로 현안 카드를 열면 팝업 닫기 후 포커스가 원래 카드로 돌아간다.
   await blockFirestore(page, [

@@ -65,12 +65,16 @@ test("Spot renders category badge and dong label", async ({ page }) => {
     return {
       categoryText: badge ? badge.textContent.trim() : "",
       dongText: dong ? dong.textContent.trim() : "",
-      hasBadgeStyle: badge ? !!badge.getAttribute("style") : false
+      hasBadgeStyle: badge ? !!badge.getAttribute("style") : false,
+      hasCompactProgress: Boolean(item && item.querySelector(".spot-progress-flow-compact")),
+      statusText: item && item.querySelector(".spot-status-badge") ? item.querySelector(".spot-status-badge").textContent.trim() : ""
     };
   });
   expect(result.categoryText).toBe("🚌 교통·주차");
   expect(result.dongText).toBe("판교동");
   expect(result.hasBadgeStyle).toBe(true);
+  expect(result.hasCompactProgress).toBe(true);
+  expect(result.statusText).toBe("확인 중");
 });
 
 test("Issue spot renders status badge without item type", async ({ page }) => {
@@ -90,10 +94,15 @@ test("Issue spot renders status badge without item type", async ({ page }) => {
     ]);
     const item = document.querySelector("[data-spot-id='spot-issue-status']");
     return {
+      currentStepText: item && item.querySelector(".spot-progress-step.is-current") ? item.querySelector(".spot-progress-step.is-current").textContent.trim() : "",
+      hasCompactProgress: Boolean(item && item.querySelector(".spot-progress-flow-compact")),
       typeText: item && item.querySelector(".spot-type-badge") ? item.querySelector(".spot-type-badge").textContent.trim() : "",
       statusText: item && item.querySelector(".spot-status-badge") ? item.querySelector(".spot-status-badge").textContent.trim() : ""
     };
   });
+  expect(result.hasCompactProgress).toBe(true);
+  expect(result.currentStepText).toContain("조치 요청");
+  expect(result.currentStepText).toContain("현재");
   expect(result.typeText).toBe("");
   expect(result.statusText).toBe("조치 요청");
 });
@@ -121,6 +130,34 @@ test("Change spot renders item type and status badges", async ({ page }) => {
   });
   expect(result.typeText).toBe("개선");
   expect(result.statusText).toBe("개선 완료");
+});
+
+test("Spot memo auto-links URLs", async ({ page }) => {
+  // 메모의 URL은 HTML을 허용하지 않고 안전한 링크로만 변환함
+  await waitForHook(page);
+  const result = await page.evaluate(() => {
+    window.__spotListTestHooks.renderHotspotList([
+      {
+        id: "spot-link-memo",
+        title: "링크 현안",
+        memo: "상세 보기 https://example.com/path?a=1",
+        dongName: "판교동",
+        categoryId: "traffic_parking"
+      }
+    ]);
+    const item = document.querySelector("[data-spot-id='spot-link-memo']");
+    const link = item ? item.querySelector(".spot-memo a") : null;
+    return {
+      href: link ? link.getAttribute("href") : "",
+      rel: link ? link.getAttribute("rel") : "",
+      target: link ? link.getAttribute("target") : "",
+      text: link ? link.textContent.trim() : ""
+    };
+  });
+  expect(result.href).toBe("https://example.com/path?a=1");
+  expect(result.rel).toContain("noopener");
+  expect(result.target).toBe("_blank");
+  expect(result.text).toBe("https://example.com/path?a=1");
 });
 
 test("Spot with unknown category shows fallback label", async ({ page }) => {

@@ -721,6 +721,10 @@ import APP_CONFIG from './config.js';
           return;
         }
 
+        if (target.closest("a[href]")) {
+          return;
+        }
+
         if (tryHandlePhotoSlideControlClick(target)) {
           event.preventDefault();
           event.stopPropagation();
@@ -765,6 +769,9 @@ import APP_CONFIG from './config.js';
         }
         const target = event.target;
         if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        if (target.closest("a[href]")) {
           return;
         }
         const item = target.closest("[data-spot-id]");
@@ -7893,17 +7900,29 @@ import APP_CONFIG from './config.js';
     return String(value || "").trim().replace(/_/g, "-").replace(/[^a-zA-Z0-9-]/g, "").toLowerCase();
   }
 
-  function buildSpotBadgesHtml(spot) {
-    const categoryLabel = escapeHtml(resolveCategoryLabel(spot && spot.categoryId, spot && spot.categoryLabel));
-    const categoryMeta = resolveIssueCategoryMeta(spot && spot.categoryId, spot && spot.categoryLabel);
-    const categoryStyle = buildCategoryBadgeStyle(categoryMeta.color);
+  function resolveSpotDisplayClassification(spot) {
     const contentTab = normalizeContentTab(spot && spot.contentTab);
-    const itemType = normalizeItemType(spot && spot.itemType, contentTab, { allowEmpty: true });
-    const progressStatus = normalizeExistingProgressStatus(
+    const itemType = normalizeItemType(spot && spot.itemType, contentTab, { allowEmpty: false });
+    const existingProgressStatus = normalizeExistingProgressStatus(
       spot && spot.progressStatus,
       contentTab,
       itemType
     );
+    return {
+      contentTab,
+      itemType,
+      progressStatus: existingProgressStatus || getDefaultProgressStatus(contentTab, itemType)
+    };
+  }
+
+  function buildSpotBadgesHtml(spot) {
+    const categoryLabel = escapeHtml(resolveCategoryLabel(spot && spot.categoryId, spot && spot.categoryLabel));
+    const categoryMeta = resolveIssueCategoryMeta(spot && spot.categoryId, spot && spot.categoryLabel);
+    const categoryStyle = buildCategoryBadgeStyle(categoryMeta.color);
+    const classification = resolveSpotDisplayClassification(spot);
+    const contentTab = classification.contentTab;
+    const itemType = classification.itemType;
+    const progressStatus = classification.progressStatus;
     const badges = [
       "<span class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</span>"
     ];
@@ -7924,24 +7943,23 @@ import APP_CONFIG from './config.js';
     return "<div class='spot-badges'>" + badges.join("") + "</div>";
   }
 
-  function buildSpotProgressFlowHtml(spot) {
-    const contentTab = normalizeContentTab(spot && spot.contentTab);
-    const itemType = normalizeItemType(spot && spot.itemType, contentTab, { allowEmpty: true });
-    const progressStatus = normalizeExistingProgressStatus(
-      spot && spot.progressStatus,
-      contentTab,
-      itemType
-    );
+  function buildSpotProgressFlowHtml(spot, options) {
+    const classification = resolveSpotDisplayClassification(spot);
+    const contentTab = classification.contentTab;
+    const itemType = classification.itemType;
+    const progressStatus = classification.progressStatus;
     if (!progressStatus) {
       return "";
     }
+    const isCompact = Boolean(options && options.compact);
+    const flowClassName = "spot-progress-flow" + (isCompact ? " spot-progress-flow-compact" : "");
     if (progressStatus === PROGRESS_STATUS_REVIEW_CLOSED) {
       return (
-        "<div class='spot-progress-flow spot-progress-flow-exception' aria-label='진행 단계: " + escapeHtml(getProgressStatusLabel(progressStatus)) + "'>" +
+        "<div class='" + flowClassName + " spot-progress-flow-exception' aria-label='진행 단계: " + escapeHtml(getProgressStatusLabel(progressStatus)) + "'>" +
           "<span class='spot-status-badge spot-status-" + escapeHtml(toCssModifier(progressStatus)) + "'>" +
             escapeHtml(getProgressStatusLabel(progressStatus)) +
           "</span>" +
-          "<p>" + escapeHtml(getProgressStatusDescription(progressStatus)) + "</p>" +
+          (isCompact ? "" : "<p>" + escapeHtml(getProgressStatusDescription(progressStatus)) + "</p>") +
         "</div>"
       );
     }
@@ -7974,7 +7992,7 @@ import APP_CONFIG from './config.js';
     }).join("");
 
     return (
-      "<div class='spot-progress-flow' role='group' aria-label='진행 단계: " +
+      "<div class='" + flowClassName + "' role='group' aria-label='진행 단계: " +
         escapeHtml(stepLabels.join(", ") + " 중 현재 " + getProgressStatusLabel(progressStatus)) +
       "'>" +
         "<div class='spot-progress-track' style='--spot-progress-count: " + String(steps.length) + "'>" +
@@ -8006,7 +8024,8 @@ import APP_CONFIG from './config.js';
       const rawTitle = String(spot.title || "").trim() || tabMeta.itemName;
       const title = escapeHtml(rawTitle);
       const memoRaw = typeof spot.memo === "string" ? spot.memo.trim() : "";
-      const memo = memoRaw ? escapeHtml(memoRaw) : "";
+      const memo = memoRaw ? buildLinkedTextHtml(memoRaw) : "";
+      const progressFlowHtml = buildSpotProgressFlowHtml(spot, { compact: true });
       const photoDataUrls = getSpotPhotoDataUrls(spot);
       const titleWithPhotoBadge = photoDataUrls.length > 0
         ? title + " <span class='spot-title-photo-badge' aria-label='사진 첨부'>🖼️</span>"
@@ -8053,6 +8072,7 @@ import APP_CONFIG from './config.js';
             "<strong>" + titleWithPhotoBadge + "</strong>" +
           "</div>" +
           buildSpotBadgesHtml(spot) +
+          progressFlowHtml +
           "<div class='spot-dong'>" + dongName + "</div>" +
           (memo ? "<div class='spot-memo'>" + memo + "</div>" : "") +
           photoPreviewHtml +
@@ -10688,7 +10708,8 @@ import APP_CONFIG from './config.js';
     const safeSpotId = escapeHtml(String(spot.id || "").trim());
     const rawTitle = String(spot.title || "").trim() || getContentTabMeta(spot.contentTab).itemName;
     const safeTitle = escapeHtml(rawTitle);
-    const safeMemo = escapeHtml(spot.memo || "-");
+    const memoRaw = typeof spot.memo === "string" ? spot.memo.trim() : "";
+    const memoHtml = memoRaw ? buildLinkedTextHtml(memoRaw) : "-";
     const badgesHtml = buildSpotBadgesHtml(spot);
     const progressFlowHtml = buildSpotProgressFlowHtml(spot);
     const safeDong = escapeHtml(formatSpotDongLabel(spot));
@@ -10731,7 +10752,7 @@ import APP_CONFIG from './config.js';
       badgesHtml +
       progressFlowHtml +
       "<div>소속 동: " + safeDong + "</div>" +
-      "<div>내용: " + safeMemo + "</div>" +
+      "<div class='map-popup-memo'><span class='map-popup-label'>내용: </span>" + memoHtml + "</div>" +
       editorInfo +
       popupActions,
       {
@@ -11033,6 +11054,34 @@ import APP_CONFIG from './config.js';
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function buildLinkedTextHtml(value) {
+    const text = String(value || "");
+    const urlPattern = /\b((?:https?:\/\/|www\.)[^\s<>"']+)/gi;
+    let html = "";
+    let lastIndex = 0;
+    text.replace(urlPattern, (match, rawUrl, offset) => {
+      const trailing = rawUrl.match(/[.,!?;:)\]}]+$/);
+      const suffix = trailing ? trailing[0] : "";
+      const urlText = suffix ? rawUrl.slice(0, -suffix.length) : rawUrl;
+      if (!urlText) {
+        return match;
+      }
+      const href = urlText.toLowerCase().startsWith("www.")
+        ? "https://" + urlText
+        : urlText;
+      html += escapeHtml(text.slice(lastIndex, offset));
+      html += (
+        "<a href='" + escapeHtml(href) + "' target='_blank' rel='noopener noreferrer'>" +
+          escapeHtml(urlText) +
+        "</a>"
+      );
+      html += escapeHtml(suffix);
+      lastIndex = offset + rawUrl.length;
+      return match;
+    });
+    return html + escapeHtml(text.slice(lastIndex));
   }
 
   function hasRenderableGeometry(features) {

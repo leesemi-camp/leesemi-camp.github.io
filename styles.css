@@ -1470,6 +1470,11 @@ textarea {
   background: #f8fbff;
 }
 
+.spot-progress-flow-compact {
+  margin: 8px 0 6px;
+  padding: 8px 7px 7px;
+}
+
 .spot-progress-track {
   display: grid;
   grid-template-columns: repeat(var(--spot-progress-count), minmax(0, 1fr));
@@ -1587,6 +1592,19 @@ textarea {
   margin-top: 6px;
   font-size: 13px;
   color: var(--muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.spot-memo a,
+.map-popup-memo a {
+  color: #1f5f9f;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
 }
 
 .spot-photo-thumb-wrap {
@@ -2065,6 +2083,24 @@ body.photo-lightbox-open {
 .map-popup-body > strong:first-child {
   display: block;
   padding-right: 28px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.map-popup-body {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.map-popup-memo {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.map-popup-label {
+  font-weight: 700;
+  color: #213f63;
 }
 
 .map-popup-close {
