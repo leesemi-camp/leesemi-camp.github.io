@@ -21,6 +21,10 @@ test.afterEach(async ({ page }, testInfo) => {
   }
 });
 
+async function waitForEditAuthSettled(page) {
+  await expect(page.locator("#login-panel")).toBeVisible();
+}
+
 test("Edit page form has title input", async ({ page }) => {
   // 편집 페이지에 현안명 입력 필드가 있음
   await page.goto("/map/edit/");
@@ -54,6 +58,7 @@ test("Edit page content tab uses changes value", async ({ page }) => {
 test("Edit page hides item type for issue tab", async ({ page }) => {
   // 현안 탭에서는 게시물 성격을 고정하므로 필드를 숨김
   await page.goto("/map/edit/");
+  await waitForEditAuthSettled(page);
   await expect(page.locator("#spot-progress-status option")).toHaveCount(3);
   await page.evaluate(() => {
     const select = document.querySelector("#spot-content-tab");
@@ -67,6 +72,7 @@ test("Edit page hides item type for issue tab", async ({ page }) => {
 test("Edit page changes item type controls progress statuses", async ({ page }) => {
   // 변화 탭에서는 게시물 성격에 따라 진행 상태 옵션이 바뀜
   await page.goto("/map/edit/");
+  await waitForEditAuthSettled(page);
   await expect(page.locator("#spot-progress-status option")).toHaveCount(3);
   await page.evaluate(() => {
     const select = document.querySelector("#spot-content-tab");
