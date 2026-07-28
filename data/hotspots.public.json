@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-07-28T11:23:23.166Z",
+  "generatedAt": "2026-07-28T14:44:20.839Z",
   "source": "firestore",
   "collection": "crowd_hotspots",
-  "count": 65,
+  "count": 66,
   "hotspots": [
     {
       "id": "zGu99pgxdB7gbir8wasx",
@@ -414,13 +414,13 @@
       "title": "[안전통학로] 산운통학로",
       "memo": "",
       "level": 3,
-      "contentTab": "",
-      "itemType": "",
-      "progressStatus": "",
+      "contentTab": "issues",
+      "itemType": "issue",
+      "progressStatus": "checking",
       "categoryId": "education_childcare",
       "categoryLabel": "🏫 교육·보육",
-      "lat": 37.389028,
-      "lng": 127.078384,
+      "lat": 37.388966,
+      "lng": 127.076658,
       "dongName": "공통",
       "emdCode": "",
       "dongSelectionMode": "common",
@@ -431,7 +431,7 @@
       ],
       "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FpRF4TrXPU0LDfkM56Uxu%2F1776953171616-1519468306940e76.jpg?alt=media&token=877ff610-a166-4d5f-a925-d65caea7a3b6",
       "photoProcessingVersion": 3,
-      "updatedAt": "2026-04-23T14:06:15.542Z"
+      "updatedAt": "2026-07-28T14:26:41.598Z"
     },
     {
       "id": "3JFyQjsDg6stou0vOpgF",
@@ -534,9 +534,9 @@
       "title": "260709 운중천 안전통제선 설치",
       "memo": "https://blog.naver.com/leesemi114/224342009539",
       "level": 3,
-      "contentTab": "achievements",
-      "itemType": "",
-      "progressStatus": "",
+      "contentTab": "changes",
+      "itemType": "safety_notice",
+      "progressStatus": "ended",
       "categoryId": "safety_security",
       "categoryLabel": "🚨 안전·치안",
       "lat": 37.390625,
@@ -551,7 +551,7 @@
       ],
       "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FtsCdyk4pVC4wNBtopHem%2F1785214903534-e5fbbe190257fbfe.jpg?alt=media&token=4bdb321e-bf3e-49df-8a67-29dc538449cf",
       "photoProcessingVersion": 3,
-      "updatedAt": "2026-07-28T05:01:46.496Z"
+      "updatedAt": "2026-07-28T14:28:48.731Z"
     },
     {
       "id": "zCfiPGUNT8AEPXhZiVml",
@@ -559,9 +559,9 @@
       "title": "260716 보행로 볼라드 보수",
       "memo": "https://blog.naver.com/leesemi114/224348426215",
       "level": 3,
-      "contentTab": "achievements",
-      "itemType": "",
-      "progressStatus": "",
+      "contentTab": "changes",
+      "itemType": "improvement",
+      "progressStatus": "completed",
       "categoryId": "safety_security",
       "categoryLabel": "🚨 안전·치안",
       "lat": 37.389248,
@@ -577,7 +577,7 @@
       ],
       "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FzCfiPGUNT8AEPXhZiVml%2F1785214623125-ec14f69d6ad38976.jpg?alt=media&token=0aba7ee3-aad2-4d8e-a62e-380be2eebdb8",
       "photoProcessingVersion": 3,
-      "updatedAt": "2026-07-28T04:57:41.314Z"
+      "updatedAt": "2026-07-28T14:29:04.825Z"
     },
     {
       "id": "519FpS0Zh4CvIkxrddZR",
@@ -911,6 +911,32 @@
       "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FhuaMQoLOdulDqS6RzEez%2F1776953099678-33337db6f5b9e20f.jpg?alt=media&token=92e94dff-c42e-4177-9754-3ed1823e05a1",
       "photoProcessingVersion": 3,
       "updatedAt": "2026-04-23T14:05:03.901Z"
+    },
+    {
+      "id": "8uCvAQbH6UWtQlOqvyw7",
+      "issueRefId": "",
+      "title": "산운초 정문 통학로 개선",
+      "memo": "",
+      "level": 3,
+      "contentTab": "issues",
+      "itemType": "issue",
+      "progressStatus": "checking",
+      "categoryId": "education_childcare",
+      "categoryLabel": "🏫 교육·보육",
+      "lat": 37.388834,
+      "lng": 127.078844,
+      "dongName": "운중동",
+      "emdCode": "41135115",
+      "dongSelectionMode": "auto",
+      "dongKey": "name:운중동",
+      "groupLabel": "",
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2F8uCvAQbH6UWtQlOqvyw7%2F1785248791033-1f4c238a486e98e9.jpg?alt=media&token=13a688b8-d352-4a71-927e-aa55df598b5a",
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2F8uCvAQbH6UWtQlOqvyw7%2F1785248794184-1ada0890cd0a5223.jpg?alt=media&token=98aff2b0-bb38-44be-a277-d9abc7eda0f7"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2F8uCvAQbH6UWtQlOqvyw7%2F1785248791033-1f4c238a486e98e9.jpg?alt=media&token=13a688b8-d352-4a71-927e-aa55df598b5a",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-07-28T14:26:36.912Z"
     },
     {
       "id": "85jskIAGo7Kxh2L5O2lx",
@@ -1449,22 +1475,22 @@
       "title": "판교동 연결도로 요청",
       "memo": "",
       "level": 3,
-      "contentTab": "",
-      "itemType": "",
-      "progressStatus": "",
+      "contentTab": "issues",
+      "itemType": "issue",
+      "progressStatus": "checking",
       "categoryId": "traffic_parking",
       "categoryLabel": "🚌 교통·주차",
       "lat": 37.384403,
       "lng": 127.093323,
-      "dongName": "경기도 성남시 분당구 백현동",
+      "dongName": "백현동",
       "emdCode": "41135110",
       "dongSelectionMode": "auto",
-      "dongKey": "",
+      "dongKey": "name:백현동",
       "groupLabel": "",
       "photoUrls": [],
       "photoUrl": "",
-      "photoProcessingVersion": 0,
-      "updatedAt": "2026-03-22T12:32:42.055Z"
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-07-28T14:28:26.456Z"
     },
     {
       "id": "Se1O0vJdaQtD5gMGMPgw",
