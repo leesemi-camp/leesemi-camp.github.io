@@ -18,7 +18,7 @@ const ITEM_TYPE_ISSUE = "issue";
 const ITEM_TYPE_IMPROVEMENT = "improvement";
 const ITEM_TYPE_SAFETY_NOTICE = "safety_notice";
 const ITEM_TYPE_LIFE_NOTICE = "life_notice";
-const ISSUE_PROGRESS_STATUSES = new Set(["checking", "action_requested", "consulting"]);
+const ISSUE_PROGRESS_STATUSES = new Set(["checking", "action_requested", "consulting", "review_closed"]);
 const IMPROVEMENT_PROGRESS_STATUSES = new Set(["in_progress", "completed"]);
 const NOTICE_PROGRESS_STATUSES = new Set(["active", "ended"]);
 
@@ -140,7 +140,10 @@ function normalizeProgressStatus(value) {
     active: "active",
     안내중: "active",
     ended: "ended",
-    종료: "ended"
+    종료: "ended",
+    안내종료: "ended",
+    reviewclosed: "review_closed",
+    검토종료: "review_closed"
   }[token];
   return normalized || "__invalid__";
 }

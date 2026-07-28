@@ -49,10 +49,19 @@ test("Public hotspot validator accepts new classification fields", () => {
       contentTab: "achievements",
       lat: 37.391,
       lng: 127.079
+    },
+    {
+      id: "review-closed-issue",
+      title: "추진 어려운 현안",
+      contentTab: "issues",
+      itemType: "issue",
+      progressStatus: "review_closed",
+      lat: 37.392,
+      lng: 127.08
     }
   ]);
 
-  expect(runValidator(snapshotPath)).toContain("Validated 2 public hotspots");
+  expect(runValidator(snapshotPath)).toContain("Validated 3 public hotspots");
 });
 
 test("Public hotspot validator rejects invalid classification combo", () => {

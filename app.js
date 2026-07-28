@@ -182,19 +182,22 @@ import APP_CONFIG from './config.js';
   const PROGRESS_STATUS_COMPLETED = "completed";
   const PROGRESS_STATUS_ACTIVE = "active";
   const PROGRESS_STATUS_ENDED = "ended";
+  const PROGRESS_STATUS_REVIEW_CLOSED = "review_closed";
   const progressStatusOptions = [
-    { key: PROGRESS_STATUS_CHECKING, label: "확인 중" },
-    { key: PROGRESS_STATUS_ACTION_REQUESTED, label: "조치 요청" },
-    { key: PROGRESS_STATUS_CONSULTING, label: "협의 중" },
-    { key: PROGRESS_STATUS_IN_PROGRESS, label: "추진 중" },
-    { key: PROGRESS_STATUS_COMPLETED, label: "개선 완료" },
-    { key: PROGRESS_STATUS_ACTIVE, label: "안내 중" },
-    { key: PROGRESS_STATUS_ENDED, label: "종료" }
+    { key: PROGRESS_STATUS_CHECKING, label: "확인 중", description: "현장 상황과 담당 부서를 확인하는 단계" },
+    { key: PROGRESS_STATUS_ACTION_REQUESTED, label: "조치 요청", description: "담당 부서나 관계기관에 개선을 요청한 단계" },
+    { key: PROGRESS_STATUS_CONSULTING, label: "협의 중", description: "처리 방법, 일정, 예산 등을 구체적으로 협의하는 단계" },
+    { key: PROGRESS_STATUS_IN_PROGRESS, label: "추진 중", description: "공사, 설치, 보수, 행정절차 등 실제 실행이 시작된 상태" },
+    { key: PROGRESS_STATUS_COMPLETED, label: "개선 완료", description: "조치가 끝나 주민이 변화를 확인할 수 있는 상태" },
+    { key: PROGRESS_STATUS_ACTIVE, label: "안내 중", description: "현재 주민이 확인해야 하는 유효한 안내" },
+    { key: PROGRESS_STATUS_ENDED, label: "안내 종료", description: "안내 기간이 끝난 상태" },
+    { key: PROGRESS_STATUS_REVIEW_CLOSED, label: "검토 종료", description: "담당 부서 검토 결과 현재 추진이 어려운 사안입니다." }
   ];
   const issueProgressStatusKeys = [
     PROGRESS_STATUS_CHECKING,
     PROGRESS_STATUS_ACTION_REQUESTED,
-    PROGRESS_STATUS_CONSULTING
+    PROGRESS_STATUS_CONSULTING,
+    PROGRESS_STATUS_REVIEW_CLOSED
   ];
   const improvementProgressStatusKeys = [
     PROGRESS_STATUS_IN_PROGRESS,
@@ -3953,8 +3956,11 @@ import APP_CONFIG from './config.js';
     if (compact === PROGRESS_STATUS_ACTIVE || compact === "안내중" || compact === "진행") {
       return PROGRESS_STATUS_ACTIVE;
     }
-    if (compact === PROGRESS_STATUS_ENDED || compact === "end" || compact === "closed" || compact === "종료") {
+    if (compact === PROGRESS_STATUS_ENDED || compact === "end" || compact === "closed" || compact === "종료" || compact === "안내종료") {
       return PROGRESS_STATUS_ENDED;
+    }
+    if (compact === PROGRESS_STATUS_REVIEW_CLOSED || compact === "reviewclosed" || compact === "검토종료") {
+      return PROGRESS_STATUS_REVIEW_CLOSED;
     }
     return "";
   }
@@ -4030,6 +4036,11 @@ import APP_CONFIG from './config.js';
   function getProgressStatusLabel(progressStatus) {
     const meta = getProgressStatusMeta(progressStatus);
     return meta ? meta.label : "";
+  }
+
+  function getProgressStatusDescription(progressStatus) {
+    const meta = getProgressStatusMeta(progressStatus);
+    return meta ? String(meta.description || "") : "";
   }
 
   function getContentTabHotspots(hotspots) {
@@ -7913,6 +7924,66 @@ import APP_CONFIG from './config.js';
     return "<div class='spot-badges'>" + badges.join("") + "</div>";
   }
 
+  function buildSpotProgressFlowHtml(spot) {
+    const contentTab = normalizeContentTab(spot && spot.contentTab);
+    const itemType = normalizeItemType(spot && spot.itemType, contentTab, { allowEmpty: true });
+    const progressStatus = normalizeExistingProgressStatus(
+      spot && spot.progressStatus,
+      contentTab,
+      itemType
+    );
+    if (!progressStatus) {
+      return "";
+    }
+    if (progressStatus === PROGRESS_STATUS_REVIEW_CLOSED) {
+      return (
+        "<div class='spot-progress-flow spot-progress-flow-exception' aria-label='진행 단계: " + escapeHtml(getProgressStatusLabel(progressStatus)) + "'>" +
+          "<span class='spot-status-badge spot-status-" + escapeHtml(toCssModifier(progressStatus)) + "'>" +
+            escapeHtml(getProgressStatusLabel(progressStatus)) +
+          "</span>" +
+          "<p>" + escapeHtml(getProgressStatusDescription(progressStatus)) + "</p>" +
+        "</div>"
+      );
+    }
+
+    const steps = getAllowedProgressStatusKeys(contentTab, itemType)
+      .filter((key) => key !== PROGRESS_STATUS_REVIEW_CLOSED);
+    const currentIndex = steps.indexOf(progressStatus);
+    if (currentIndex < 0) {
+      return "";
+    }
+
+    const stepLabels = steps.map((key) => getProgressStatusLabel(key)).filter(Boolean);
+    const stepHtml = steps.map((key, index) => {
+      const stateClass = index < currentIndex
+        ? "is-complete"
+        : index === currentIndex
+          ? "is-current"
+          : "is-upcoming";
+      const label = getProgressStatusLabel(key);
+      const currentHtml = index === currentIndex
+        ? "<span class='spot-progress-current'>현재</span>"
+        : "";
+      return (
+        "<span class='spot-progress-step " + stateClass + "'>" +
+          "<span class='spot-progress-marker' aria-hidden='true'></span>" +
+          "<span class='spot-progress-label'>" + escapeHtml(label) + "</span>" +
+          currentHtml +
+        "</span>"
+      );
+    }).join("");
+
+    return (
+      "<div class='spot-progress-flow' role='group' aria-label='진행 단계: " +
+        escapeHtml(stepLabels.join(", ") + " 중 현재 " + getProgressStatusLabel(progressStatus)) +
+      "'>" +
+        "<div class='spot-progress-track' style='--spot-progress-count: " + String(steps.length) + "'>" +
+          stepHtml +
+        "</div>" +
+      "</div>"
+    );
+  }
+
   function renderHotspotList(hotspots, options) {
     if (!elements.spotList) {
       return;
@@ -10619,6 +10690,7 @@ import APP_CONFIG from './config.js';
     const safeTitle = escapeHtml(rawTitle);
     const safeMemo = escapeHtml(spot.memo || "-");
     const badgesHtml = buildSpotBadgesHtml(spot);
+    const progressFlowHtml = buildSpotProgressFlowHtml(spot);
     const safeDong = escapeHtml(formatSpotDongLabel(spot));
     const safeUser = escapeHtml(spot.updatedBy || "-");
     const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
@@ -10657,6 +10729,7 @@ import APP_CONFIG from './config.js';
       "<strong>" + titleWithPhotoBadge + "</strong>" +
       photoHtml +
       badgesHtml +
+      progressFlowHtml +
       "<div>소속 동: " + safeDong + "</div>" +
       "<div>내용: " + safeMemo + "</div>" +
       editorInfo +

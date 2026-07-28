@@ -60,21 +60,21 @@ test("Edit page hides item type for issue tab", async ({ page }) => {
   // 현안 탭에서는 게시물 성격을 고정하므로 필드를 숨김
   await page.goto("/map/edit/");
   await waitForEditAuthSettled(page);
-  await expect(page.locator("#spot-progress-status option")).toHaveCount(3);
+  await expect(page.locator("#spot-progress-status option")).toHaveCount(4);
   await page.evaluate(() => {
     const select = document.querySelector("#spot-content-tab");
     select.value = "issues";
     select.dispatchEvent(new Event("change", { bubbles: true }));
   });
   await expect(page.locator("#spot-item-type-field")).toHaveClass(/hidden/);
-  await expect(page.locator("#spot-progress-status option")).toHaveText(["확인 중", "조치 요청", "협의 중"]);
+  await expect(page.locator("#spot-progress-status option")).toHaveText(["확인 중", "조치 요청", "협의 중", "검토 종료"]);
 });
 
 test("Edit page changes item type controls progress statuses", async ({ page }) => {
   // 변화 탭에서는 게시물 성격에 따라 진행 상태 옵션이 바뀜
   await page.goto("/map/edit/");
   await waitForEditAuthSettled(page);
-  await expect(page.locator("#spot-progress-status option")).toHaveCount(3);
+  await expect(page.locator("#spot-progress-status option")).toHaveCount(4);
   await page.evaluate(() => {
     const select = document.querySelector("#spot-content-tab");
     select.value = "changes";
@@ -89,7 +89,7 @@ test("Edit page changes item type controls progress statuses", async ({ page }) 
     select.value = "safety_notice";
     select.dispatchEvent(new Event("change", { bubbles: true }));
   });
-  await expect(page.locator("#spot-progress-status option")).toHaveText(["안내 중", "종료"]);
+  await expect(page.locator("#spot-progress-status option")).toHaveText(["안내 중", "안내 종료"]);
   await expect(page.locator("#spot-progress-status")).toHaveValue("active");
 });
 

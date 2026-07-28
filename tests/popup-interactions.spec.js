@@ -495,6 +495,9 @@ test("Hotspot popup renders classification badges", async ({ page }) => {
   await expect(popup.locator(".spot-category")).toHaveText("🚨 안전·치안");
   await expect(popup.locator(".spot-type-badge")).toHaveText("개선");
   await expect(popup.locator(".spot-status-badge")).toHaveText("개선 완료");
+  await expect(popup.locator(".spot-progress-flow")).toContainText("추진 중");
+  await expect(popup.locator(".spot-progress-step.is-current")).toContainText("개선 완료");
+  await expect(popup.locator(".spot-progress-step.is-current")).toContainText("현재");
 });
 
 test("Keyboard hotspot popup returns focus to issue card", async ({ page }) => {
