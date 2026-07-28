@@ -83,7 +83,7 @@ test("Map view renders", async ({ page }) => {
 });
 
 test("Map content tabs filter items", async ({ page }) => {
-  // 현안과 성과 항목은 각 탭에서 따로 집계하고 표시한다.
+  // 현안과 변화 항목은 각 탭에서 따로 집계하고 표시한다.
   await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
   await page.route("**/data/hotspots.public.json", (route) => {
     route.fulfill({
@@ -118,6 +118,8 @@ test("Map content tabs filter items", async ({ page }) => {
             title: "통학로 조명 개선 완료",
             memo: "야간 보행 안전 개선",
             contentTab: "achievements",
+            itemType: "improvement",
+            progressStatus: "completed",
             categoryId: "safety_security",
             dongName: "판교동",
             lat: 37.395,
@@ -127,7 +129,7 @@ test("Map content tabs filter items", async ({ page }) => {
             id: "achievement-2",
             title: "공원 시설 정비 완료",
             memo: "노후 시설 개선",
-            contentTab: "achievements",
+            contentTab: "changes",
             categoryId: "environment_park",
             dongName: "운중동",
             lat: 37.39,
@@ -143,10 +145,10 @@ test("Map content tabs filter items", async ({ page }) => {
   await expect(page).toHaveTitle("우리동네 현안도, 이세미입니다");
 
   const beforeFirstTabTransition = await getMarkerTransitionSequence(page);
-  await page.getByRole("tab", { name: "이세미가 해낸 일" }).click();
+  await page.getByRole("tab", { name: "우리동네 변화" }).click();
   await expectMarkerCrossfade(page, beforeFirstTabTransition);
-  await expect(page.locator("#total-issue-count")).toHaveText("해낸 일: 2건");
-  await expect(page.locator("#common-pledge-title")).toHaveText("이세미가 해낸 일");
+  await expect(page.locator("#total-issue-count")).toHaveText("총 변화·안내 건수: 2건");
+  await expect(page.locator("#common-pledge-title")).toHaveText("우리동네 변화");
   await expect(page.locator(".topbar-title")).toHaveText("우리동네 변화도, 이세미입니다");
   await expect(page).toHaveTitle("우리동네 변화도, 이세미입니다");
   await page.waitForFunction(() => {
@@ -162,7 +164,7 @@ test("Map content tabs filter items", async ({ page }) => {
     return state && !state.contentTransitionActive;
   });
 
-  await page.getByRole("tab", { name: "이세미가 해낸 일" }).click();
+  await page.getByRole("tab", { name: "우리동네 변화" }).click();
   await page.waitForFunction(() => {
     const state = window.__spotListTestHooks.getHotspotAggregateState();
     return state && !state.contentTransitionActive;

@@ -774,6 +774,16 @@ body[data-map-mode="view"] .map .ol-viewport {
   gap: 6px;
 }
 
+.spot-item-type-field,
+.spot-progress-status-field {
+  display: grid;
+  gap: 6px;
+}
+
+.spot-classification-warning {
+  color: #9a4a00;
+}
+
 .field-note {
   margin: 0;
   font-size: 12px;
@@ -1362,6 +1372,7 @@ textarea {
   padding: 8px 10px;
 }
 
+.spot-item--no-memo .spot-badges,
 .spot-item--no-memo .spot-category,
 .spot-item--no-memo .spot-dong {
   margin-top: 4px;
@@ -1377,7 +1388,17 @@ textarea {
   color: #2a4a72;
 }
 
-.spot-category {
+.spot-badges {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.spot-category,
+.spot-type-badge,
+.spot-status-badge {
   margin-top: 6px;
   display: inline-flex;
   align-items: center;
@@ -1388,6 +1409,51 @@ textarea {
   color: #12335c;
   background: #e8f0ff;
   border: 1px solid transparent;
+}
+
+.spot-badges .spot-category,
+.spot-badges .spot-type-badge,
+.spot-badges .spot-status-badge {
+  margin-top: 0;
+}
+
+.spot-type-badge {
+  color: #244766;
+  background: #eef5fb;
+  border-color: #d3e2f2;
+}
+
+.spot-status-badge {
+  color: #25405f;
+  background: #edf2f8;
+  border-color: #d6e0ec;
+}
+
+.spot-status-checking,
+.spot-status-action-requested,
+.spot-status-consulting,
+.spot-status-in-progress {
+  color: #174a7c;
+  background: #e8f2ff;
+  border-color: #bfd8f5;
+}
+
+.spot-status-completed {
+  color: #1e6234;
+  background: #e8f6ed;
+  border-color: #bddfc8;
+}
+
+.spot-status-active {
+  color: #7a3d00;
+  background: #fff2df;
+  border-color: #f1d2a7;
+}
+
+.spot-status-ended {
+  color: #536070;
+  background: #f1f4f7;
+  border-color: #d9e0e8;
 }
 
 .spot-item:hover {
@@ -1652,6 +1718,18 @@ textarea {
   border: 1px solid #cadcf3;
 }
 
+.issue-stats-chip-type {
+  color: #244766;
+  background: #eef5fb;
+  border: 1px solid #d3e2f2;
+}
+
+.issue-stats-chip-status {
+  color: #25405f;
+  background: #edf2f8;
+  border: 1px solid #d6e0ec;
+}
+
 .issue-stats-count {
   min-width: 3.5ch;
   justify-self: end;
@@ -1706,6 +1784,8 @@ textarea {
   .issue-list-clear-btn,
   .spot-item,
   .spot-category,
+  .spot-type-badge,
+  .spot-status-badge,
   .issue-stats-summary,
   .issue-stats-clear-btn,
   .issue-stats-filter-btn,

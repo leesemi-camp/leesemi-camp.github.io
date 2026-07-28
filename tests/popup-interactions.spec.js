@@ -464,6 +464,39 @@ test("Closing hotspot popup clears selected hotspot highlight", async ({ page })
   await expect(popup).toHaveClass(/hidden/);
 });
 
+test("Hotspot popup renders classification badges", async ({ page }) => {
+  // 지도 팝업에도 목록과 같은 분야·성격·상태 배지를 표시함
+  await blockFirestore(page, [
+    {
+      id: "badge-popup",
+      title: "보행로 볼라드 보수",
+      contentTab: "changes",
+      itemType: "improvement",
+      progressStatus: "completed",
+      categoryId: "safety_security",
+      dongName: "판교동",
+      lat: 37.394,
+      lng: 127.111
+    }
+  ]);
+  await gotoMap(page);
+  await waitForSpotListHooks(page);
+  await page.getByRole("tab", { name: "우리동네 변화" }).click();
+  await page.evaluate(() => {
+    window.__spotListTestHooks.setActiveDongFilter("판교동");
+  });
+
+  const spotItem = page.locator("#spot-list [data-spot-id='badge-popup']");
+  await expect(spotItem).toBeVisible();
+  await spotItem.click();
+
+  const popup = page.locator("#map-popup");
+  await expect(popup).not.toHaveClass(/hidden/);
+  await expect(popup.locator(".spot-category")).toHaveText("🚨 안전·치안");
+  await expect(popup.locator(".spot-type-badge")).toHaveText("개선");
+  await expect(popup.locator(".spot-status-badge")).toHaveText("개선 완료");
+});
+
 test("Keyboard hotspot popup returns focus to issue card", async ({ page }) => {
   // 키보드로 현안 카드를 열면 팝업 닫기 후 포커스가 원래 카드로 돌아간다.
   await blockFirestore(page, [

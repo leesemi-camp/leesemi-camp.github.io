@@ -343,11 +343,13 @@ body[data-map-mode="view"] .map .ol-viewport {
 @supports (corner-shape: squircle) {
     .app-shell,
     .icon-btn,
-    .pledge-panel,
-    .pledge-item,
-    .spot-item,
-    .spot-category,
-    .pledge-common-tag,
+        .pledge-panel,
+        .pledge-item,
+        .spot-item,
+        .spot-category,
+        .spot-type-badge,
+        .spot-status-badge,
+        .pledge-common-tag,
     .pledge-common-tag-count,
     .map-popup,
     .ol-control button {
@@ -376,10 +378,11 @@ body[data-map-mode="view"] .map .ol-viewport {
     padding: 8px 10px;
 }
 
-.spot-item--no-memo .spot-category,
-.spot-item--no-memo .spot-dong {
-    margin-top: 4px;
-}
+    .spot-item--no-memo .spot-badges,
+    .spot-item--no-memo .spot-category,
+    .spot-item--no-memo .spot-dong {
+        margin-top: 4px;
+    }
 
 .spot-item--no-memo .spot-item-actions {
     margin-top: 6px;
@@ -391,7 +394,17 @@ body[data-map-mode="view"] .map .ol-viewport {
     color: #2a4a72;
 }
 
-.spot-category {
+.spot-badges {
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.spot-category,
+.spot-type-badge,
+.spot-status-badge {
     margin-top: 6px;
     display: inline-flex;
     align-items: center;
@@ -402,6 +415,51 @@ body[data-map-mode="view"] .map .ol-viewport {
     color: #12335c;
     background: #e8f0ff;
     border: 1px solid transparent;
+}
+
+.spot-badges .spot-category,
+.spot-badges .spot-type-badge,
+.spot-badges .spot-status-badge {
+    margin-top: 0;
+}
+
+.spot-type-badge {
+    color: #244766;
+    background: #eef5fb;
+    border-color: #d3e2f2;
+}
+
+.spot-status-badge {
+    color: #25405f;
+    background: #edf2f8;
+    border-color: #d6e0ec;
+}
+
+.spot-status-checking,
+.spot-status-action-requested,
+.spot-status-consulting,
+.spot-status-in-progress {
+    color: #174a7c;
+    background: #e8f2ff;
+    border-color: #bfd8f5;
+}
+
+.spot-status-completed {
+    color: #1e6234;
+    background: #e8f6ed;
+    border-color: #bddfc8;
+}
+
+.spot-status-active {
+    color: #7a3d00;
+    background: #fff2df;
+    border-color: #f1d2a7;
+}
+
+.spot-status-ended {
+    color: #536070;
+    background: #f1f4f7;
+    border-color: #d9e0e8;
 }
 
 .spot-item:hover {

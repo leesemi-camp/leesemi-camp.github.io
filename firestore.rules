@@ -30,6 +30,9 @@ service cloud.firestore {
         "title",
         "memo",
         "level",
+        "contentTab",
+        "itemType",
+        "progressStatus",
         "categoryId",
         "categoryLabel",
         "category_id",
@@ -87,11 +90,52 @@ service cloud.firestore {
           && request.resource.data[field] <= maxValue);
     }
 
+    function isValidIssueProgressStatus() {
+      return request.resource.data.progressStatus == "checking"
+        || request.resource.data.progressStatus == "action_requested"
+        || request.resource.data.progressStatus == "consulting";
+    }
+
+    function isValidImprovementProgressStatus() {
+      return request.resource.data.progressStatus == "in_progress"
+        || request.resource.data.progressStatus == "completed";
+    }
+
+    function isValidNoticeProgressStatus() {
+      return request.resource.data.progressStatus == "active"
+        || request.resource.data.progressStatus == "ended";
+    }
+
+    function isValidHotspotClassification() {
+      return (
+          request.resource.data.contentTab == "issues"
+          && request.resource.data.itemType == "issue"
+          && isValidIssueProgressStatus()
+        )
+        || (
+          request.resource.data.contentTab == "changes"
+          && request.resource.data.itemType == "improvement"
+          && isValidImprovementProgressStatus()
+        )
+        || (
+          request.resource.data.contentTab == "changes"
+          && (
+            request.resource.data.itemType == "safety_notice"
+            || request.resource.data.itemType == "life_notice"
+          )
+          && isValidNoticeProgressStatus()
+        );
+    }
+
     function isValidHotspotWrite() {
       return request.resource.data.title is string
         && request.resource.data.title.size() > 0
         && request.resource.data.title.size() <= 80
         && hasOnlyAllowedHotspotFields()
+        && request.resource.data.contentTab is string
+        && request.resource.data.itemType is string
+        && request.resource.data.progressStatus is string
+        && isValidHotspotClassification()
         && optionalString("memo", 500)
         && optionalNumberRange("level", 1, 5)
         && request.resource.data.lat is number

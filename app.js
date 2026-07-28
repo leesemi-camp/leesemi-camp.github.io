@@ -140,28 +140,69 @@ import APP_CONFIG from './config.js';
     석운동: "운중동"
   };
   const CONTENT_TAB_ISSUES = "issues";
-  const CONTENT_TAB_ACHIEVEMENTS = "achievements";
+  const CONTENT_TAB_CHANGES = "changes";
   const contentTabOptions = [
     {
       key: CONTENT_TAB_ISSUES,
       label: "우리동네 현안",
       pageTitle: "우리동네 현안도, 이세미입니다",
-      statsTitle: "현안 통계",
+      statsTitle: "현안 현황",
       countPrefix: "총 현안 건수",
       defaultListTitle: "우리동네 현안",
       emptyMessage: "등록된 지역 현안이 없습니다.",
       itemName: "현안"
     },
     {
-      key: CONTENT_TAB_ACHIEVEMENTS,
-      label: "이세미가 해낸 일",
+      key: CONTENT_TAB_CHANGES,
+      label: "우리동네 변화",
       pageTitle: "우리동네 변화도, 이세미입니다",
-      statsTitle: "성과 통계",
-      countPrefix: "해낸 일",
-      defaultListTitle: "이세미가 해낸 일",
-      emptyMessage: "등록된 성과가 없습니다.",
-      itemName: "성과"
+      statsTitle: "변화·안내 현황",
+      countPrefix: "총 변화·안내 건수",
+      defaultListTitle: "우리동네 변화",
+      emptyMessage: "등록된 변화와 안내가 없습니다.",
+      itemName: "변화·안내"
     }
+  ];
+
+  const ITEM_TYPE_ISSUE = "issue";
+  const ITEM_TYPE_IMPROVEMENT = "improvement";
+  const ITEM_TYPE_SAFETY_NOTICE = "safety_notice";
+  const ITEM_TYPE_LIFE_NOTICE = "life_notice";
+  const itemTypeOptions = [
+    { key: ITEM_TYPE_ISSUE, label: "현안" },
+    { key: ITEM_TYPE_IMPROVEMENT, label: "개선" },
+    { key: ITEM_TYPE_SAFETY_NOTICE, label: "안전 안내" },
+    { key: ITEM_TYPE_LIFE_NOTICE, label: "생활 안내" }
+  ];
+
+  const PROGRESS_STATUS_CHECKING = "checking";
+  const PROGRESS_STATUS_ACTION_REQUESTED = "action_requested";
+  const PROGRESS_STATUS_CONSULTING = "consulting";
+  const PROGRESS_STATUS_IN_PROGRESS = "in_progress";
+  const PROGRESS_STATUS_COMPLETED = "completed";
+  const PROGRESS_STATUS_ACTIVE = "active";
+  const PROGRESS_STATUS_ENDED = "ended";
+  const progressStatusOptions = [
+    { key: PROGRESS_STATUS_CHECKING, label: "확인 중" },
+    { key: PROGRESS_STATUS_ACTION_REQUESTED, label: "조치 요청" },
+    { key: PROGRESS_STATUS_CONSULTING, label: "협의 중" },
+    { key: PROGRESS_STATUS_IN_PROGRESS, label: "추진 중" },
+    { key: PROGRESS_STATUS_COMPLETED, label: "개선 완료" },
+    { key: PROGRESS_STATUS_ACTIVE, label: "안내 중" },
+    { key: PROGRESS_STATUS_ENDED, label: "종료" }
+  ];
+  const issueProgressStatusKeys = [
+    PROGRESS_STATUS_CHECKING,
+    PROGRESS_STATUS_ACTION_REQUESTED,
+    PROGRESS_STATUS_CONSULTING
+  ];
+  const improvementProgressStatusKeys = [
+    PROGRESS_STATUS_IN_PROGRESS,
+    PROGRESS_STATUS_COMPLETED
+  ];
+  const noticeProgressStatusKeys = [
+    PROGRESS_STATUS_ACTIVE,
+    PROGRESS_STATUS_ENDED
   ];
 
   const issueCategories = {
@@ -315,6 +356,11 @@ import APP_CONFIG from './config.js';
     cancelSpotEditButton: document.getElementById("spot-cancel-edit-btn"),
     spotDongSelect: document.getElementById("spot-dong"),
     spotContentTabSelect: document.getElementById("spot-content-tab"),
+    spotItemTypeField: document.getElementById("spot-item-type-field"),
+    spotItemTypeSelect: document.getElementById("spot-item-type"),
+    spotProgressStatusField: document.getElementById("spot-progress-status-field"),
+    spotProgressStatusSelect: document.getElementById("spot-progress-status"),
+    spotClassificationWarning: document.getElementById("spot-classification-warning"),
     spotIssueRefField: document.getElementById("spot-issue-ref-field"),
     spotIssueRefSelect: document.getElementById("spot-issue-ref"),
     spotIssueRefHelp: document.getElementById("spot-issue-ref-help"),
@@ -402,6 +448,7 @@ import APP_CONFIG from './config.js';
       setupPhotoLightbox();
       bindUiEvents();
       syncIssueReferenceFieldVisibility();
+      syncSpotClassificationControls();
       renderCommonPledges();
       syncContentTabs();
       initPopulationMonthOptions();
@@ -510,6 +557,18 @@ import APP_CONFIG from './config.js';
       elements.spotIssueRefSelect.addEventListener("change", () => {
         const issueRefId = String(elements.spotIssueRefSelect.value || "").trim();
         applyIssueCatalogSelection(issueRefId);
+      });
+    }
+
+    if (elements.spotContentTabSelect) {
+      elements.spotContentTabSelect.addEventListener("change", () => {
+        syncSpotClassificationControls();
+      });
+    }
+
+    if (elements.spotItemTypeSelect) {
+      elements.spotItemTypeSelect.addEventListener("change", () => {
+        syncSpotClassificationControls();
       });
     }
 
@@ -1765,14 +1824,15 @@ import APP_CONFIG from './config.js';
       return;
     }
     const activeTab = getActiveContentTabKey();
-    const isAchievementTab = shouldUseContentTabs() && activeTab === CONTENT_TAB_ACHIEVEMENTS;
+    const tabMeta = getActiveContentTabMeta();
+    const isChangesTab = shouldUseContentTabs() && activeTab === CONTENT_TAB_CHANGES;
     const activeHotspots = getContentTabHotspots(state.issues);
     if (elements.commonPledgeTitle) {
-      elements.commonPledgeTitle.textContent = isAchievementTab ? "이세미가 해낸 일" : "지역구 공통 현안";
+      elements.commonPledgeTitle.textContent = isChangesTab ? "우리동네 변화" : "지역구 공통 현안";
     }
-    const pledgeConfig = !isAchievementTab && config.data && Array.isArray(config.data.commonPledges) && config.data.commonPledges.length > 0
+    const pledgeConfig = !isChangesTab && config.data && Array.isArray(config.data.commonPledges) && config.data.commonPledges.length > 0
       ? config.data.commonPledges
-      : (isAchievementTab ? [] : defaultCommonPledges);
+      : (isChangesTab ? [] : defaultCommonPledges);
     const commonIssueTagMap = buildCommonIssueTagMap(activeHotspots);
     state.commonIssueTagMap = commonIssueTagMap;
     const commonIssueTagsByCategory = buildCommonIssueTagsByCategory(activeHotspots);
@@ -1806,19 +1866,19 @@ import APP_CONFIG from './config.js';
         return;
       }
       const categoryTitle = categoryId === "__uncategorized__"
-        ? "기타 공통 현안"
-        : resolveCategoryLabel(categoryId, "") + " 현안";
+        ? "기타 공통 " + tabMeta.itemName
+        : resolveCategoryLabel(categoryId, "") + " " + tabMeta.itemName;
       html.push(
         "<li class='pledge-item'>" +
           "<strong>" + escapeHtml(categoryTitle) + "</strong>" +
-          "<p>공통으로 제보된 현안입니다.</p>" +
+          "<p>공통으로 등록된 항목입니다.</p>" +
           renderCommonIssueTagsHtml(tags, commonIssueTagMap) +
         "</li>"
       );
     });
     if (html.length === 0) {
-      const message = isAchievementTab
-        ? "아직 등록된 성과가 없습니다."
+      const message = isChangesTab
+        ? "등록된 변화와 안내가 없습니다."
         : "표시할 공통 현안이 없습니다.";
       html.push(
         "<li class='pledge-item pledge-item-empty'>" +
@@ -2014,6 +2074,94 @@ import APP_CONFIG from './config.js';
     }
     const shouldShow = isEditMode() && getIssueCatalogConfig().enabled;
     elements.spotIssueRefField.classList.toggle("hidden", !shouldShow);
+  }
+
+  function getSpotFormContentTab() {
+    return normalizeContentTab(elements.spotContentTabSelect ? elements.spotContentTabSelect.value : CONTENT_TAB_ISSUES);
+  }
+
+  function populateSpotItemTypeOptions(contentTab, preferredItemType) {
+    if (!elements.spotItemTypeSelect) {
+      return "";
+    }
+    const tab = normalizeContentTab(contentTab);
+    const allowed = tab === CONTENT_TAB_CHANGES
+      ? [ITEM_TYPE_IMPROVEMENT, ITEM_TYPE_SAFETY_NOTICE, ITEM_TYPE_LIFE_NOTICE]
+      : [ITEM_TYPE_ISSUE];
+    const selected = allowed.includes(preferredItemType)
+      ? preferredItemType
+      : getDefaultItemTypeForContentTab(tab);
+    elements.spotItemTypeSelect.innerHTML = allowed.map((itemType) => {
+      return "<option value='" + escapeHtml(itemType) + "'>" + escapeHtml(getItemTypeLabel(itemType)) + "</option>";
+    }).join("");
+    elements.spotItemTypeSelect.value = selected;
+    return selected;
+  }
+
+  function populateSpotProgressStatusOptions(contentTab, itemType, preferredProgressStatus) {
+    if (!elements.spotProgressStatusSelect) {
+      return "";
+    }
+    const allowed = getAllowedProgressStatusKeys(contentTab, itemType);
+    const selected = allowed.includes(preferredProgressStatus)
+      ? preferredProgressStatus
+      : getDefaultProgressStatus(contentTab, itemType);
+    elements.spotProgressStatusSelect.innerHTML = allowed.map((progressStatus) => {
+      return "<option value='" + escapeHtml(progressStatus) + "'>" + escapeHtml(getProgressStatusLabel(progressStatus)) + "</option>";
+    }).join("");
+    elements.spotProgressStatusSelect.value = selected;
+    return selected;
+  }
+
+  function syncSpotClassificationControls(options) {
+    const tab = getSpotFormContentTab();
+    if (elements.spotContentTabSelect) {
+      elements.spotContentTabSelect.value = tab;
+    }
+    const rawPreferredItemType = options && options.preferredItemType !== undefined
+      ? options.preferredItemType
+      : (elements.spotItemTypeSelect ? elements.spotItemTypeSelect.value : "");
+    const preferredItemType = normalizeItemType(rawPreferredItemType, tab, { allowEmpty: false });
+    const selectedItemType = populateSpotItemTypeOptions(tab, preferredItemType);
+    if (elements.spotItemTypeField) {
+      elements.spotItemTypeField.classList.toggle("hidden", tab !== CONTENT_TAB_CHANGES);
+    }
+
+    const rawPreferredProgressStatus = options && options.preferredProgressStatus !== undefined
+      ? options.preferredProgressStatus
+      : (elements.spotProgressStatusSelect ? elements.spotProgressStatusSelect.value : "");
+    const preferredProgressStatus = normalizeProgressStatus(
+      rawPreferredProgressStatus,
+      tab,
+      selectedItemType,
+      { allowEmpty: false }
+    );
+    populateSpotProgressStatusOptions(tab, selectedItemType, preferredProgressStatus);
+
+    if (elements.spotClassificationWarning) {
+      elements.spotClassificationWarning.classList.toggle("hidden", !Boolean(options && options.showMissingWarning));
+    }
+  }
+
+  function resolveSpotFormItemType(contentTab) {
+    const tab = normalizeContentTab(contentTab);
+    if (tab === CONTENT_TAB_ISSUES) {
+      return ITEM_TYPE_ISSUE;
+    }
+    return normalizeItemType(
+      elements.spotItemTypeSelect ? elements.spotItemTypeSelect.value : "",
+      tab,
+      { allowEmpty: false }
+    );
+  }
+
+  function resolveSpotFormProgressStatus(contentTab, itemType) {
+    return normalizeProgressStatus(
+      elements.spotProgressStatusSelect ? elements.spotProgressStatusSelect.value : "",
+      contentTab,
+      itemType,
+      { allowEmpty: false }
+    );
   }
 
   async function ensureIssueCatalogLoaded() {
@@ -2303,7 +2451,7 @@ import APP_CONFIG from './config.js';
     }
     if (elements.spotIssueRefHelp) {
       elements.spotIssueRefHelp.textContent =
-        "선택한 연동 현안의 제목/분류/내용을 사용합니다. 좌표만 선택해 저장하세요.";
+        "선택한 연동 현안의 제목/분야/내용을 사용합니다. 좌표만 선택해 저장하세요.";
     }
   }
 
@@ -3651,7 +3799,9 @@ import APP_CONFIG from './config.js';
     }
     const compact = raw.replace(/[\s_-]+/g, "");
     if (
-      compact === CONTENT_TAB_ACHIEVEMENTS ||
+      compact === CONTENT_TAB_CHANGES ||
+      compact === "change" ||
+      compact === "achievements" ||
       compact === "achievement" ||
       compact === "done" ||
       compact === "completed" ||
@@ -3670,7 +3820,7 @@ import APP_CONFIG from './config.js';
       compact === "변화" ||
       compact === "변화도"
     ) {
-      return CONTENT_TAB_ACHIEVEMENTS;
+      return CONTENT_TAB_CHANGES;
     }
     return CONTENT_TAB_ISSUES;
   }
@@ -3708,8 +3858,178 @@ import APP_CONFIG from './config.js';
     return getContentTabMeta(getActiveContentTabKey());
   }
 
-  function getContentTabItemSubjectParticle(tabMeta) {
-    return tabMeta && tabMeta.key === CONTENT_TAB_ACHIEVEMENTS ? "가" : "이";
+  function normalizeClassificationKey(value) {
+    return String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+  }
+
+  function getItemTypeMeta(itemType) {
+    const key = String(itemType || "").trim();
+    return itemTypeOptions.find((item) => item.key === key) || null;
+  }
+
+  function getProgressStatusMeta(progressStatus) {
+    const key = String(progressStatus || "").trim();
+    return progressStatusOptions.find((item) => item.key === key) || null;
+  }
+
+  function getDefaultItemTypeForContentTab(contentTab) {
+    return normalizeContentTab(contentTab) === CONTENT_TAB_CHANGES
+      ? ITEM_TYPE_IMPROVEMENT
+      : ITEM_TYPE_ISSUE;
+  }
+
+  function normalizeItemType(value, contentTab, options) {
+    const tab = normalizeContentTab(contentTab);
+    const allowEmpty = Boolean(options && options.allowEmpty);
+    const compact = normalizeClassificationKey(value);
+    if (!compact) {
+      return allowEmpty ? "" : getDefaultItemTypeForContentTab(tab);
+    }
+    if (tab === CONTENT_TAB_ISSUES) {
+      if (compact === ITEM_TYPE_ISSUE || compact === "현안" || compact === "issueitem") {
+        return ITEM_TYPE_ISSUE;
+      }
+      return allowEmpty ? "" : ITEM_TYPE_ISSUE;
+    }
+    if (compact === ITEM_TYPE_IMPROVEMENT || compact === "improvements" || compact === "개선") {
+      return ITEM_TYPE_IMPROVEMENT;
+    }
+    if (compact === ITEM_TYPE_SAFETY_NOTICE || compact === "safetynotice" || compact === "안내안전" || compact === "안전안내") {
+      return ITEM_TYPE_SAFETY_NOTICE;
+    }
+    if (compact === ITEM_TYPE_LIFE_NOTICE || compact === "lifenotice" || compact === "생활안내") {
+      return ITEM_TYPE_LIFE_NOTICE;
+    }
+    return allowEmpty ? "" : getDefaultItemTypeForContentTab(tab);
+  }
+
+  function getProgressStatusKeysForContentTab(contentTab) {
+    return normalizeContentTab(contentTab) === CONTENT_TAB_CHANGES
+      ? improvementProgressStatusKeys.concat(noticeProgressStatusKeys)
+      : issueProgressStatusKeys.slice();
+  }
+
+  function getAllowedProgressStatusKeys(contentTab, itemType) {
+    const tab = normalizeContentTab(contentTab);
+    if (tab === CONTENT_TAB_ISSUES) {
+      return issueProgressStatusKeys.slice();
+    }
+    const normalizedItemType = normalizeItemType(itemType, tab, { allowEmpty: true });
+    if (normalizedItemType === ITEM_TYPE_SAFETY_NOTICE || normalizedItemType === ITEM_TYPE_LIFE_NOTICE) {
+      return noticeProgressStatusKeys.slice();
+    }
+    if (normalizedItemType === ITEM_TYPE_IMPROVEMENT) {
+      return improvementProgressStatusKeys.slice();
+    }
+    return [];
+  }
+
+  function getDefaultProgressStatus(contentTab, itemType) {
+    const normalizedItemType = normalizeItemType(itemType, contentTab, { allowEmpty: false });
+    const allowed = getAllowedProgressStatusKeys(contentTab, normalizedItemType);
+    return allowed[0] || "";
+  }
+
+  function normalizeProgressStatusKey(value) {
+    const compact = normalizeClassificationKey(value);
+    if (!compact) {
+      return "";
+    }
+    if (compact === PROGRESS_STATUS_CHECKING || compact === "확인" || compact === "확인중") {
+      return PROGRESS_STATUS_CHECKING;
+    }
+    if (compact === PROGRESS_STATUS_ACTION_REQUESTED || compact === "actionrequested" || compact === "조치요청" || compact === "요청") {
+      return PROGRESS_STATUS_ACTION_REQUESTED;
+    }
+    if (compact === PROGRESS_STATUS_CONSULTING || compact === "협의" || compact === "협의중") {
+      return PROGRESS_STATUS_CONSULTING;
+    }
+    if (compact === PROGRESS_STATUS_IN_PROGRESS || compact === "inprogress" || compact === "추진중" || compact === "진행중") {
+      return PROGRESS_STATUS_IN_PROGRESS;
+    }
+    if (compact === PROGRESS_STATUS_COMPLETED || compact === "complete" || compact === "completed" || compact === "done" || compact === "개선완료" || compact === "완료") {
+      return PROGRESS_STATUS_COMPLETED;
+    }
+    if (compact === PROGRESS_STATUS_ACTIVE || compact === "안내중" || compact === "진행") {
+      return PROGRESS_STATUS_ACTIVE;
+    }
+    if (compact === PROGRESS_STATUS_ENDED || compact === "end" || compact === "closed" || compact === "종료") {
+      return PROGRESS_STATUS_ENDED;
+    }
+    return "";
+  }
+
+  function normalizeProgressStatus(value, contentTab, itemType, options) {
+    const allowEmpty = Boolean(options && options.allowEmpty);
+    const key = normalizeProgressStatusKey(value);
+    if (!key) {
+      return allowEmpty ? "" : getDefaultProgressStatus(contentTab, itemType);
+    }
+    const allowed = getAllowedProgressStatusKeys(contentTab, itemType);
+    if (allowed.includes(key)) {
+      return key;
+    }
+    return allowEmpty ? "" : getDefaultProgressStatus(contentTab, itemType);
+  }
+
+  function normalizeExistingProgressStatus(value, contentTab, itemType) {
+    const key = normalizeProgressStatusKey(value);
+    if (!key) {
+      return "";
+    }
+    const tabKeys = getProgressStatusKeysForContentTab(contentTab);
+    if (!tabKeys.includes(key)) {
+      return "";
+    }
+    const normalizedItemType = normalizeItemType(itemType, contentTab, { allowEmpty: true });
+    if (!normalizedItemType) {
+      return key;
+    }
+    return getAllowedProgressStatusKeys(contentTab, normalizedItemType).includes(key) ? key : "";
+  }
+
+  function resolveHotspotItemType(value, contentTab) {
+    if (!value || typeof value !== "object") {
+      return "";
+    }
+    return normalizeItemType(value.itemType || value.item_type || "", contentTab, { allowEmpty: true });
+  }
+
+  function resolveHotspotProgressStatus(value, contentTab, itemType) {
+    if (!value || typeof value !== "object") {
+      return "";
+    }
+    return normalizeExistingProgressStatus(
+      value.progressStatus || value.progress_status || "",
+      contentTab,
+      itemType
+    );
+  }
+
+  function isValidHotspotClassification(contentTab, itemType, progressStatus) {
+    const tab = normalizeContentTab(contentTab);
+    const normalizedItemType = normalizeItemType(itemType, tab, { allowEmpty: true });
+    const normalizedProgressStatus = normalizeProgressStatus(progressStatus, tab, normalizedItemType, { allowEmpty: true });
+    if (!normalizedItemType || !normalizedProgressStatus) {
+      return false;
+    }
+    if (tab === CONTENT_TAB_ISSUES && normalizedItemType !== ITEM_TYPE_ISSUE) {
+      return false;
+    }
+    if (tab === CONTENT_TAB_CHANGES && normalizedItemType === ITEM_TYPE_ISSUE) {
+      return false;
+    }
+    return getAllowedProgressStatusKeys(tab, normalizedItemType).includes(normalizedProgressStatus);
+  }
+
+  function getItemTypeLabel(itemType) {
+    const meta = getItemTypeMeta(itemType);
+    return meta ? meta.label : "";
+  }
+
+  function getProgressStatusLabel(progressStatus) {
+    const meta = getProgressStatusMeta(progressStatus);
+    return meta ? meta.label : "";
   }
 
   function getContentTabHotspots(hotspots) {
@@ -5469,6 +5789,9 @@ import APP_CONFIG from './config.js';
           []
         )
       );
+      const contentTab = resolveHotspotContentTab(value);
+      const itemType = resolveHotspotItemType(value, contentTab);
+      const progressStatus = resolveHotspotProgressStatus(value, contentTab, itemType);
 
       hotspots.push({
         id: String(record && record.id ? record.id : value.id || "").trim(),
@@ -5483,7 +5806,9 @@ import APP_CONFIG from './config.js';
           value.memo ||
           ""
         ),
-        contentTab: resolveHotspotContentTab(value),
+        contentTab,
+        itemType,
+        progressStatus,
         level: Number(value.level) || 3,
         categoryId,
         categoryLabel,
@@ -5577,6 +5902,16 @@ import APP_CONFIG from './config.js';
         return resolveCommonIssueFilterKey(spot) === activeFilter.key;
       });
     }
+    if (activeFilter.type === "itemType") {
+      return list.filter((spot) => {
+        return resolveItemTypeFilterKey(spot) === activeFilter.key;
+      });
+    }
+    if (activeFilter.type === "progressStatus") {
+      return list.filter((spot) => {
+        return resolveProgressStatusFilterKey(spot) === activeFilter.key;
+      });
+    }
     return list;
   }
 
@@ -5592,6 +5927,22 @@ import APP_CONFIG from './config.js';
 
   function resolveCommonIssueFilterKey(spot) {
     return normalizeIssueFilterKey(resolveBracketedCommonTag(spot));
+  }
+
+  function resolveItemTypeFilterKey(spot) {
+    return normalizeItemType(
+      spot && spot.itemType,
+      spot && spot.contentTab,
+      { allowEmpty: true }
+    );
+  }
+
+  function resolveProgressStatusFilterKey(spot) {
+    return normalizeExistingProgressStatus(
+      spot && spot.progressStatus,
+      spot && spot.contentTab,
+      spot && spot.itemType
+    );
   }
 
   function buildIssueFilterState(type, key, label) {
@@ -5627,6 +5978,22 @@ import APP_CONFIG from './config.js';
         type: commonKey ? "common" : "",
         key: commonKey,
         label: rawLabel
+      };
+    }
+    if (filterType === "itemType") {
+      const itemTypeKey = normalizeItemType(key || label, getActiveContentTabKey(), { allowEmpty: true });
+      return {
+        type: itemTypeKey ? "itemType" : "",
+        key: itemTypeKey,
+        label: String(label || getItemTypeLabel(itemTypeKey) || "").trim()
+      };
+    }
+    if (filterType === "progressStatus") {
+      const progressStatusKey = normalizeProgressStatusKey(key || label);
+      return {
+        type: progressStatusKey ? "progressStatus" : "",
+        key: progressStatusKey,
+        label: String(label || getProgressStatusLabel(progressStatusKey) || "").trim()
       };
     }
     return {
@@ -5684,6 +6051,9 @@ import APP_CONFIG from './config.js';
     }
     if (activeFilter.type === "common") {
       return "[" + activeFilter.label + "] " + tabMeta.itemName;
+    }
+    if (activeFilter.type === "itemType" || activeFilter.type === "progressStatus") {
+      return activeFilter.label + " " + tabMeta.itemName;
     }
     return "선택 " + tabMeta.itemName;
   }
@@ -5955,6 +6325,9 @@ import APP_CONFIG from './config.js';
       const tabName = String(tabButton.getAttribute("data-mobile-sheet-tab") || "").trim();
       const isActive = tabName === activeTab;
       const isDisabled = tabName === "issues" && !issueListVisible;
+      if (tabName === "issues") {
+        tabButton.textContent = getActiveContentTabKey() === CONTENT_TAB_CHANGES ? "변화" : "현안";
+      }
       tabButton.classList.toggle("mobile-sheet-tab-active", isActive);
       tabButton.classList.toggle("mobile-sheet-tab-disabled", isDisabled);
       tabButton.setAttribute("aria-selected", String(isActive));
@@ -7102,7 +7475,7 @@ import APP_CONFIG from './config.js';
     const dongName = String(feature.get("dongName") || "").trim();
     const count = Math.max(1, Number(feature.get("count")) || 1);
     const activeFilter = getActiveIssueFilter();
-    const isFiltered = activeFilter.type === "category" || activeFilter.type === "common";
+    const isFiltered = Boolean(activeFilter.type);
     const mode = isFiltered ? "focus" : "normal";
     const cacheKey = String(count) + "|" + mode;
     if (state.hotspotAggregateStyleCache.has(cacheKey)) {
@@ -7233,18 +7606,22 @@ import APP_CONFIG from './config.js';
     }
 
     const list = Array.isArray(hotspots) ? hotspots : [];
+    const tabMeta = getActiveContentTabMeta();
     if (list.length === 0) {
-      elements.issueStatsSummary.innerHTML = "<div class='issue-stats-empty'>표시할 현안 통계가 없습니다.</div>";
+      elements.issueStatsSummary.innerHTML = "<div class='issue-stats-empty'>표시할 " + escapeHtml(tabMeta.itemName) + " 현황이 없습니다.</div>";
       return;
     }
 
     const activeFilter = getActiveIssueFilter();
-    const tabMeta = getActiveContentTabMeta();
     const scopeLabel = activeFilter.type === "category"
-      ? "카테고리: " + activeFilter.label
+      ? "분야: " + activeFilter.label
       : (activeFilter.type === "dong"
         ? "동: " + activeFilter.label
-        : (activeFilter.type === "common" ? "공통 " + tabMeta.itemName + ": [" + activeFilter.label + "]" : "전체 기준"));
+        : (activeFilter.type === "common"
+          ? "공통 " + tabMeta.itemName + ": [" + activeFilter.label + "]"
+          : (activeFilter.type === "itemType"
+            ? "게시물 성격: " + activeFilter.label
+            : (activeFilter.type === "progressStatus" ? "진행 상태: " + activeFilter.label : "전체 기준"))));
     const isFiltered = hasActiveIssueFilter();
     const clearButtonClassName = isFiltered
       ? "issue-stats-clear-btn"
@@ -7258,66 +7635,86 @@ import APP_CONFIG from './config.js';
       "</button>";
     const categoryStats = buildIssueCategoryStats(list);
     const dongStats = buildIssueDongStats(list);
-
-    const categoryItems = categoryStats.map((item) => {
-      const safeLabel = escapeHtml(item.label);
-      const safeKey = escapeHtml(item.key);
-      const countLabel = String(item.count) + "건";
-      const chipStyle = buildCategoryBadgeStyle(item.color);
-      const isActive = isActiveIssueFilter("category", item.key);
-      const activeClassName = isActive ? " issue-stats-filter-btn-active" : "";
-      const activeAttrs = isActive ? " aria-current='true'" : "";
-      const buttonLabel = escapeHtml(item.label + " " + countLabel + " 보기");
-      return (
-        "<li class='issue-stats-item'>" +
-          "<button type='button' class='issue-stats-filter-btn" + activeClassName + "' data-action='filter-issues' data-filter-type='category' data-filter-key='" + safeKey + "' data-filter-label='" + safeLabel + "' aria-label='" + buttonLabel + "' aria-pressed='" + String(isActive) + "'" + activeAttrs + ">" +
-            "<span class='issue-stats-chip issue-stats-chip-category' style='" + chipStyle + "'>" + safeLabel + "</span>" +
-            "<span class='issue-stats-count'>" + countLabel + "</span>" +
-            "<span class='issue-stats-open-indicator' aria-hidden='true'>›</span>" +
-          "</button>" +
-        "</li>"
-      );
+    const itemTypeStats = buildItemTypeStats(list);
+    const progressStatusStats = buildProgressStatusStats(list);
+    const isChangesTab = getActiveContentTabKey() === CONTENT_TAB_CHANGES;
+    const dongItems = renderIssueStatsItems(dongStats, "dong", {
+      chipClassName: "issue-stats-chip-dong",
+      renderHint(item) {
+        const sourceNames = Array.isArray(item.sourceNames) ? item.sourceNames : [];
+        return sourceNames.length > 1
+          ? "<div class='issue-stats-hint'>" + escapeHtml(sourceNames.join(" · ") + " 묶음") + "</div>"
+          : "";
+      }
     });
-
-    const dongItems = dongStats.map((item) => {
-      const safeLabel = escapeHtml(item.label);
-      const safeKey = escapeHtml(item.key);
-      const countLabel = String(item.count) + "건";
-      const sourceNames = Array.isArray(item.sourceNames) ? item.sourceNames : [];
-      const mergeHint = sourceNames.length > 1
-        ? "<div class='issue-stats-hint'>" + escapeHtml(sourceNames.join(" · ") + " 묶음") + "</div>"
-        : "";
-      const isActive = isActiveIssueFilter("dong", item.key);
-      const activeClassName = isActive ? " issue-stats-filter-btn-active" : "";
-      const activeAttrs = isActive ? " aria-current='true'" : "";
-      const buttonLabel = escapeHtml(item.label + " " + countLabel + " 보기");
-      return (
-        "<li class='issue-stats-item'>" +
-          "<button type='button' class='issue-stats-filter-btn" + activeClassName + "' data-action='filter-issues' data-filter-type='dong' data-filter-key='" + safeKey + "' data-filter-label='" + safeLabel + "' aria-label='" + buttonLabel + "' aria-pressed='" + String(isActive) + "'" + activeAttrs + ">" +
-            "<span class='issue-stats-chip issue-stats-chip-dong'>" + safeLabel + "</span>" +
-            "<span class='issue-stats-count'>" + countLabel + "</span>" +
-            "<span class='issue-stats-open-indicator' aria-hidden='true'>›</span>" +
-          "</button>" +
-          mergeHint +
-        "</li>"
-      );
+    const categoryItems = renderIssueStatsItems(categoryStats, "category", {
+      chipClassName: "issue-stats-chip-category",
+      getStyle(item) {
+        return buildCategoryBadgeStyle(item.color);
+      }
     });
+    const itemTypeItems = renderIssueStatsItems(itemTypeStats, "itemType", {
+      chipClassName: "issue-stats-chip-type"
+    });
+    const progressStatusItems = renderIssueStatsItems(progressStatusStats, "progressStatus", {
+      chipClassName: "issue-stats-chip-status"
+    });
+    const itemTypeBlock = isChangesTab
+      ? (
+        "<section class='issue-stats-block'>" +
+          "<h4>게시물 성격별 건수</h4>" +
+          "<ul class='issue-stats-list'>" + itemTypeItems + "</ul>" +
+        "</section>"
+      )
+      : "";
 
     elements.issueStatsSummary.innerHTML =
       "<div class='issue-stats-head'>" +
-        "<span class='issue-stats-title'>" + escapeHtml(tabMeta.statsTitle) + " <span class='issue-stats-scope'>(" + scopeLabel + ")</span></span>" +
+        "<span class='issue-stats-title'>" + escapeHtml(tabMeta.statsTitle) + " <span class='issue-stats-scope'>(" + escapeHtml(scopeLabel) + ")</span></span>" +
         clearButtonMarkup +
       "</div>" +
       "<div class='issue-stats-grid'>" +
         "<section class='issue-stats-block'>" +
-          "<h4>동별 총 건수</h4>" +
-          "<ul class='issue-stats-list'>" + dongItems.join("") + "</ul>" +
+          "<h4>" + (isChangesTab ? "동별 변화·안내" : "동별 현안") + "</h4>" +
+          "<ul class='issue-stats-list'>" + dongItems + "</ul>" +
         "</section>" +
         "<section class='issue-stats-block'>" +
-          "<h4>카테고리별 총 건수</h4>" +
-          "<ul class='issue-stats-list'>" + categoryItems.join("") + "</ul>" +
+          "<h4>" + (isChangesTab ? "분야별 변화·안내" : "분야별 현안") + "</h4>" +
+          "<ul class='issue-stats-list'>" + categoryItems + "</ul>" +
+        "</section>" +
+        itemTypeBlock +
+        "<section class='issue-stats-block'>" +
+          "<h4>" + (isChangesTab ? "상태별 건수" : "진행 상태별 현안") + "</h4>" +
+          "<ul class='issue-stats-list'>" + progressStatusItems + "</ul>" +
         "</section>" +
       "</div>";
+  }
+
+  function renderIssueStatsItems(stats, filterType, options) {
+    const list = Array.isArray(stats) ? stats : [];
+    return list.map((item) => {
+      const safeLabel = escapeHtml(item.label);
+      const safeKey = escapeHtml(item.key);
+      const countLabel = String(item.count) + "건";
+      const chipClassName = "issue-stats-chip " + String(options && options.chipClassName ? options.chipClassName : "").trim();
+      const rawStyle = options && typeof options.getStyle === "function" ? options.getStyle(item) : "";
+      const styleAttr = rawStyle ? " style='" + rawStyle + "'" : "";
+      const hint = options && typeof options.renderHint === "function" ? options.renderHint(item) : "";
+      const isActive = isActiveIssueFilter(filterType, item.key);
+      const activeClassName = isActive ? " issue-stats-filter-btn-active" : "";
+      const activeAttrs = isActive ? " aria-current='true'" : "";
+      const buttonLabel = escapeHtml(item.label + " " + countLabel + " 보기");
+      return (
+        "<li class='issue-stats-item'>" +
+          "<button type='button' class='issue-stats-filter-btn" + activeClassName + "' data-action='filter-issues' data-filter-type='" + escapeHtml(filterType) + "' data-filter-key='" + safeKey + "' data-filter-label='" + safeLabel + "' aria-label='" + buttonLabel + "' aria-pressed='" + String(isActive) + "'" + activeAttrs + ">" +
+            "<span class='" + chipClassName + "'" + styleAttr + ">" + safeLabel + "</span>" +
+            "<span class='issue-stats-count'>" + countLabel + "</span>" +
+            "<span class='issue-stats-open-indicator' aria-hidden='true'>›</span>" +
+          "</button>" +
+          hint +
+        "</li>"
+      );
+    }).join("");
   }
 
   function buildIssueCategoryStats(hotspots) {
@@ -7385,15 +7782,60 @@ import APP_CONFIG from './config.js';
       });
   }
 
+  function buildItemTypeStats(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    const targets = [ITEM_TYPE_IMPROVEMENT, ITEM_TYPE_SAFETY_NOTICE, ITEM_TYPE_LIFE_NOTICE];
+    const statsByKey = new Map();
+    targets.forEach((itemType) => {
+      statsByKey.set(itemType, {
+        key: itemType,
+        label: getItemTypeLabel(itemType),
+        count: 0
+      });
+    });
+    list.forEach((spot) => {
+      const key = resolveItemTypeFilterKey(spot);
+      if (statsByKey.has(key)) {
+        statsByKey.get(key).count += 1;
+      }
+    });
+    return targets.map((key) => statsByKey.get(key));
+  }
+
+  function buildProgressStatusStats(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    const targets = getProgressStatusKeysForContentTab(getActiveContentTabKey());
+    const statsByKey = new Map();
+    targets.forEach((progressStatus) => {
+      statsByKey.set(progressStatus, {
+        key: progressStatus,
+        label: getProgressStatusLabel(progressStatus),
+        count: 0
+      });
+    });
+    list.forEach((spot) => {
+      const key = resolveProgressStatusFilterKey(spot);
+      if (statsByKey.has(key)) {
+        statsByKey.get(key).count += 1;
+      }
+    });
+    return targets.map((key) => statsByKey.get(key));
+  }
+
   function getActiveIssueFilterEmptyMessage() {
     const activeFilter = getActiveIssueFilter();
     const tabMeta = getActiveContentTabMeta();
-    const subjectParticle = getContentTabItemSubjectParticle(tabMeta);
     if (activeFilter.type === "dong") {
-      return activeFilter.label + "에 등록된 " + tabMeta.itemName + subjectParticle + " 없습니다.";
+      return activeFilter.label + "에 등록된 " + tabMeta.itemName + " 항목이 없습니다.";
     }
     if (activeFilter.type === "category") {
-      return activeFilter.label + " 카테고리에 등록된 " + tabMeta.itemName + subjectParticle + " 없습니다.";
+      return activeFilter.label + " 분야에 등록된 " + tabMeta.itemName + " 항목이 없습니다.";
+    }
+    if (activeFilter.type === "itemType") {
+      return activeFilter.label + " 게시물이 없습니다.";
+    }
+    if (activeFilter.type === "progressStatus") {
+      return activeFilter.label + " 상태의 " + tabMeta.itemName + " 항목이 없습니다.";
     }
     return tabMeta.emptyMessage;
   }
@@ -7434,6 +7876,41 @@ import APP_CONFIG from './config.js';
       focusPopup: Boolean(options && options.focusItem)
     });
     return true;
+  }
+
+  function toCssModifier(value) {
+    return String(value || "").trim().replace(/_/g, "-").replace(/[^a-zA-Z0-9-]/g, "").toLowerCase();
+  }
+
+  function buildSpotBadgesHtml(spot) {
+    const categoryLabel = escapeHtml(resolveCategoryLabel(spot && spot.categoryId, spot && spot.categoryLabel));
+    const categoryMeta = resolveIssueCategoryMeta(spot && spot.categoryId, spot && spot.categoryLabel);
+    const categoryStyle = buildCategoryBadgeStyle(categoryMeta.color);
+    const contentTab = normalizeContentTab(spot && spot.contentTab);
+    const itemType = normalizeItemType(spot && spot.itemType, contentTab, { allowEmpty: true });
+    const progressStatus = normalizeExistingProgressStatus(
+      spot && spot.progressStatus,
+      contentTab,
+      itemType
+    );
+    const badges = [
+      "<span class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</span>"
+    ];
+    if (contentTab === CONTENT_TAB_CHANGES && itemType) {
+      badges.push(
+        "<span class='spot-type-badge spot-type-" + escapeHtml(toCssModifier(itemType)) + "'>" +
+          escapeHtml(getItemTypeLabel(itemType)) +
+        "</span>"
+      );
+    }
+    if (progressStatus) {
+      badges.push(
+        "<span class='spot-status-badge spot-status-" + escapeHtml(toCssModifier(progressStatus)) + "'>" +
+          escapeHtml(getProgressStatusLabel(progressStatus)) +
+        "</span>"
+      );
+    }
+    return "<div class='spot-badges'>" + badges.join("") + "</div>";
   }
 
   function renderHotspotList(hotspots, options) {
@@ -7488,9 +7965,6 @@ import APP_CONFIG from './config.js';
         (isHighlighted ? " spot-item-highlighted" : "") +
         (isSelected ? " spot-item-selected" : "");
       const dongName = escapeHtml(formatSpotDongLabel(spot));
-      const categoryLabel = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
-      const categoryMeta = resolveIssueCategoryMeta(spot.categoryId, spot.categoryLabel);
-      const categoryStyle = buildCategoryBadgeStyle(categoryMeta.color);
       const safeId = escapeHtml(spot.id);
       let actionsHtml = "";
       if (showEditorActions) {
@@ -7507,7 +7981,7 @@ import APP_CONFIG from './config.js';
           "<div class='spot-item-top'>" +
             "<strong>" + titleWithPhotoBadge + "</strong>" +
           "</div>" +
-          "<div class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</div>" +
+          buildSpotBadgesHtml(spot) +
           "<div class='spot-dong'>" + dongName + "</div>" +
           (memo ? "<div class='spot-memo'>" + memo + "</div>" : "") +
           photoPreviewHtml +
@@ -9546,6 +10020,8 @@ import APP_CONFIG from './config.js';
       const title = String(formData.get("title") || "").trim();
       const memo = String(formData.get("memo") || "").trim();
       const contentTab = normalizeContentTab(formData.get("contentTab"));
+      const itemType = resolveSpotFormItemType(contentTab);
+      const progressStatus = resolveSpotFormProgressStatus(contentTab, itemType);
       const level = Number(formData.get("level") || 3);
       const categoryId = String(formData.get("categoryId") || "").trim();
       const issueRefId = normalizeIssueCatalogId(formData.get("issueRefId"));
@@ -9579,6 +10055,12 @@ import APP_CONFIG from './config.js';
 
       if (!resolvedTitle) {
         window.alert("제목을 입력하세요.");
+        return;
+      }
+
+      if (!isValidHotspotClassification(contentTab, itemType, progressStatus)) {
+        window.alert("표시 탭, 게시물 성격, 진행 상태의 조합을 확인하세요.");
+        syncSpotClassificationControls();
         return;
       }
 
@@ -9643,6 +10125,8 @@ import APP_CONFIG from './config.js';
           title: resolvedTitle,
           memo: resolvedMemo,
           contentTab,
+          itemType,
+          progressStatus,
           level: level >= 1 && level <= 5 ? level : 3,
           categoryId: issueCategories[resolvedCategoryId] ? resolvedCategoryId : "",
           categoryLabel,
@@ -9708,13 +10192,19 @@ import APP_CONFIG from './config.js';
     const categoryInput = elements.form.querySelector("#spot-category");
     const memoInput = elements.form.querySelector("#spot-memo");
     const issueRefSelect = elements.form.querySelector("#spot-issue-ref");
+    const contentTab = normalizeContentTab(spot.contentTab);
+    const existingItemType = normalizeItemType(spot.itemType, contentTab, { allowEmpty: true });
+    const formItemType = existingItemType || getDefaultItemTypeForContentTab(contentTab);
+    const existingProgressStatus = normalizeExistingProgressStatus(spot.progressStatus, contentTab, existingItemType);
+    const formProgressStatus = existingProgressStatus || getDefaultProgressStatus(contentTab, formItemType);
+    const showMissingClassificationWarning = !existingItemType || !existingProgressStatus;
 
     if (titleInput) {
       titleInput.value = spot.title || "";
       titleInput.readOnly = false;
     }
     if (contentTabInput) {
-      contentTabInput.value = normalizeContentTab(spot.contentTab);
+      contentTabInput.value = contentTab;
     }
     if (levelInput) {
       levelInput.value = String(Number(spot.level) || 3);
@@ -9736,6 +10226,11 @@ import APP_CONFIG from './config.js';
     if (issueRefSelect) {
       syncIssueCatalogSelectOptions(spot.issueRefId || "");
     }
+    syncSpotClassificationControls({
+      preferredItemType: formItemType,
+      preferredProgressStatus: formProgressStatus,
+      showMissingWarning: showMissingClassificationWarning
+    });
 
     if (elements.spotDongSelect) {
       let preferredDongKey = DONG_AUTO_KEY;
@@ -9783,6 +10278,7 @@ import APP_CONFIG from './config.js';
       if (elements.spotContentTabSelect) {
         elements.spotContentTabSelect.value = CONTENT_TAB_ISSUES;
       }
+      syncSpotClassificationControls();
       setSpotPhotoDataUrls([]);
       setSpotPhotoReprocessStatus("", false);
       setSpotSaveStatus("", false);
@@ -10119,10 +10615,10 @@ import APP_CONFIG from './config.js';
       return;
     }
     const safeSpotId = escapeHtml(String(spot.id || "").trim());
-    const rawTitle = String(spot.title || "").trim() || "현안";
+    const rawTitle = String(spot.title || "").trim() || getContentTabMeta(spot.contentTab).itemName;
     const safeTitle = escapeHtml(rawTitle);
     const safeMemo = escapeHtml(spot.memo || "-");
-    const safeCategory = escapeHtml(resolveCategoryLabel(spot.categoryId, spot.categoryLabel));
+    const badgesHtml = buildSpotBadgesHtml(spot);
     const safeDong = escapeHtml(formatSpotDongLabel(spot));
     const safeUser = escapeHtml(spot.updatedBy || "-");
     const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
@@ -10160,7 +10656,7 @@ import APP_CONFIG from './config.js';
       coordinate,
       "<strong>" + titleWithPhotoBadge + "</strong>" +
       photoHtml +
-      "<div>분류: " + safeCategory + "</div>" +
+      badgesHtml +
       "<div>소속 동: " + safeDong + "</div>" +
       "<div>내용: " + safeMemo + "</div>" +
       editorInfo +
@@ -10191,7 +10687,7 @@ import APP_CONFIG from './config.js';
     openPopup(
       coordinate,
       "<strong>" + safeTitle + "</strong>" +
-      "<div>분류: " + safeCategory + "</div>" +
+      "<div>분야: " + safeCategory + "</div>" +
       "<div>포인트 수: " + countLabel + "곳</div>" +
       "<div>대상 동: " + safeDongs + "</div>"
     );

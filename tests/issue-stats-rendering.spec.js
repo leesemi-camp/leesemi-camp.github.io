@@ -61,11 +61,11 @@ test("Issue stats shows empty message when no hotspots", async ({ page }) => {
   });
   const statsEl = page.locator("#issue-stats-summary");
   const html = await statsEl.innerHTML();
-  expect(html).toContain("표시할 현안 통계가 없습니다");
+  expect(html).toContain("표시할 현안 현황이 없습니다");
 });
 
 test("Issue stats shows category section with one hotspot", async ({ page }) => {
-  // 현안 1건이 있으면 카테고리 통계가 표시됨
+  // 현안 1건이 있으면 분야 통계가 표시됨
   await waitForHooks(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.renderIssueStatsSummary([
@@ -80,12 +80,12 @@ test("Issue stats shows category section with one hotspot", async ({ page }) => 
   });
   const statsEl = page.locator("#issue-stats-summary");
   const html = await statsEl.innerHTML();
-  expect(html).toContain("카테고리별");
+  expect(html).toContain("분야별 현안");
   expect(html).toContain("1건");
 });
 
 test("Issue stats category count matches hotspot count per category", async ({ page }) => {
-  // 카테고리별 건수가 정확히 표시됨
+  // 분야별 건수가 정확히 표시됨
   await waitForHooks(page);
   const result = await page.evaluate(() => {
     window.__spotListTestHooks.renderIssueStatsSummary([
@@ -167,8 +167,9 @@ test("Issue stats prioritizes dong totals", async ({ page }) => {
     return Array.from(document.querySelectorAll("#issue-stats-summary .issue-stats-block h4"))
       .map((element) => element.textContent.trim());
   });
-  expect(headings[0]).toBe("동별 총 건수");
-  expect(headings[1]).toBe("카테고리별 총 건수");
+  expect(headings[0]).toBe("동별 현안");
+  expect(headings[1]).toBe("분야별 현안");
+  expect(headings[2]).toBe("진행 상태별 현안");
 });
 
 test("Mobile sheet combines stats and common tab", async ({ page }) => {
@@ -302,7 +303,7 @@ test("Issue list stays hidden until a filter is selected", async ({ page }) => {
 });
 
 test("Clicking category stats filters issue list", async ({ page }) => {
-  // 카테고리 통계 버튼을 누르면 해당 카테고리 현안만 표시됨
+  // 분야 통계 버튼을 누르면 해당 분야 현안만 표시됨
   await waitForHooks(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.renderVisibleIssueListWithData([
@@ -316,10 +317,62 @@ test("Clicking category stats filters issue list", async ({ page }) => {
   const clearBtn = statsEl.locator("#clear-issue-filter-btn");
   await expect(spotList).toContainText("교통 현안");
   await expect(spotList).not.toContainText("환경 현안");
-  await expect(statsEl).toContainText("카테고리: 🚌 교통·주차");
+  await expect(statsEl).toContainText("분야: 🚌 교통·주차");
   await expect(clearBtn).not.toHaveClass(/issue-stats-clear-btn-inactive/);
   await expect(clearBtn).toBeEnabled();
   await expect(page.locator("#issue-filter-row")).toHaveCount(0);
+});
+
+test("Clicking progress status stats filters issue list", async ({ page }) => {
+  // 진행 상태 통계 버튼을 누르면 해당 상태 현안만 표시됨
+  await waitForHooks(page);
+  await page.evaluate(() => {
+    window.__spotListTestHooks.renderVisibleIssueListWithData([
+      { id: "status-a", title: "조치 요청 현안", categoryId: "traffic_parking", dongName: "판교동", progressStatus: "action_requested" },
+      { id: "status-b", title: "협의 중 현안", categoryId: "environment_park", dongName: "운중동", progressStatus: "consulting" }
+    ]);
+  });
+  await page.locator("#issue-stats-summary [data-filter-type='progressStatus'][data-filter-key='action_requested']").click();
+  const spotList = page.locator("#spot-list");
+  const statsEl = page.locator("#issue-stats-summary");
+  await expect(spotList).toContainText("조치 요청 현안");
+  await expect(spotList).not.toContainText("협의 중 현안");
+  await expect(statsEl).toContainText("진행 상태: 조치 요청");
+});
+
+test("Changes stats filters by item type", async ({ page }) => {
+  // 변화 탭에서는 게시물 성격별 통계 버튼으로 목록을 필터링함
+  await waitForHooks(page);
+  await page.evaluate(() => {
+    window.__spotListTestHooks.setActiveContentTab("changes");
+    window.__spotListTestHooks.renderVisibleIssueListWithData([
+      {
+        id: "change-a",
+        title: "보행로 볼라드 보수",
+        contentTab: "changes",
+        itemType: "improvement",
+        progressStatus: "completed",
+        categoryId: "safety_security",
+        dongName: "판교동"
+      },
+      {
+        id: "change-b",
+        title: "공사 현장 안전 안내",
+        contentTab: "changes",
+        itemType: "safety_notice",
+        progressStatus: "active",
+        categoryId: "education_childcare",
+        dongName: "대장동"
+      }
+    ]);
+  });
+  await expect(page.locator("#issue-stats-summary")).toContainText("게시물 성격별 건수");
+  await expect(page.locator("#issue-stats-summary")).toContainText("상태별 건수");
+  await page.locator("#issue-stats-summary [data-filter-type='itemType'][data-filter-key='safety_notice']").click();
+  const spotList = page.locator("#spot-list");
+  await expect(spotList).toContainText("공사 현장 안전 안내");
+  await expect(spotList).not.toContainText("보행로 볼라드 보수");
+  await expect(page.locator("#issue-stats-summary")).toContainText("게시물 성격: 안전 안내");
 });
 
 test("Desktop side panel prioritizes selected result", async ({ page }) => {
@@ -627,7 +680,7 @@ test("renderVisibleIssueListWithData with empty array keeps issue list hidden", 
 });
 
 test("Issue stats HTML special chars in category are escaped", async ({ page }) => {
-  // 카테고리 레이블에 HTML 특수문자가 있어도 이스케이프됨
+  // 분야 레이블에 HTML 특수문자가 있어도 이스케이프됨
   await waitForHooks(page);
   const result = await page.evaluate(() => {
     window.__spotListTestHooks.renderIssueStatsSummary([

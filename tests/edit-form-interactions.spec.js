@@ -43,6 +43,49 @@ test("Edit page category options include traffic_parking", async ({ page }) => {
   expect(text).toContain("교통");
 });
 
+test("Edit page content tab uses changes value", async ({ page }) => {
+  // 변화 탭은 신규 저장값 changes를 사용함
+  await page.goto("/map/edit/");
+  const changeOption = page.locator("#spot-content-tab option[value='changes']");
+  await expect(changeOption).toBeAttached();
+  await expect(changeOption).toHaveText("우리동네 변화");
+});
+
+test("Edit page hides item type for issue tab", async ({ page }) => {
+  // 현안 탭에서는 게시물 성격을 고정하므로 필드를 숨김
+  await page.goto("/map/edit/");
+  await expect(page.locator("#spot-progress-status option")).toHaveCount(3);
+  await page.evaluate(() => {
+    const select = document.querySelector("#spot-content-tab");
+    select.value = "issues";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect(page.locator("#spot-item-type-field")).toHaveClass(/hidden/);
+  await expect(page.locator("#spot-progress-status option")).toHaveText(["확인 중", "조치 요청", "협의 중"]);
+});
+
+test("Edit page changes item type controls progress statuses", async ({ page }) => {
+  // 변화 탭에서는 게시물 성격에 따라 진행 상태 옵션이 바뀜
+  await page.goto("/map/edit/");
+  await expect(page.locator("#spot-progress-status option")).toHaveCount(3);
+  await page.evaluate(() => {
+    const select = document.querySelector("#spot-content-tab");
+    select.value = "changes";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect(page.locator("#spot-item-type-field")).not.toHaveClass(/hidden/);
+  await expect(page.locator("#spot-item-type option")).toHaveText(["개선", "안전 안내", "생활 안내"]);
+  await expect(page.locator("#spot-progress-status option")).toHaveText(["추진 중", "개선 완료"]);
+
+  await page.evaluate(() => {
+    const select = document.querySelector("#spot-item-type");
+    select.value = "safety_notice";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect(page.locator("#spot-progress-status option")).toHaveText(["안내 중", "종료"]);
+  await expect(page.locator("#spot-progress-status")).toHaveValue("active");
+});
+
 test("Edit page dong select has auto option", async ({ page }) => {
   // 동 선택 드롭다운에 '좌표 기준 자동 판별' 옵션이 있음
   await page.goto("/map/edit/");

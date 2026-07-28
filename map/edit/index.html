@@ -104,7 +104,7 @@
               <label for="spot-content-tab">표시 탭</label>
               <select id="spot-content-tab" name="contentTab">
                 <option value="issues">우리동네 현안</option>
-                <option value="achievements">이세미가 해낸 일</option>
+                <option value="changes">우리동네 변화</option>
               </select>
 
             <div id="spot-issue-ref-field" class="spot-issue-ref-field hidden">
@@ -112,10 +112,10 @@
               <select id="spot-issue-ref" name="issueRefId">
                 <option value="">직접 입력</option>
               </select>
-              <p id="spot-issue-ref-help" class="field-note">시트에서 현안을 선택하면 제목/분류/내용이 자동 반영됩니다.</p>
+              <p id="spot-issue-ref-help" class="field-note">시트에서 현안을 선택하면 제목/분야/내용이 자동 반영됩니다.</p>
             </div>
 
-            <label for="spot-category">분류</label>
+            <label for="spot-category">분야</label>
             <select id="spot-category" name="categoryId" required>
               <option value="traffic_parking">🚌 교통·주차 (출퇴근과 이동의 편리함)</option>
                 <option value="education_childcare">🏫 교육·보육 (아이 키우기 좋은 동네)</option>
@@ -124,6 +124,21 @@
                 <option value="housing_infra">🏘️ 주거·인프라 (오래된 동네의 기분 좋은 변화)</option>
                 <option value="economy_culture">🛒 경제·문화 (지갑이 열리고 사람이 모이는 곳)</option>
               </select>
+
+              <div id="spot-item-type-field" class="spot-item-type-field hidden">
+                <label for="spot-item-type">게시물 성격</label>
+                <select id="spot-item-type" name="itemType">
+                  <option value="improvement">개선</option>
+                  <option value="safety_notice">안전 안내</option>
+                  <option value="life_notice">생활 안내</option>
+                </select>
+              </div>
+
+              <div id="spot-progress-status-field" class="spot-progress-status-field">
+                <label for="spot-progress-status">진행 상태</label>
+                <select id="spot-progress-status" name="progressStatus"></select>
+                <p id="spot-classification-warning" class="field-note spot-classification-warning hidden">기존 데이터의 게시물 성격 또는 진행 상태가 미지정입니다. 저장 전에 현재 상태를 확인해 주세요.</p>
+              </div>
 
               <label for="spot-dong">동 선택</label>
               <select id="spot-dong" name="dongKey">

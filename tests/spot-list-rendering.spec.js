@@ -46,7 +46,7 @@ test("Empty list renders generic message", async ({ page }) => {
 });
 
 test("Spot renders category badge and dong label", async ({ page }) => {
-  // 카테고리 배지와 동 레이블 렌더링 확인
+  // 분야 배지와 동 레이블 렌더링 확인
   await waitForHook(page);
   const result = await page.evaluate(() => {
     window.__spotListTestHooks.renderHotspotList([
@@ -73,8 +73,58 @@ test("Spot renders category badge and dong label", async ({ page }) => {
   expect(result.hasBadgeStyle).toBe(true);
 });
 
+test("Issue spot renders status badge without item type", async ({ page }) => {
+  // 현안은 게시물 성격 배지를 생략하고 진행 상태만 표시함
+  await waitForHook(page);
+  const result = await page.evaluate(() => {
+    window.__spotListTestHooks.renderHotspotList([
+      {
+        id: "spot-issue-status",
+        title: "주차장 확충 요청",
+        contentTab: "issues",
+        itemType: "issue",
+        progressStatus: "action_requested",
+        dongName: "대장동",
+        categoryId: "traffic_parking"
+      }
+    ]);
+    const item = document.querySelector("[data-spot-id='spot-issue-status']");
+    return {
+      typeText: item && item.querySelector(".spot-type-badge") ? item.querySelector(".spot-type-badge").textContent.trim() : "",
+      statusText: item && item.querySelector(".spot-status-badge") ? item.querySelector(".spot-status-badge").textContent.trim() : ""
+    };
+  });
+  expect(result.typeText).toBe("");
+  expect(result.statusText).toBe("조치 요청");
+});
+
+test("Change spot renders item type and status badges", async ({ page }) => {
+  // 변화 항목은 게시물 성격과 진행 상태 배지를 함께 표시함
+  await waitForHook(page);
+  const result = await page.evaluate(() => {
+    window.__spotListTestHooks.renderHotspotList([
+      {
+        id: "spot-change-status",
+        title: "보행로 볼라드 보수",
+        contentTab: "changes",
+        itemType: "improvement",
+        progressStatus: "completed",
+        dongName: "판교동",
+        categoryId: "safety_security"
+      }
+    ]);
+    const item = document.querySelector("[data-spot-id='spot-change-status']");
+    return {
+      typeText: item && item.querySelector(".spot-type-badge") ? item.querySelector(".spot-type-badge").textContent.trim() : "",
+      statusText: item && item.querySelector(".spot-status-badge") ? item.querySelector(".spot-status-badge").textContent.trim() : ""
+    };
+  });
+  expect(result.typeText).toBe("개선");
+  expect(result.statusText).toBe("개선 완료");
+});
+
 test("Spot with unknown category shows fallback label", async ({ page }) => {
-  // 카테고리 없는 현안은 미분류로 표시됨
+  // 분야 없는 현안은 미분류로 표시됨
   await waitForHook(page);
   const categoryText = await page.evaluate(() => {
     window.__spotListTestHooks.renderHotspotList([
