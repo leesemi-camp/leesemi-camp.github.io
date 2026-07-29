@@ -1,3 +1,5 @@
+@import url("./fonts.css");
+
 :root {
   --bg-1: #f3f6fb;
   --bg-2: #e7edf7;
@@ -16,7 +18,7 @@ html,
 body {
   margin: 0;
   min-height: 100%;
-  font-family: "Pretendard", "Noto Sans KR", sans-serif;
+  font-family: "Suit", "Noto Sans KR", sans-serif;
   color: var(--text);
   background: linear-gradient(160deg, var(--bg-1), var(--bg-2));
 }

@@ -7471,7 +7471,7 @@ import APP_CONFIG from './config.js';
           textBaseline: "middle",
           offsetX: 0,
           offsetY: 1,
-          font: "700 " + String(Math.round(iconFontSize)) + "px \"Pretendard\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+          font: "700 " + String(Math.round(iconFontSize)) + "px \"Suit\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
           fill: new ol.style.Fill({
             color: textFillColor
           }),
@@ -7544,7 +7544,7 @@ import APP_CONFIG from './config.js';
           textAlign: "center",
           textBaseline: "middle",
           offsetY: 0,
-          font: "900 16px \"Pretendard\", sans-serif",
+          font: "900 16px \"Suit\", sans-serif",
           fill: new ol.style.Fill({ color: "#ffffff" }),
           stroke: new ol.style.Stroke({
             color: "rgba(24,59,103,0.72)",
