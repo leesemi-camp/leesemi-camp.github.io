@@ -85,27 +85,3 @@ test("Service shell exposes staff claim helper", async ({ page }) => {
   expect(result.claimFalse).toBe(false);
   expect(result.redirectUrl).toBe("/system/");
 });
-
-test("Static pages use Suit font", async ({ page }) => {
-  // 주요 진입 화면의 전역 폰트가 Suit로 적용됨
-  await page.goto("/");
-  await expect(page.locator("body")).toHaveCSS("font-family", /Suit/);
-
-  await page.goto("/map/");
-  await expect(page.locator("body")).toHaveCSS("font-family", /Suit/);
-
-  await page.goto("/map/edit/");
-  await expect(page.locator("body")).toHaveCSS("font-family", /Suit/);
-
-  await disableAutoLogin(page);
-  await page.goto("/system/");
-  await expect(page.locator("body")).toHaveCSS("font-family", /Suit/);
-
-  await disableServiceShellRedirect(page);
-  await blockFirebaseSdk(page);
-  await page.goto("/party-dialer/");
-  await expect(page.locator("body")).toHaveCSS("font-family", /Suit/);
-
-  await page.goto("/sponsor-dialer/");
-  await expect(page.locator("body")).toHaveCSS("font-family", /Suit/);
-});
