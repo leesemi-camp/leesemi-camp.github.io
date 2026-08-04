@@ -464,6 +464,82 @@ test("Closing hotspot popup clears selected hotspot highlight", async ({ page })
   await expect(popup).toHaveClass(/hidden/);
 });
 
+test("Hotspot marker click centers popup after automatic move", async ({ page }) => {
+  // 지도 아이콘 클릭 후에는 마커가 아니라 팝업 중심이 지도 중심에 가깝게 놓임
+  await blockFirestore(page, [
+    {
+      id: "centered-marker-popup",
+      title: "중심 정렬 현안",
+      memo: "팝업 본문이 지도 안에서 한눈에 들어와야 합니다.",
+      categoryId: "traffic_parking",
+      dongName: "판교동",
+      lat: 37.394,
+      lng: 127.111
+    }
+  ]);
+  await gotoMap(page);
+  await waitForSpotListHooks(page);
+  await page.evaluate(() => {
+    window.__spotListTestHooks.setActiveDongFilter("판교동");
+    window.__spotListTestHooks.centerHotspotForTest("centered-marker-popup", 15);
+  });
+
+  const markerPoint = await page.waitForFunction(() => {
+    const hooks = window.__spotListTestHooks;
+    const aggregateState = hooks && hooks.getHotspotAggregateState ? hooks.getHotspotAggregateState() : null;
+    const mapWrap = document.querySelector(".map-wrap");
+    const point = hooks && hooks.getHotspotClientPointForTest
+      ? hooks.getHotspotClientPointForTest("centered-marker-popup")
+      : null;
+    const mapRect = mapWrap && mapWrap.getBoundingClientRect ? mapWrap.getBoundingClientRect() : null;
+    const pointIsVisible = point && mapRect &&
+      point.x >= mapRect.left &&
+      point.x <= mapRect.right &&
+      point.y >= mapRect.top &&
+      point.y <= mapRect.bottom;
+    return (
+      aggregateState &&
+      aggregateState.displayMode === "hotspot" &&
+      aggregateState.hotspotVisible &&
+      aggregateState.hotspotOpacity > 0.95 &&
+      !aggregateState.transitionActive &&
+      pointIsVisible
+    ) ? point : null;
+  });
+  const point = await markerPoint.jsonValue();
+  await page.mouse.click(point.x, point.y);
+
+  await expect(page.locator("#map-popup")).not.toHaveClass(/hidden/);
+  await expect.poll(() => {
+    return page.evaluate(() => {
+      const hooks = window.__spotListTestHooks;
+      const popup = document.querySelector("#map-popup");
+      const mapWrap = document.querySelector(".map-wrap");
+      const viewState = hooks && hooks.getMapViewState ? hooks.getMapViewState() : null;
+      if (
+        !popup ||
+        !mapWrap ||
+        !viewState ||
+        viewState.animating ||
+        popup.classList.contains("hidden") ||
+        popup.classList.contains("map-popup-closing")
+      ) {
+        return 9999;
+      }
+      const popupRect = popup.getBoundingClientRect();
+      const mapRect = mapWrap.getBoundingClientRect();
+      const popupCenterX = (popupRect.left + popupRect.right) / 2;
+      const popupCenterY = (popupRect.top + popupRect.bottom) / 2;
+      const mapCenterX = (mapRect.left + mapRect.right) / 2;
+      const mapCenterY = (mapRect.top + mapRect.bottom) / 2;
+      return Math.max(
+        Math.abs(popupCenterX - mapCenterX),
+        Math.abs(popupCenterY - mapCenterY)
+      );
+    });
+  }).toBeLessThanOrEqual(48);
+});
+
 test("Hotspot popup renders classification badges", async ({ page }) => {
   // 지도 팝업에도 목록과 같은 분야·성격·상태 배지를 표시함
   await blockFirestore(page, [

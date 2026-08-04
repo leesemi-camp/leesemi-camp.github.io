@@ -33,10 +33,18 @@ test("Edit page form has title input", async ({ page }) => {
 });
 
 test("Edit page category select has all 6 options", async ({ page }) => {
-  // 현안 분류 선택 드롭다운에 6가지 카테고리가 있음
+  // 현안 분류 선택 드롭다운은 새 6가지 카테고리만 짧은 이름으로 표시함
   await page.goto("/map/edit/");
-  const optionCount = await page.locator("#spot-category option").count();
-  expect(optionCount).toBe(6);
+  await expect(page.locator("#spot-category option")).toHaveText([
+    "🚌 교통·주차",
+    "🏫 교육·보육",
+    "🌳 환경·공원",
+    "🚨 안전·치안",
+    "🏘️ 주거·인프라",
+    "🚧 보수·정비"
+  ]);
+  await expect(page.locator("#spot-category option[value='maintenance_repair']")).toBeAttached();
+  await expect(page.locator("#spot-category option[value='economy_culture']")).toHaveCount(0);
 });
 
 test("Edit page category options include traffic_parking", async ({ page }) => {

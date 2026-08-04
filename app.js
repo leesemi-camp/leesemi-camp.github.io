@@ -214,7 +214,7 @@ import APP_CONFIG from './config.js';
     environment_park: "🌳 환경·공원",
     safety_security: "🚨 안전·치안",
     housing_infra: "🏘️ 주거·인프라",
-    economy_culture: "🛒 경제·문화"
+    maintenance_repair: "🚧 보수·정비"
   };
   const issueCategoryMeta = {
     traffic_parking: { icon: "🚌", color: "#2f6fb8" },
@@ -222,7 +222,7 @@ import APP_CONFIG from './config.js';
     environment_park: { icon: "🌳", color: "#2b8a3e" },
     safety_security: { icon: "🚨", color: "#d9480f" },
     housing_infra: { icon: "🏘️", color: "#8d6e63" },
-    economy_culture: { icon: "🛒", color: "#c2255c" }
+    maintenance_repair: { icon: "🚧", color: "#5b6066" }
   };
   const fallbackCategoryPalette = [
     "#2f6fb8",
@@ -1963,7 +1963,7 @@ import APP_CONFIG from './config.js';
       { categoryId: "environment_park", keywords: ["환경", "공원", "산책"] },
       { categoryId: "safety_security", keywords: ["안전", "치안"] },
       { categoryId: "housing_infra", keywords: ["주거", "인프라"] },
-      { categoryId: "economy_culture", keywords: ["경제", "문화", "상권"] }
+      { categoryId: "maintenance_repair", keywords: ["보수", "정비", "수리"] }
     ];
     keywordRules.forEach((rule) => {
       const matched = rule.keywords.some((keyword) => raw.includes(keyword));
@@ -7576,7 +7576,6 @@ import APP_CONFIG from './config.js';
     } else {
       clearHighlightedHotspots();
     }
-    animateMapToHotspotSelection(coordinate, spot);
     openHotspotPopup(coordinate, spot);
     return true;
   }
@@ -7888,7 +7887,6 @@ import APP_CONFIG from './config.js';
     setHighlightedHotspots([spot.id], {
       selectedHotspotId: spot.id
     });
-    animateMapToHotspotSelection(coordinate, spot);
     openHotspotPopup(coordinate, spot, {
       returnFocusElement: item,
       focusPopup: Boolean(options && options.focusItem)
@@ -8131,6 +8129,54 @@ import APP_CONFIG from './config.js';
       getSelectedHotspotId() {
         return state.selectedHotspotId || "";
       },
+      getHotspotClientPointForTest(spotId) {
+        if (!state.map || !state.hotspotSource || typeof state.map.getPixelFromCoordinate !== "function") {
+          return null;
+        }
+        const feature = state.hotspotSource.getFeatureById(String(spotId || ""));
+        const geometry = feature && typeof feature.getGeometry === "function"
+          ? feature.getGeometry()
+          : null;
+        const coordinate = geometry && typeof geometry.getCoordinates === "function"
+          ? geometry.getCoordinates()
+          : null;
+        const pixel = Array.isArray(coordinate) ? state.map.getPixelFromCoordinate(coordinate) : null;
+        const viewport = typeof state.map.getViewport === "function" ? state.map.getViewport() : null;
+        const rect = viewport && typeof viewport.getBoundingClientRect === "function"
+          ? viewport.getBoundingClientRect()
+          : null;
+        if (!Array.isArray(pixel) || !rect) {
+          return null;
+        }
+        const x = rect.left + Number(pixel[0]);
+        const y = rect.top + Number(pixel[1]);
+        return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+      },
+      centerHotspotForTest(spotId, zoom) {
+        if (!state.map || !state.hotspotSource || typeof state.map.getView !== "function") {
+          return false;
+        }
+        const feature = state.hotspotSource.getFeatureById(String(spotId || ""));
+        const geometry = feature && typeof feature.getGeometry === "function"
+          ? feature.getGeometry()
+          : null;
+        const coordinate = geometry && typeof geometry.getCoordinates === "function"
+          ? geometry.getCoordinates()
+          : null;
+        const view = state.map.getView();
+        if (!Array.isArray(coordinate) || !view || typeof view.setCenter !== "function") {
+          return false;
+        }
+        view.setCenter(coordinate);
+        if (Number.isFinite(Number(zoom)) && typeof view.setZoom === "function") {
+          view.setZoom(Number(zoom));
+        }
+        syncHotspotMarkerDisplayMode();
+        if (typeof state.map.renderSync === "function") {
+          state.map.renderSync();
+        }
+        return true;
+      },
       movePhotoSlideshowForTest(slideshowId, delta) {
         return movePhotoSlideshow(slideshowId, delta);
       },
@@ -8336,9 +8382,6 @@ import APP_CONFIG from './config.js';
   }
 
   function resolvePopupAwareCenterCoordinate(coordinate, options) {
-    if (!isMobileLayout()) {
-      return coordinate;
-    }
     if (!state.map || !Array.isArray(coordinate) || coordinate.length < 2) {
       return coordinate;
     }
@@ -8452,7 +8495,7 @@ import APP_CONFIG from './config.js';
   }
 
   function resolveRenderedPopupAlignedCenter(options) {
-    if (!isMobileLayout() || !state.map || !isMapPopupVisible()) {
+    if (!state.map || !isMapPopupVisible()) {
       return null;
     }
     const view = state.map.getView();
