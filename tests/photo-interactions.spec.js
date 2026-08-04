@@ -150,17 +150,44 @@ test("Map popup photo slideshow next button navigates to next slide", async ({ p
   await spotItem.focus();
   await spotItem.press("Enter");
   await expect(page.locator("#map-popup")).not.toHaveClass(/hidden/);
+  await page.waitForFunction(() => {
+    const popup = document.getElementById("map-popup");
+    if (!popup || popup.classList.contains("hidden") || popup.classList.contains("map-popup-closing")) {
+      return false;
+    }
+    const firstRect = popup.getBoundingClientRect();
+    return new Promise((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const secondRect = popup.getBoundingClientRect();
+          resolve(
+            Math.abs(firstRect.left - secondRect.left) < 0.5 &&
+            Math.abs(firstRect.top - secondRect.top) < 0.5 &&
+            Math.abs(firstRect.width - secondRect.width) < 0.5 &&
+            Math.abs(firstRect.height - secondRect.height) < 0.5
+          );
+        });
+      });
+    });
+  });
 
   const slideshowHandle = await page.waitForFunction(() => {
     const slideshow = document.querySelector("#map-popup .photo-slideshow");
     const indicator = document.querySelector("#map-popup .photo-slide-indicator");
-    if (!(slideshow instanceof HTMLElement) || !indicator) {
+    const hooks = window.__spotListTestHooks;
+    if (!(slideshow instanceof HTMLElement) || !indicator || !hooks) {
       return null;
     }
     const slideshowId = String(slideshow.getAttribute("data-photo-slideshow-id") || "").trim();
     const count = String(slideshow.getAttribute("data-photo-count") || "").trim();
     const label = String(indicator.textContent || "").trim();
-    if (!slideshowId || count !== "2" || label !== "1 / 2") {
+    if (
+      !slideshowId ||
+      count !== "2" ||
+      label !== "1 / 2" ||
+      typeof hooks.hasPhotoSlideshowForTest !== "function" ||
+      !hooks.hasPhotoSlideshowForTest(slideshowId)
+    ) {
       return null;
     }
     return {

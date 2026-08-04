@@ -8180,6 +8180,9 @@ import APP_CONFIG from './config.js';
       movePhotoSlideshowForTest(slideshowId, delta) {
         return movePhotoSlideshow(slideshowId, delta);
       },
+      hasPhotoSlideshowForTest(slideshowId) {
+        return state.photoSlideshows.has(String(slideshowId || "").trim());
+      },
       dismissMapPopupForTest(options) {
         return dismissMapPopup({
           immediate: Boolean(options && options.immediate)

@@ -512,15 +512,11 @@ test("Hotspot marker click centers popup after automatic move", async ({ page })
   await expect(page.locator("#map-popup")).not.toHaveClass(/hidden/);
   await expect.poll(() => {
     return page.evaluate(() => {
-      const hooks = window.__spotListTestHooks;
       const popup = document.querySelector("#map-popup");
       const mapWrap = document.querySelector(".map-wrap");
-      const viewState = hooks && hooks.getMapViewState ? hooks.getMapViewState() : null;
       if (
         !popup ||
         !mapWrap ||
-        !viewState ||
-        viewState.animating ||
         popup.classList.contains("hidden") ||
         popup.classList.contains("map-popup-closing")
       ) {
