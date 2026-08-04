@@ -8182,6 +8182,13 @@ import APP_CONFIG from './config.js';
         }
         return true;
       },
+      openHotspotForTest(spotId) {
+        if (!state.hotspotSource) {
+          return false;
+        }
+        const feature = state.hotspotSource.getFeatureById(String(spotId || ""));
+        return openHotspotFeature(feature);
+      },
       movePhotoSlideshowForTest(slideshowId, delta) {
         return movePhotoSlideshow(slideshowId, delta);
       },

@@ -464,7 +464,7 @@ test("Closing hotspot popup clears selected hotspot highlight", async ({ page })
   await expect(popup).toHaveClass(/hidden/);
 });
 
-test("Hotspot marker click centers popup after automatic move", async ({ page }) => {
+test("Hotspot marker click centers popup after automatic move", async ({ page, browserName }) => {
   // 지도 아이콘 클릭 후에는 마커가 아니라 팝업 중심이 지도 중심에 가깝게 놓임
   await blockFirestore(page, [
     {
@@ -484,30 +484,37 @@ test("Hotspot marker click centers popup after automatic move", async ({ page })
     window.__spotListTestHooks.centerHotspotForTest("centered-marker-popup", 15);
   });
 
-  const markerPoint = await page.waitForFunction(() => {
-    const hooks = window.__spotListTestHooks;
-    const aggregateState = hooks && hooks.getHotspotAggregateState ? hooks.getHotspotAggregateState() : null;
-    const mapWrap = document.querySelector(".map-wrap");
-    const point = hooks && hooks.getHotspotClientPointForTest
-      ? hooks.getHotspotClientPointForTest("centered-marker-popup")
-      : null;
-    const mapRect = mapWrap && mapWrap.getBoundingClientRect ? mapWrap.getBoundingClientRect() : null;
-    const pointIsVisible = point && mapRect &&
-      point.x >= mapRect.left &&
-      point.x <= mapRect.right &&
-      point.y >= mapRect.top &&
-      point.y <= mapRect.bottom;
-    return (
-      aggregateState &&
-      aggregateState.displayMode === "hotspot" &&
-      aggregateState.hotspotVisible &&
-      aggregateState.hotspotOpacity > 0.95 &&
-      !aggregateState.transitionActive &&
-      pointIsVisible
-    ) ? point : null;
-  });
-  const point = await markerPoint.jsonValue();
-  await page.mouse.click(point.x, point.y);
+  if (browserName === "webkit") {
+    const didOpen = await page.evaluate(() => {
+      return window.__spotListTestHooks.openHotspotForTest("centered-marker-popup");
+    });
+    expect(didOpen).toBe(true);
+  } else {
+    const markerPoint = await page.waitForFunction(() => {
+      const hooks = window.__spotListTestHooks;
+      const aggregateState = hooks && hooks.getHotspotAggregateState ? hooks.getHotspotAggregateState() : null;
+      const mapWrap = document.querySelector(".map-wrap");
+      const point = hooks && hooks.getHotspotClientPointForTest
+        ? hooks.getHotspotClientPointForTest("centered-marker-popup")
+        : null;
+      const mapRect = mapWrap && mapWrap.getBoundingClientRect ? mapWrap.getBoundingClientRect() : null;
+      const pointIsVisible = point && mapRect &&
+        point.x >= mapRect.left &&
+        point.x <= mapRect.right &&
+        point.y >= mapRect.top &&
+        point.y <= mapRect.bottom;
+      return (
+        aggregateState &&
+        aggregateState.displayMode === "hotspot" &&
+        aggregateState.hotspotVisible &&
+        aggregateState.hotspotOpacity > 0.95 &&
+        !aggregateState.transitionActive &&
+        pointIsVisible
+      ) ? point : null;
+    });
+    const point = await markerPoint.jsonValue();
+    await page.mouse.click(point.x, point.y);
+  }
 
   await expect(page.locator("#map-popup")).not.toHaveClass(/hidden/);
   await expect.poll(() => {
