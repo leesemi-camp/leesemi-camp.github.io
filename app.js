@@ -6546,7 +6546,12 @@ import APP_CONFIG from './config.js';
     if (!view || typeof view.animate !== "function") {
       return false;
     }
-    view.animate(buildSmoothMapAnimationOptions(options, fallbackDuration), callback);
+    const animationOptions = buildSmoothMapAnimationOptions(options, fallbackDuration);
+    if (typeof callback === "function") {
+      view.animate(animationOptions, callback);
+    } else {
+      view.animate(animationOptions);
+    }
     return true;
   }
 
@@ -8593,9 +8598,7 @@ import APP_CONFIG from './config.js';
 
     const duration = resolveMapAnimationDuration(options && options.duration, MAP_VIEW_CENTER_ANIMATION_MS);
     suppressPopupCloseForNextMapMove(duration);
-    return animateMapView(view, animateOptions, MAP_VIEW_CENTER_ANIMATION_MS, () => {
-      clearPopupMoveSuppression();
-    });
+    return animateMapView(view, animateOptions, MAP_VIEW_CENTER_ANIMATION_MS);
   }
 
   function alignOpenMapPopupToVisibleCenter(options) {
