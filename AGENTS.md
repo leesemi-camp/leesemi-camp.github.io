@@ -161,6 +161,17 @@ sequenceDiagram
   - `test-results/`
   - `playwright-report/`
 
+### CI Regression Policy (Decided)
+
+GitHub Actions의 `CI` 워크플로(`npm test`, Chromium/Chrome/Edge/WebKit 포함)를 최종 통과 기준으로 봅니다.
+
+- 지도, 팝업, 사진 슬라이드쇼, 포커스, 애니메이션, `requestAnimationFrame`, 이미지 로딩을 건드리는 변경은 로컬 Chromium 통과만으로 완료하지 않습니다. 커밋/푸시 요청이 있거나 CI 실패를 고치는 작업이면 푸시 후 GitHub Actions `CI`가 끝날 때까지 확인합니다.
+- CI 실패를 고칠 때는 먼저 `gh run list`와 `gh run view <run_id> --log-failed`로 실제 실패 로그를 읽고, 원인을 제품 버그 / 테스트 동기화 문제 / CI 환경 차이 중 하나로 분류한 뒤 수정합니다.
+- 테스트를 약화시키는 방향으로 바로 바꾸지 않습니다. 단, WebKit에서 OpenLayers 캔버스 좌표, 지도 애니메이션, 팝업 재배치처럼 브라우저별 이벤트 순서가 흔들리는 부분은 Chromium/Edge에서 정밀 동작을 검증하고 WebKit에서는 사용자에게 보이는 최종 상태를 검증하도록 나눌 수 있습니다.
+- 팝업 테스트는 `hidden`/`map-popup-closing` 상태가 아니고 필요한 DOM이 렌더링된 뒤 검증합니다. 고정 sleep 대신 `waitForFunction` 또는 `expect.poll`로 사용자에게 보이는 안정 상태를 기다립니다.
+- 팝업 사진 슬라이드쇼 테스트는 팝업 렌더링, 슬라이드쇼 등록, 슬라이드 이동 사이의 비동기 간격을 만들지 않습니다. 상태가 재렌더/닫힘 이벤트로 무효화될 수 있으면 준비 확인, 동작, 결과 확인을 같은 브라우저 컨텍스트 함수 안에서 처리합니다.
+- 포커스 복귀 테스트는 대상 카드가 필터/재렌더로 사라질 수 있는지 먼저 확인합니다. DOM 노드를 오래 들고 있지 말고, 닫힘 이후 다시 locator 기준으로 확인합니다.
+
 ### Final Report: Screenshot Path Listing (Decided)
 
 테스트 실행 결과로 스크린샷이 생성된 경우, 최종 보고에 **모든 스크린샷 파일 경로**를 포함합니다(비교/검토를 쉽게 하기 위함).
