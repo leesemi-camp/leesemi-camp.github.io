@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-07-28T16:09:32.196Z",
+  "generatedAt": "2026-08-04T11:29:51.012Z",
   "source": "firestore",
   "collection": "crowd_hotspots",
-  "count": 66,
+  "count": 67,
   "hotspots": [
     {
       "id": "zGu99pgxdB7gbir8wasx",
@@ -863,6 +863,31 @@
       "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2Ff9SLvVkJWWlhpE2Mnd9l%2F1776953095165-f098ebf502470bfe.jpg?alt=media&token=d3951acc-4705-4601-bb00-c754b8533b90",
       "photoProcessingVersion": 3,
       "updatedAt": "2026-07-28T15:59:17.458Z"
+    },
+    {
+      "id": "j9C0CIrMtkx00b186SD4",
+      "issueRefId": "",
+      "title": "보도 정비",
+      "memo": "보도 정비",
+      "level": 3,
+      "contentTab": "issues",
+      "itemType": "issue",
+      "progressStatus": "review_closed",
+      "categoryId": "housing_infra",
+      "categoryLabel": "🏘️ 주거·인프라",
+      "lat": 37.3923,
+      "lng": 127.075767,
+      "dongName": "운중동",
+      "emdCode": "41135115",
+      "dongSelectionMode": "auto",
+      "dongKey": "name:운중동",
+      "groupLabel": "",
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2Fj9C0CIrMtkx00b186SD4%2F1785842291976-64924ae5d31da0e4.jpg?alt=media&token=3e98f832-a7b6-45bf-96cc-c2fa8581fdf4"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2Fj9C0CIrMtkx00b186SD4%2F1785842291976-64924ae5d31da0e4.jpg?alt=media&token=3e98f832-a7b6-45bf-96cc-c2fa8581fdf4",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-08-04T11:25:08.085Z"
     },
     {
       "id": "6rZi0yTmjGUzDCUqjSmy",
