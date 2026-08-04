@@ -10886,6 +10886,7 @@ import APP_CONFIG from './config.js';
       }
     }));
     if (options && options.alignToVisibleCenter) {
+      suppressPopupCloseForNextMapMove(options.alignDuration);
       window.requestAnimationFrame(() => {
         alignOpenMapPopupToVisibleCenter({
           duration: options.alignDuration,
@@ -10894,12 +10895,14 @@ import APP_CONFIG from './config.js';
       });
     }
     if (options && options.focusPopup) {
-      window.requestAnimationFrame(() => {
-        const closeButton = elements.mapPopup && elements.mapPopup.querySelector("[data-action='close-popup']");
-        if (closeButton instanceof HTMLElement) {
-          closeButton.focus({ preventScroll: true });
-        }
-      });
+      window.setTimeout(() => {
+        window.requestAnimationFrame(() => {
+          const closeButton = elements.mapPopup && elements.mapPopup.querySelector("[data-action='close-popup']");
+          if (closeButton instanceof HTMLElement) {
+            closeButton.focus({ preventScroll: true });
+          }
+        });
+      }, 0);
     }
   }
 

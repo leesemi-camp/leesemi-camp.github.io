@@ -147,8 +147,7 @@ test("Map popup photo slideshow next button navigates to next slide", async ({ p
   });
 
   const spotItem = page.locator("#spot-list [data-spot-id='map-popup-photo-test']");
-  await spotItem.focus();
-  await spotItem.press("Enter");
+  await spotItem.locator("strong").first().click();
   await expect(page.locator("#map-popup")).not.toHaveClass(/hidden/);
   await page.waitForFunction(() => {
     const popup = document.getElementById("map-popup");
