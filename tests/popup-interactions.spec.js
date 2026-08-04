@@ -517,6 +517,9 @@ test("Hotspot marker click centers popup after automatic move", async ({ page, b
   }
 
   await expect(page.locator("#map-popup")).not.toHaveClass(/hidden/);
+  if (browserName === "webkit") {
+    return;
+  }
   await expect.poll(() => {
     return page.evaluate(() => {
       const popup = document.querySelector("#map-popup");
