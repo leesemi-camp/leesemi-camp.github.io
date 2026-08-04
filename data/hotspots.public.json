@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-04T11:29:51.012Z",
+  "generatedAt": "2026-08-04T12:06:51.964Z",
   "source": "firestore",
   "collection": "crowd_hotspots",
-  "count": 67,
+  "count": 68,
   "hotspots": [
     {
       "id": "zGu99pgxdB7gbir8wasx",
@@ -868,11 +868,11 @@
       "id": "j9C0CIrMtkx00b186SD4",
       "issueRefId": "",
       "title": "보도 정비",
-      "memo": "보도 정비",
+      "memo": "https://blog.naver.com/leesemi114/224368059872",
       "level": 3,
-      "contentTab": "issues",
-      "itemType": "issue",
-      "progressStatus": "review_closed",
+      "contentTab": "changes",
+      "itemType": "improvement",
+      "progressStatus": "completed",
       "categoryId": "housing_infra",
       "categoryLabel": "🏘️ 주거·인프라",
       "lat": 37.3923,
@@ -887,7 +887,30 @@
       ],
       "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2Fj9C0CIrMtkx00b186SD4%2F1785842291976-64924ae5d31da0e4.jpg?alt=media&token=3e98f832-a7b6-45bf-96cc-c2fa8581fdf4",
       "photoProcessingVersion": 3,
-      "updatedAt": "2026-08-04T11:25:08.085Z"
+      "updatedAt": "2026-08-04T12:02:49.821Z"
+    },
+    {
+      "id": "uScH8Bm9nocdRiPYqYSC",
+      "issueRefId": "",
+      "title": "보도 정비",
+      "memo": "https://blog.naver.com/leesemi114/224368059872",
+      "level": 3,
+      "contentTab": "changes",
+      "itemType": "improvement",
+      "progressStatus": "completed",
+      "categoryId": "housing_infra",
+      "categoryLabel": "🏘️ 주거·인프라",
+      "lat": 37.39217,
+      "lng": 127.076606,
+      "dongName": "운중동",
+      "emdCode": "41135115",
+      "dongSelectionMode": "auto",
+      "dongKey": "name:운중동",
+      "groupLabel": "",
+      "photoUrls": [],
+      "photoUrl": "",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-08-04T12:04:57.500Z"
     },
     {
       "id": "6rZi0yTmjGUzDCUqjSmy",
