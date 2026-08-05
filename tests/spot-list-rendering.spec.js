@@ -25,10 +25,12 @@ test.afterEach(async ({ page }, testInfo) => {
 async function waitForHook(page) {
   await page.goto("/map/");
   await page.waitForFunction(() => {
+    const stats = document.querySelector("#issue-stats-summary");
     return (
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.renderHotspotList === "function" &&
-      document.querySelector("#issue-stats-summary")
+      stats &&
+      stats.textContent.trim().length > 0
     );
   });
 }

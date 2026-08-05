@@ -6889,8 +6889,13 @@ import APP_CONFIG from './config.js';
     clearHotspotFeatures();
 
     hotspots.forEach((spot) => {
+      const lat = Number(spot && spot.lat);
+      const lng = Number(spot && spot.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return;
+      }
       const feature = new ol.Feature({
-        geometry: new ol.geom.Point(ol.proj.fromLonLat([spot.lng, spot.lat]))
+        geometry: new ol.geom.Point(ol.proj.fromLonLat([lng, lat]))
       });
 
       feature.setId(spot.id);

@@ -40,11 +40,13 @@ async function blockFirestore(page, hotspots = []) {
 
 async function waitForSpotListHooks(page) {
   await page.waitForFunction(() => {
+    const stats = document.querySelector("#issue-stats-summary");
     return (
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.renderHotspotList === "function" &&
       typeof window.__spotListTestHooks.renderVisibleIssueListWithData === "function" &&
-      document.querySelector("#issue-stats-summary")
+      stats &&
+      stats.textContent.trim().length > 0
     );
   });
 }

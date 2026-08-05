@@ -46,11 +46,13 @@ async function blockFirestore(page, hotspots = []) {
 
 async function waitForSpotListHook(page) {
   await page.waitForFunction(() => {
+    const stats = document.querySelector("#issue-stats-summary");
     return (
       window.__spotListTestHooks &&
-      typeof window.__spotListTestHooks.renderHotspotList === "function" &&
+      typeof window.__spotListTestHooks.renderVisibleIssueListWithData === "function" &&
       typeof window.__spotListTestHooks.movePhotoSlideshowForTest === "function" &&
-      document.querySelector("#issue-stats-summary")
+      stats &&
+      stats.textContent.trim().length > 0
     );
   });
 }
@@ -61,13 +63,15 @@ async function renderSpotWithPhotos(page) {
   await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page);
   await page.evaluate(([firstPhoto, secondPhoto]) => {
-    window.__spotListTestHooks.renderHotspotList([
+    window.__spotListTestHooks.renderVisibleIssueListWithData([
       {
         id: "photo-test-1",
         title: "사진 테스트 현안",
         categoryId: "traffic",
         categoryLabel: "교통",
         dongName: "판교동",
+        lat: 37.394,
+        lng: 127.111,
         photoDataUrls: [
           firstPhoto,
           secondPhoto
@@ -85,13 +89,15 @@ async function renderSpotWithSinglePhoto(page) {
   await page.goto("/map/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page);
   await page.evaluate((photoUrl) => {
-    window.__spotListTestHooks.renderHotspotList([
+    window.__spotListTestHooks.renderVisibleIssueListWithData([
       {
         id: "single-photo-1",
         title: "단일 사진 현안",
         categoryId: "env",
         categoryLabel: "환경",
         dongName: "운중동",
+        lat: 37.391,
+        lng: 127.079,
         photoDataUrls: [photoUrl]
       }
     ]);
