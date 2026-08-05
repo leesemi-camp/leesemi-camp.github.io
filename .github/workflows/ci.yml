@@ -48,7 +48,7 @@ jobs:
       - name: "Install Dependencies, Playwright Browsers"
         run: |
           npm install
-          npx playwright install --with-deps
+          npx playwright install --with-deps chromium chrome msedge webkit
 
       - name: "Run Playwright Tests"
         run: |

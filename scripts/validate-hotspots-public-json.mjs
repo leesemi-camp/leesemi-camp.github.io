@@ -14,13 +14,13 @@ const FORBIDDEN_KEYS = new Set([
 ]);
 const CONTENT_TAB_ISSUES = "issues";
 const CONTENT_TAB_CHANGES = "changes";
+const CONTENT_TAB_NOTICES = "notices";
 const ITEM_TYPE_ISSUE = "issue";
 const ITEM_TYPE_IMPROVEMENT = "improvement";
-const ITEM_TYPE_SAFETY_NOTICE = "safety_notice";
-const ITEM_TYPE_LIFE_NOTICE = "life_notice";
-const ISSUE_PROGRESS_STATUSES = new Set(["checking", "action_requested", "consulting", "review_closed"]);
-const IMPROVEMENT_PROGRESS_STATUSES = new Set(["in_progress", "completed"]);
-const NOTICE_PROGRESS_STATUSES = new Set(["active", "ended"]);
+const ITEM_TYPE_NOTICE = "notice";
+const ISSUE_PROGRESS_STATUSES = new Set(["checking"]);
+const IMPROVEMENT_PROGRESS_STATUSES = new Set(["completed"]);
+const NOTICE_PROGRESS_STATUSES = new Set(["checking", "completed"]);
 
 function readSnapshot(snapshotPath) {
   const text = fs.readFileSync(snapshotPath, "utf8");
@@ -81,20 +81,14 @@ function normalizeContentTab(value) {
   if (!token) {
     return "";
   }
-  if (token === CONTENT_TAB_ISSUES || token === "issue" || token === "현안") {
+  if (token === CONTENT_TAB_ISSUES) {
     return CONTENT_TAB_ISSUES;
   }
-  if (
-    token === CONTENT_TAB_CHANGES ||
-    token === "change" ||
-    token === "achievements" ||
-    token === "achievement" ||
-    token === "성과" ||
-    token === "변화" ||
-    token === "개선" ||
-    token === "완료"
-  ) {
+  if (token === CONTENT_TAB_CHANGES) {
     return CONTENT_TAB_CHANGES;
+  }
+  if (token === CONTENT_TAB_NOTICES) {
+    return CONTENT_TAB_NOTICES;
   }
   return "__invalid__";
 }
@@ -104,17 +98,14 @@ function normalizeItemType(value) {
   if (!token) {
     return "";
   }
-  if (token === ITEM_TYPE_ISSUE || token === "현안") {
+  if (token === ITEM_TYPE_ISSUE) {
     return ITEM_TYPE_ISSUE;
   }
-  if (token === ITEM_TYPE_IMPROVEMENT || token === "improvements" || token === "개선") {
+  if (token === ITEM_TYPE_IMPROVEMENT) {
     return ITEM_TYPE_IMPROVEMENT;
   }
-  if (token === "safetynotice" || token === "안전안내") {
-    return ITEM_TYPE_SAFETY_NOTICE;
-  }
-  if (token === "lifenotice" || token === "생활안내") {
-    return ITEM_TYPE_LIFE_NOTICE;
+  if (token === ITEM_TYPE_NOTICE) {
+    return ITEM_TYPE_NOTICE;
   }
   return "__invalid__";
 }
@@ -126,24 +117,7 @@ function normalizeProgressStatus(value) {
   }
   const normalized = {
     checking: "checking",
-    확인중: "checking",
-    actionrequested: "action_requested",
-    조치요청: "action_requested",
-    consulting: "consulting",
-    협의중: "consulting",
-    inprogress: "in_progress",
-    추진중: "in_progress",
-    completed: "completed",
-    complete: "completed",
-    개선완료: "completed",
-    완료: "completed",
-    active: "active",
-    안내중: "active",
-    ended: "ended",
-    종료: "ended",
-    안내종료: "ended",
-    reviewclosed: "review_closed",
-    검토종료: "review_closed"
+    completed: "completed"
   }[token];
   return normalized || "__invalid__";
 }
@@ -168,14 +142,12 @@ function assertValidClassification(hotspot, label) {
     assert(ISSUE_PROGRESS_STATUSES.has(progressStatus), `${label} has an invalid issue progressStatus.`);
     return;
   }
-  if (itemType === ITEM_TYPE_IMPROVEMENT) {
+  if (contentTab === CONTENT_TAB_CHANGES) {
+    assert(itemType === ITEM_TYPE_IMPROVEMENT, `${label} changes entries must use itemType=improvement.`);
     assert(IMPROVEMENT_PROGRESS_STATUSES.has(progressStatus), `${label} has an invalid improvement progressStatus.`);
     return;
   }
-  assert(
-    itemType === ITEM_TYPE_SAFETY_NOTICE || itemType === ITEM_TYPE_LIFE_NOTICE,
-    `${label} changes entries must use improvement, safety_notice, or life_notice.`
-  );
+  assert(itemType === ITEM_TYPE_NOTICE, `${label} notices entries must use itemType=notice.`);
   assert(NOTICE_PROGRESS_STATUSES.has(progressStatus), `${label} has an invalid notice progressStatus.`);
 }
 

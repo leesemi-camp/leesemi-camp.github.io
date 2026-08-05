@@ -28,8 +28,7 @@ async function waitForHook(page) {
     return (
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.renderHotspotList === "function" &&
-      document.querySelector("#issue-stats-summary") &&
-      document.querySelector("#issue-stats-summary").textContent.trim().length > 0
+      document.querySelector("#issue-stats-summary")
     );
   });
 }
@@ -74,7 +73,7 @@ test("Spot renders category badge and dong label", async ({ page }) => {
   expect(result.dongText).toBe("판교동");
   expect(result.hasBadgeStyle).toBe(true);
   expect(result.hasCompactProgress).toBe(true);
-  expect(result.statusText).toBe("확인 중");
+  expect(result.statusText).toBe("확인");
 });
 
 test("Issue spot renders status badge without item type", async ({ page }) => {
@@ -87,7 +86,7 @@ test("Issue spot renders status badge without item type", async ({ page }) => {
         title: "주차장 확충 요청",
         contentTab: "issues",
         itemType: "issue",
-        progressStatus: "action_requested",
+        progressStatus: "checking",
         dongName: "대장동",
         categoryId: "traffic_parking"
       }
@@ -101,14 +100,14 @@ test("Issue spot renders status badge without item type", async ({ page }) => {
     };
   });
   expect(result.hasCompactProgress).toBe(true);
-  expect(result.currentStepText).toContain("조치 요청");
+  expect(result.currentStepText).toContain("확인");
   expect(result.currentStepText).toContain("현재");
   expect(result.typeText).toBe("");
-  expect(result.statusText).toBe("조치 요청");
+  expect(result.statusText).toBe("확인");
 });
 
-test("Change spot renders item type and status badges", async ({ page }) => {
-  // 변화 항목은 게시물 성격과 진행 상태 배지를 함께 표시함
+test("Change spot renders status badge without item type", async ({ page }) => {
+  // 변화 항목은 완료 상태만 표시하고 게시물 성격 배지는 생략한다.
   await waitForHook(page);
   const result = await page.evaluate(() => {
     window.__spotListTestHooks.renderHotspotList([
@@ -124,12 +123,43 @@ test("Change spot renders item type and status badges", async ({ page }) => {
     ]);
     const item = document.querySelector("[data-spot-id='spot-change-status']");
     return {
+      currentStepText: item && item.querySelector(".spot-progress-step.is-current") ? item.querySelector(".spot-progress-step.is-current").textContent.trim() : "",
+      stepTexts: Array.from(item ? item.querySelectorAll(".spot-progress-step") : []).map((step) => step.textContent.trim()),
       typeText: item && item.querySelector(".spot-type-badge") ? item.querySelector(".spot-type-badge").textContent.trim() : "",
       statusText: item && item.querySelector(".spot-status-badge") ? item.querySelector(".spot-status-badge").textContent.trim() : ""
     };
   });
-  expect(result.typeText).toBe("개선");
-  expect(result.statusText).toBe("개선 완료");
+  expect(result.stepTexts.length).toBe(2);
+  expect(result.stepTexts[0]).toContain("확인");
+  expect(result.currentStepText).toContain("완료");
+  expect(result.currentStepText).toContain("현재");
+  expect(result.typeText).toBe("");
+  expect(result.statusText).toBe("완료");
+});
+
+test("Notice spot hides status and progress", async ({ page }) => {
+  // 안내 항목은 목록에서 상태 배지와 진행 단계를 표시하지 않는다.
+  await waitForHook(page);
+  const result = await page.evaluate(() => {
+    window.__spotListTestHooks.renderHotspotList([
+      {
+        id: "spot-notice-status",
+        title: "공사 안내",
+        contentTab: "notices",
+        itemType: "notice",
+        progressStatus: "checking",
+        dongName: "대장동",
+        categoryId: "traffic_parking"
+      }
+    ]);
+    const item = document.querySelector("[data-spot-id='spot-notice-status']");
+    return {
+      hasProgress: Boolean(item && item.querySelector(".spot-progress-flow")),
+      statusText: item && item.querySelector(".spot-status-badge") ? item.querySelector(".spot-status-badge").textContent.trim() : ""
+    };
+  });
+  expect(result.hasProgress).toBe(false);
+  expect(result.statusText).toBe("");
 });
 
 test("Spot memo auto-links URLs", async ({ page }) => {

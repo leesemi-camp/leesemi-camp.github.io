@@ -60,6 +60,7 @@ import APP_CONFIG from './config.js';
     populationMaxByPeriod: new Map(),
     hotspotData: new Map(),
     hotspotStyleCache: new Map(),
+    hotspotIconImageCache: new Map(),
     hotspotAggregateStyleCache: new Map(),
     highlightedHotspotIds: new Set(),
     selectedHotspotId: "",
@@ -141,10 +142,11 @@ import APP_CONFIG from './config.js';
   };
   const CONTENT_TAB_ISSUES = "issues";
   const CONTENT_TAB_CHANGES = "changes";
+  const CONTENT_TAB_NOTICES = "notices";
   const contentTabOptions = [
     {
       key: CONTENT_TAB_ISSUES,
-      label: "우리동네 현안",
+      label: "현안",
       pageTitle: "우리동네 현안도, 이세미입니다",
       statsTitle: "현안 현황",
       countPrefix: "총 현안 건수",
@@ -154,25 +156,39 @@ import APP_CONFIG from './config.js';
     },
     {
       key: CONTENT_TAB_CHANGES,
-      label: "우리동네 변화",
+      label: "변화",
       pageTitle: "우리동네 변화도, 이세미입니다",
-      statsTitle: "변화·안내 현황",
-      countPrefix: "총 변화·안내 건수",
+      statsTitle: "변화 현황",
+      countPrefix: "총 변화 건수",
       defaultListTitle: "우리동네 변화",
-      emptyMessage: "등록된 변화와 안내가 없습니다.",
-      itemName: "변화·안내"
+      emptyMessage: "등록된 변화가 없습니다.",
+      itemName: "변화"
+    },
+    {
+      key: CONTENT_TAB_NOTICES,
+      label: "안내",
+      pageTitle: "우리동네 안내도, 이세미입니다",
+      statsTitle: "안내 현황",
+      countPrefix: "총 안내 건수",
+      defaultListTitle: "우리동네 안내",
+      emptyMessage: "등록된 안내가 없습니다.",
+      itemName: "안내"
     }
   ];
 
   const ITEM_TYPE_ISSUE = "issue";
   const ITEM_TYPE_IMPROVEMENT = "improvement";
+  const ITEM_TYPE_NOTICE = "notice";
   const ITEM_TYPE_SAFETY_NOTICE = "safety_notice";
   const ITEM_TYPE_LIFE_NOTICE = "life_notice";
   const itemTypeOptions = [
     { key: ITEM_TYPE_ISSUE, label: "현안" },
-    { key: ITEM_TYPE_IMPROVEMENT, label: "개선" },
-    { key: ITEM_TYPE_SAFETY_NOTICE, label: "안전 안내" },
-    { key: ITEM_TYPE_LIFE_NOTICE, label: "생활 안내" }
+    { key: ITEM_TYPE_IMPROVEMENT, label: "현안·변화" },
+    { key: ITEM_TYPE_NOTICE, label: "안내" }
+  ];
+  const spotFormItemTypeOptions = [
+    ITEM_TYPE_IMPROVEMENT,
+    ITEM_TYPE_NOTICE
   ];
 
   const PROGRESS_STATUS_CHECKING = "checking";
@@ -184,29 +200,20 @@ import APP_CONFIG from './config.js';
   const PROGRESS_STATUS_ENDED = "ended";
   const PROGRESS_STATUS_REVIEW_CLOSED = "review_closed";
   const progressStatusOptions = [
-    { key: PROGRESS_STATUS_CHECKING, label: "확인 중", description: "현장 상황과 담당 부서를 확인하는 단계" },
-    { key: PROGRESS_STATUS_ACTION_REQUESTED, label: "조치 요청", description: "담당 부서나 관계기관에 개선을 요청한 단계" },
-    { key: PROGRESS_STATUS_CONSULTING, label: "협의 중", description: "처리 방법, 일정, 예산 등을 구체적으로 협의하는 단계" },
-    { key: PROGRESS_STATUS_IN_PROGRESS, label: "추진 중", description: "공사, 설치, 보수, 행정절차 등 실제 실행이 시작된 상태" },
-    { key: PROGRESS_STATUS_COMPLETED, label: "개선 완료", description: "조치가 끝나 주민이 변화를 확인할 수 있는 상태" },
-    { key: PROGRESS_STATUS_ACTIVE, label: "안내 중", description: "현재 주민이 확인해야 하는 유효한 안내" },
-    { key: PROGRESS_STATUS_ENDED, label: "안내 종료", description: "안내 기간이 끝난 상태" },
-    { key: PROGRESS_STATUS_REVIEW_CLOSED, label: "검토 종료", description: "담당 부서 검토 결과 현재 추진이 어려운 사안입니다." }
+    { key: PROGRESS_STATUS_CHECKING, label: "확인", description: "확인이 필요한 상태" },
+    { key: PROGRESS_STATUS_COMPLETED, label: "완료", description: "완료된 상태" }
   ];
-  const issueProgressStatusKeys = [
+  const generalProgressStatusKeys = [
     PROGRESS_STATUS_CHECKING,
-    PROGRESS_STATUS_ACTION_REQUESTED,
-    PROGRESS_STATUS_CONSULTING,
-    PROGRESS_STATUS_REVIEW_CLOSED
-  ];
-  const improvementProgressStatusKeys = [
-    PROGRESS_STATUS_IN_PROGRESS,
     PROGRESS_STATUS_COMPLETED
   ];
-  const noticeProgressStatusKeys = [
-    PROGRESS_STATUS_ACTIVE,
-    PROGRESS_STATUS_ENDED
+  const issueProgressStatusKeys = [
+    PROGRESS_STATUS_CHECKING
   ];
+  const improvementProgressStatusKeys = [
+    PROGRESS_STATUS_COMPLETED
+  ];
+  const noticeProgressStatusKeys = generalProgressStatusKeys.slice();
 
   const issueCategories = {
     traffic_parking: "🚌 교통·주차",
@@ -382,6 +389,7 @@ import APP_CONFIG from './config.js';
     issueStatsSummary: document.getElementById("issue-stats-summary"),
     issueListClearFilterButton: document.getElementById("issue-list-clear-filter-btn"),
     totalIssueCount: document.getElementById("total-issue-count"),
+    commonPledgePanel: document.getElementById("common-pledge-panel"),
     commonPledgeTitle: document.getElementById("common-pledge-title"),
     commonPledgeList: document.getElementById("common-pledge-list"),
     contentTabs: Array.from(document.querySelectorAll("[data-content-tab]")),
@@ -571,6 +579,12 @@ import APP_CONFIG from './config.js';
 
     if (elements.spotItemTypeSelect) {
       elements.spotItemTypeSelect.addEventListener("change", () => {
+        syncSpotClassificationControls();
+      });
+    }
+
+    if (elements.spotProgressStatusSelect) {
+      elements.spotProgressStatusSelect.addEventListener("change", () => {
         syncSpotClassificationControls();
       });
     }
@@ -791,6 +805,15 @@ import APP_CONFIG from './config.js';
         if (!(target instanceof HTMLElement)) {
           return;
         }
+        const openSpotButton = target.closest("[data-action='open-stats-spot']");
+        if (openSpotButton instanceof HTMLElement) {
+          const spotId = String(openSpotButton.getAttribute("data-spot-id") || "").trim();
+          activateHotspotById(spotId, {
+            returnFocusElement: openSpotButton,
+            focusPopup: true
+          });
+          return;
+        }
         const actionButton = target.closest("[data-action='filter-issues']");
         if (actionButton instanceof HTMLElement) {
           const filterType = String(actionButton.getAttribute("data-filter-type") || "").trim();
@@ -809,6 +832,14 @@ import APP_CONFIG from './config.js';
               animateList: true
             });
             return;
+          }
+          if (filterType === "progressStatus") {
+            const targetTab = getContentTabForProgressStatus(filterKey || filterLabel);
+            if (targetTab && shouldUseContentTabs() && getActiveContentTabKey() !== targetTab) {
+              setActiveContentTab(targetTab, {
+                userInitiated: true
+              });
+            }
           }
           setActiveIssueFilter(filterType, filterKey, {
             label: filterLabel,
@@ -1835,14 +1866,30 @@ import APP_CONFIG from './config.js';
     }
     const activeTab = getActiveContentTabKey();
     const tabMeta = getActiveContentTabMeta();
-    const isChangesTab = shouldUseContentTabs() && activeTab === CONTENT_TAB_CHANGES;
+    const isIssuesTab = !shouldUseContentTabs() || activeTab === CONTENT_TAB_ISSUES;
+    const shouldHidePanel = shouldUseContentTabs() && activeTab === CONTENT_TAB_NOTICES;
+    if (elements.commonPledgePanel) {
+      elements.commonPledgePanel.classList.toggle("hidden", shouldHidePanel);
+      elements.commonPledgePanel.toggleAttribute("hidden", shouldHidePanel);
+      if (shouldHidePanel) {
+        elements.commonPledgePanel.setAttribute("aria-hidden", "true");
+      } else {
+        elements.commonPledgePanel.removeAttribute("aria-hidden");
+      }
+    }
+    if (shouldHidePanel) {
+      elements.commonPledgeList.innerHTML = "";
+      state.commonIssueTagMap = new Map();
+      syncCommonIssueTagButtonState();
+      return;
+    }
     const activeHotspots = getContentTabHotspots(state.issues);
     if (elements.commonPledgeTitle) {
-      elements.commonPledgeTitle.textContent = isChangesTab ? "우리동네 변화" : "지역구 공통 현안";
+      elements.commonPledgeTitle.textContent = isIssuesTab ? "지역구 공통 현안" : "지역구 공통 " + tabMeta.itemName;
     }
-    const pledgeConfig = !isChangesTab && config.data && Array.isArray(config.data.commonPledges) && config.data.commonPledges.length > 0
+    const pledgeConfig = isIssuesTab && config.data && Array.isArray(config.data.commonPledges) && config.data.commonPledges.length > 0
       ? config.data.commonPledges
-      : (isChangesTab ? [] : defaultCommonPledges);
+      : (isIssuesTab ? defaultCommonPledges : []);
     const commonIssueTagMap = buildCommonIssueTagMap(activeHotspots);
     state.commonIssueTagMap = commonIssueTagMap;
     const commonIssueTagsByCategory = buildCommonIssueTagsByCategory(activeHotspots);
@@ -1850,7 +1897,6 @@ import APP_CONFIG from './config.js';
 
     const html = pledgeConfig.map((item) => {
       const title = escapeHtml(item && item.title ? item.title : "현안");
-      const description = escapeHtml(item && item.description ? item.description : "");
       const categoryIds = inferCategoryIdsFromCommonTitle(item && item.title ? item.title : "");
       const tags = collectCommonIssueTagsForCategories(commonIssueTagsByCategory, categoryIds);
       categoryIds.forEach((categoryId) => {
@@ -1860,7 +1906,6 @@ import APP_CONFIG from './config.js';
       return (
         "<li class='pledge-item'>" +
           "<strong>" + title + "</strong>" +
-          "<p>" + description + "</p>" +
           tagsHtml +
         "</li>"
       );
@@ -1881,15 +1926,14 @@ import APP_CONFIG from './config.js';
       html.push(
         "<li class='pledge-item'>" +
           "<strong>" + escapeHtml(categoryTitle) + "</strong>" +
-          "<p>공통으로 등록된 항목입니다.</p>" +
           renderCommonIssueTagsHtml(tags, commonIssueTagMap) +
         "</li>"
       );
     });
     if (html.length === 0) {
-      const message = isChangesTab
-        ? "등록된 변화와 안내가 없습니다."
-        : "표시할 공통 현안이 없습니다.";
+      const message = isIssuesTab
+        ? "표시할 공통 현안이 없습니다."
+        : tabMeta.emptyMessage;
       html.push(
         "<li class='pledge-item pledge-item-empty'>" +
           "<p>" + escapeHtml(message) + "</p>" +
@@ -2094,14 +2138,13 @@ import APP_CONFIG from './config.js';
     if (!elements.spotItemTypeSelect) {
       return "";
     }
-    const tab = normalizeContentTab(contentTab);
-    const allowed = tab === CONTENT_TAB_CHANGES
-      ? [ITEM_TYPE_IMPROVEMENT, ITEM_TYPE_SAFETY_NOTICE, ITEM_TYPE_LIFE_NOTICE]
-      : [ITEM_TYPE_ISSUE];
-    const selected = allowed.includes(preferredItemType)
-      ? preferredItemType
-      : getDefaultItemTypeForContentTab(tab);
-    elements.spotItemTypeSelect.innerHTML = allowed.map((itemType) => {
+    const preferred = isNoticeItemTypeValue(preferredItemType)
+      ? ITEM_TYPE_NOTICE
+      : ITEM_TYPE_IMPROVEMENT;
+    const selected = spotFormItemTypeOptions.includes(preferred)
+      ? preferred
+      : ITEM_TYPE_IMPROVEMENT;
+    elements.spotItemTypeSelect.innerHTML = spotFormItemTypeOptions.map((itemType) => {
       return "<option value='" + escapeHtml(itemType) + "'>" + escapeHtml(getItemTypeLabel(itemType)) + "</option>";
     }).join("");
     elements.spotItemTypeSelect.value = selected;
@@ -2112,10 +2155,13 @@ import APP_CONFIG from './config.js';
     if (!elements.spotProgressStatusSelect) {
       return "";
     }
-    const allowed = getAllowedProgressStatusKeys(contentTab, itemType);
+    const allowed = [
+      PROGRESS_STATUS_CHECKING,
+      PROGRESS_STATUS_COMPLETED
+    ];
     const selected = allowed.includes(preferredProgressStatus)
       ? preferredProgressStatus
-      : getDefaultProgressStatus(contentTab, itemType);
+      : PROGRESS_STATUS_CHECKING;
     elements.spotProgressStatusSelect.innerHTML = allowed.map((progressStatus) => {
       return "<option value='" + escapeHtml(progressStatus) + "'>" + escapeHtml(getProgressStatusLabel(progressStatus)) + "</option>";
     }).join("");
@@ -2124,45 +2170,59 @@ import APP_CONFIG from './config.js';
   }
 
   function syncSpotClassificationControls(options) {
-    const tab = getSpotFormContentTab();
-    if (elements.spotContentTabSelect) {
-      elements.spotContentTabSelect.value = tab;
-    }
     const rawPreferredItemType = options && options.preferredItemType !== undefined
       ? options.preferredItemType
       : (elements.spotItemTypeSelect ? elements.spotItemTypeSelect.value : "");
-    const preferredItemType = normalizeItemType(rawPreferredItemType, tab, { allowEmpty: false });
-    const selectedItemType = populateSpotItemTypeOptions(tab, preferredItemType);
+    const preferredItemType = isNoticeItemTypeValue(rawPreferredItemType)
+      ? ITEM_TYPE_NOTICE
+      : ITEM_TYPE_IMPROVEMENT;
+    const selectedItemType = populateSpotItemTypeOptions(null, preferredItemType);
     if (elements.spotItemTypeField) {
-      elements.spotItemTypeField.classList.toggle("hidden", tab !== CONTENT_TAB_CHANGES);
+      elements.spotItemTypeField.classList.remove("hidden");
     }
 
     const rawPreferredProgressStatus = options && options.preferredProgressStatus !== undefined
       ? options.preferredProgressStatus
       : (elements.spotProgressStatusSelect ? elements.spotProgressStatusSelect.value : "");
+    const isNoticeItem = selectedItemType === ITEM_TYPE_NOTICE;
+    const progressTab = selectedItemType === ITEM_TYPE_NOTICE
+      ? CONTENT_TAB_NOTICES
+      : resolveContentTabForClassification(selectedItemType, rawPreferredProgressStatus, getSpotFormContentTab());
     const preferredProgressStatus = normalizeProgressStatus(
-      rawPreferredProgressStatus,
-      tab,
+      isNoticeItem ? PROGRESS_STATUS_CHECKING : rawPreferredProgressStatus,
+      progressTab,
       selectedItemType,
       { allowEmpty: false }
     );
-    populateSpotProgressStatusOptions(tab, selectedItemType, preferredProgressStatus);
+    const selectedProgressStatus = populateSpotProgressStatusOptions(progressTab, selectedItemType, preferredProgressStatus);
+    const derivedContentTab = isNoticeItem
+      ? CONTENT_TAB_NOTICES
+      : resolveContentTabForClassification(selectedItemType, selectedProgressStatus, CONTENT_TAB_ISSUES);
+    if (elements.spotContentTabSelect) {
+      elements.spotContentTabSelect.value = derivedContentTab;
+    }
+    if (elements.spotProgressStatusField) {
+      elements.spotProgressStatusField.classList.toggle("hidden", isNoticeItem);
+    }
 
     if (elements.spotClassificationWarning) {
       elements.spotClassificationWarning.classList.toggle("hidden", !Boolean(options && options.showMissingWarning));
     }
   }
 
-  function resolveSpotFormItemType(contentTab) {
-    const tab = normalizeContentTab(contentTab);
-    if (tab === CONTENT_TAB_ISSUES) {
-      return ITEM_TYPE_ISSUE;
+  function getSpotFormBaseItemType() {
+    return isNoticeItemTypeValue(elements.spotItemTypeSelect ? elements.spotItemTypeSelect.value : "")
+      ? ITEM_TYPE_NOTICE
+      : ITEM_TYPE_IMPROVEMENT;
+  }
+
+  function resolveSpotFormItemType(baseItemType, progressStatus) {
+    if (baseItemType === ITEM_TYPE_NOTICE) {
+      return ITEM_TYPE_NOTICE;
     }
-    return normalizeItemType(
-      elements.spotItemTypeSelect ? elements.spotItemTypeSelect.value : "",
-      tab,
-      { allowEmpty: false }
-    );
+    return progressStatus === PROGRESS_STATUS_COMPLETED
+      ? ITEM_TYPE_IMPROVEMENT
+      : ITEM_TYPE_ISSUE;
   }
 
   function resolveSpotFormProgressStatus(contentTab, itemType) {
@@ -3832,14 +3892,56 @@ import APP_CONFIG from './config.js';
     ) {
       return CONTENT_TAB_CHANGES;
     }
+    if (
+      compact === CONTENT_TAB_NOTICES ||
+      compact === "notice" ||
+      compact === "notices" ||
+      compact === "guide" ||
+      compact === "guides" ||
+      compact === "info" ||
+      compact === "안내" ||
+      compact === "안내도"
+    ) {
+      return CONTENT_TAB_NOTICES;
+    }
     return CONTENT_TAB_ISSUES;
+  }
+
+  function isNoticeItemTypeValue(value) {
+    const compact = normalizeClassificationKey(value);
+    return (
+      compact === ITEM_TYPE_NOTICE ||
+      compact === ITEM_TYPE_SAFETY_NOTICE ||
+      compact === ITEM_TYPE_LIFE_NOTICE ||
+      compact === "notice" ||
+      compact === "notices" ||
+      compact === "safetynotice" ||
+      compact === "lifenotice" ||
+      compact === "안내" ||
+      compact === "안전안내" ||
+      compact === "생활안내"
+    );
+  }
+
+  function resolveContentTabForClassification(itemType, progressStatus, fallbackContentTab) {
+    if (isNoticeItemTypeValue(itemType) || normalizeContentTab(fallbackContentTab) === CONTENT_TAB_NOTICES) {
+      return CONTENT_TAB_NOTICES;
+    }
+    const status = normalizeProgressStatusKey(progressStatus);
+    if (status === PROGRESS_STATUS_COMPLETED) {
+      return CONTENT_TAB_CHANGES;
+    }
+    if (status === PROGRESS_STATUS_CHECKING) {
+      return CONTENT_TAB_ISSUES;
+    }
+    return normalizeContentTab(fallbackContentTab);
   }
 
   function resolveHotspotContentTab(value) {
     if (!value || typeof value !== "object") {
       return CONTENT_TAB_ISSUES;
     }
-    return normalizeContentTab(
+    const fallbackTab = normalizeContentTab(
       value.contentTab ||
       value.content_tab ||
       value.mapTab ||
@@ -3848,6 +3950,11 @@ import APP_CONFIG from './config.js';
       value.display_tab ||
       value.status ||
       ""
+    );
+    return resolveContentTabForClassification(
+      value.itemType || value.item_type || "",
+      value.progressStatus || value.progress_status || "",
+      fallbackTab
     );
   }
 
@@ -3883,9 +3990,11 @@ import APP_CONFIG from './config.js';
   }
 
   function getDefaultItemTypeForContentTab(contentTab) {
-    return normalizeContentTab(contentTab) === CONTENT_TAB_CHANGES
-      ? ITEM_TYPE_IMPROVEMENT
-      : ITEM_TYPE_ISSUE;
+    const tab = normalizeContentTab(contentTab);
+    if (tab === CONTENT_TAB_NOTICES) {
+      return ITEM_TYPE_NOTICE;
+    }
+    return tab === CONTENT_TAB_CHANGES ? ITEM_TYPE_IMPROVEMENT : ITEM_TYPE_ISSUE;
   }
 
   function normalizeItemType(value, contentTab, options) {
@@ -3901,22 +4010,36 @@ import APP_CONFIG from './config.js';
       }
       return allowEmpty ? "" : ITEM_TYPE_ISSUE;
     }
-    if (compact === ITEM_TYPE_IMPROVEMENT || compact === "improvements" || compact === "개선") {
+    if (tab === CONTENT_TAB_NOTICES) {
+      if (isNoticeItemTypeValue(compact)) {
+        return ITEM_TYPE_NOTICE;
+      }
+      return allowEmpty ? "" : ITEM_TYPE_NOTICE;
+    }
+    if (
+      compact === ITEM_TYPE_IMPROVEMENT ||
+      compact === "improvements" ||
+      compact === "개선" ||
+      compact === ITEM_TYPE_ISSUE ||
+      compact === "현안"
+    ) {
       return ITEM_TYPE_IMPROVEMENT;
     }
-    if (compact === ITEM_TYPE_SAFETY_NOTICE || compact === "safetynotice" || compact === "안내안전" || compact === "안전안내") {
-      return ITEM_TYPE_SAFETY_NOTICE;
-    }
-    if (compact === ITEM_TYPE_LIFE_NOTICE || compact === "lifenotice" || compact === "생활안내") {
-      return ITEM_TYPE_LIFE_NOTICE;
+    if (isNoticeItemTypeValue(compact)) {
+      return ITEM_TYPE_NOTICE;
     }
     return allowEmpty ? "" : getDefaultItemTypeForContentTab(tab);
   }
 
   function getProgressStatusKeysForContentTab(contentTab) {
-    return normalizeContentTab(contentTab) === CONTENT_TAB_CHANGES
-      ? improvementProgressStatusKeys.concat(noticeProgressStatusKeys)
-      : issueProgressStatusKeys.slice();
+    const tab = normalizeContentTab(contentTab);
+    if (tab === CONTENT_TAB_CHANGES) {
+      return improvementProgressStatusKeys.slice();
+    }
+    if (tab === CONTENT_TAB_NOTICES) {
+      return noticeProgressStatusKeys.slice();
+    }
+    return issueProgressStatusKeys.slice();
   }
 
   function getAllowedProgressStatusKeys(contentTab, itemType) {
@@ -3924,14 +4047,50 @@ import APP_CONFIG from './config.js';
     if (tab === CONTENT_TAB_ISSUES) {
       return issueProgressStatusKeys.slice();
     }
-    const normalizedItemType = normalizeItemType(itemType, tab, { allowEmpty: true });
-    if (normalizedItemType === ITEM_TYPE_SAFETY_NOTICE || normalizedItemType === ITEM_TYPE_LIFE_NOTICE) {
+    if (tab === CONTENT_TAB_NOTICES) {
       return noticeProgressStatusKeys.slice();
     }
+    const normalizedItemType = normalizeItemType(itemType, tab, { allowEmpty: true });
     if (normalizedItemType === ITEM_TYPE_IMPROVEMENT) {
       return improvementProgressStatusKeys.slice();
     }
-    return [];
+    return [PROGRESS_STATUS_CHECKING, PROGRESS_STATUS_COMPLETED];
+  }
+
+  function getProgressFlowStatusKeys(contentTab) {
+    return normalizeContentTab(contentTab) === CONTENT_TAB_NOTICES
+      ? []
+      : generalProgressStatusKeys.slice();
+  }
+
+  function getPrimaryProgressStatusForContentTab(contentTab) {
+    const tab = normalizeContentTab(contentTab);
+    if (tab === CONTENT_TAB_CHANGES) {
+      return PROGRESS_STATUS_COMPLETED;
+    }
+    if (tab === CONTENT_TAB_ISSUES) {
+      return PROGRESS_STATUS_CHECKING;
+    }
+    return "";
+  }
+
+  function getContentTabForProgressStatus(progressStatus) {
+    const key = normalizeProgressStatusKey(progressStatus);
+    if (key === PROGRESS_STATUS_COMPLETED) {
+      return CONTENT_TAB_CHANGES;
+    }
+    if (key === PROGRESS_STATUS_CHECKING) {
+      return CONTENT_TAB_ISSUES;
+    }
+    return "";
+  }
+
+  function isMutedProgressStatusForActiveTab(progressStatus) {
+    if (!shouldUseContentTabs()) {
+      return false;
+    }
+    const primaryStatus = getPrimaryProgressStatusForContentTab(getActiveContentTabKey());
+    return Boolean(primaryStatus && normalizeProgressStatusKey(progressStatus) !== primaryStatus);
   }
 
   function getDefaultProgressStatus(contentTab, itemType) {
@@ -3949,25 +4108,25 @@ import APP_CONFIG from './config.js';
       return PROGRESS_STATUS_CHECKING;
     }
     if (compact === PROGRESS_STATUS_ACTION_REQUESTED || compact === "actionrequested" || compact === "조치요청" || compact === "요청") {
-      return PROGRESS_STATUS_ACTION_REQUESTED;
+      return PROGRESS_STATUS_CHECKING;
     }
     if (compact === PROGRESS_STATUS_CONSULTING || compact === "협의" || compact === "협의중") {
-      return PROGRESS_STATUS_CONSULTING;
+      return PROGRESS_STATUS_CHECKING;
     }
     if (compact === PROGRESS_STATUS_IN_PROGRESS || compact === "inprogress" || compact === "추진중" || compact === "진행중") {
-      return PROGRESS_STATUS_IN_PROGRESS;
+      return PROGRESS_STATUS_CHECKING;
     }
     if (compact === PROGRESS_STATUS_COMPLETED || compact === "complete" || compact === "completed" || compact === "done" || compact === "개선완료" || compact === "완료") {
       return PROGRESS_STATUS_COMPLETED;
     }
     if (compact === PROGRESS_STATUS_ACTIVE || compact === "안내중" || compact === "진행") {
-      return PROGRESS_STATUS_ACTIVE;
+      return PROGRESS_STATUS_CHECKING;
     }
     if (compact === PROGRESS_STATUS_ENDED || compact === "end" || compact === "closed" || compact === "종료" || compact === "안내종료") {
-      return PROGRESS_STATUS_ENDED;
+      return PROGRESS_STATUS_COMPLETED;
     }
     if (compact === PROGRESS_STATUS_REVIEW_CLOSED || compact === "reviewclosed" || compact === "검토종료") {
-      return PROGRESS_STATUS_REVIEW_CLOSED;
+      return PROGRESS_STATUS_CHECKING;
     }
     return "";
   }
@@ -4005,18 +4164,24 @@ import APP_CONFIG from './config.js';
     if (!value || typeof value !== "object") {
       return "";
     }
-    return normalizeItemType(value.itemType || value.item_type || "", contentTab, { allowEmpty: true });
+    return normalizeItemType(value.itemType || value.item_type || "", contentTab, { allowEmpty: false });
   }
 
   function resolveHotspotProgressStatus(value, contentTab, itemType) {
     if (!value || typeof value !== "object") {
       return "";
     }
-    return normalizeExistingProgressStatus(
+    const normalized = normalizeExistingProgressStatus(
       value.progressStatus || value.progress_status || "",
       contentTab,
       itemType
     );
+    if (normalized) {
+      return normalized;
+    }
+    return normalizeContentTab(contentTab) === CONTENT_TAB_CHANGES
+      ? PROGRESS_STATUS_COMPLETED
+      : getDefaultProgressStatus(contentTab, itemType);
   }
 
   function isValidHotspotClassification(contentTab, itemType, progressStatus) {
@@ -4026,10 +4191,13 @@ import APP_CONFIG from './config.js';
     if (!normalizedItemType || !normalizedProgressStatus) {
       return false;
     }
-    if (tab === CONTENT_TAB_ISSUES && normalizedItemType !== ITEM_TYPE_ISSUE) {
+    if (tab === CONTENT_TAB_ISSUES && (normalizedItemType !== ITEM_TYPE_ISSUE || normalizedProgressStatus !== PROGRESS_STATUS_CHECKING)) {
       return false;
     }
-    if (tab === CONTENT_TAB_CHANGES && normalizedItemType === ITEM_TYPE_ISSUE) {
+    if (tab === CONTENT_TAB_CHANGES && (normalizedItemType !== ITEM_TYPE_IMPROVEMENT || normalizedProgressStatus !== PROGRESS_STATUS_COMPLETED)) {
+      return false;
+    }
+    if (tab === CONTENT_TAB_NOTICES && normalizedItemType !== ITEM_TYPE_NOTICE) {
       return false;
     }
     return getAllowedProgressStatusKeys(tab, normalizedItemType).includes(normalizedProgressStatus);
@@ -4056,7 +4224,47 @@ import APP_CONFIG from './config.js';
       return list;
     }
     const activeTab = getActiveContentTabKey();
-    return list.filter((spot) => normalizeContentTab(spot && spot.contentTab) === activeTab);
+    return list.filter((spot) => resolveSpotDisplayClassification(spot).contentTab === activeTab);
+  }
+
+  function getMapHotspotsForActiveContentTab(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    if (!shouldUseContentTabs()) {
+      return list;
+    }
+    const activeTab = getActiveContentTabKey();
+    if (activeTab === CONTENT_TAB_NOTICES) {
+      return list.filter((spot) => resolveSpotDisplayClassification(spot).contentTab === CONTENT_TAB_NOTICES);
+    }
+    return list.filter((spot) => resolveSpotDisplayClassification(spot).contentTab !== CONTENT_TAB_NOTICES);
+  }
+
+  function shouldMuteHotspotForActiveContentTab(spot) {
+    if (!shouldUseContentTabs()) {
+      return false;
+    }
+    const activeTab = getActiveContentTabKey();
+    if (activeTab !== CONTENT_TAB_ISSUES && activeTab !== CONTENT_TAB_CHANGES) {
+      return false;
+    }
+    const contentTab = resolveSpotDisplayClassification(spot).contentTab;
+    return contentTab !== CONTENT_TAB_NOTICES && contentTab !== activeTab;
+  }
+
+  function getHotspotBaseEmphasisMode(spot) {
+    return shouldMuteHotspotForActiveContentTab(spot) ? "muted" : "normal";
+  }
+
+  function getProgressStatsHotspotsForActiveContentTab(hotspots) {
+    const list = Array.isArray(hotspots) ? hotspots : [];
+    if (!shouldUseContentTabs()) {
+      return list;
+    }
+    const activeTab = getActiveContentTabKey();
+    if (activeTab === CONTENT_TAB_NOTICES) {
+      return [];
+    }
+    return list.filter((spot) => resolveSpotDisplayClassification(spot).contentTab !== CONTENT_TAB_NOTICES);
   }
 
   function updateTotalIssueCountLabel() {
@@ -5685,7 +5893,7 @@ import APP_CONFIG from './config.js';
       const snapshotPath = getHotspotSnapshotPath();
       const response = await fetch(snapshotPath, { cache: "no-cache" });
       if (!response.ok) {
-        throw new Error("현안 스냅샷 로드 실패 (" + String(response.status) + ")");
+        throw new Error("지도 항목 스냅샷 로드 실패 (" + String(response.status) + ")");
       }
       const payload = await response.json();
       const records = normalizeHotspotSnapshotRecords(payload);
@@ -5817,7 +6025,7 @@ import APP_CONFIG from './config.js';
         title: String(
           (catalogIssue ? catalogIssue.title : "") ||
           value.title ||
-          "현안 제목 없음"
+          "지도 항목 제목 없음"
         ),
         memo: String(
           (catalogIssue ? catalogIssue.memo : "") ||
@@ -5857,7 +6065,7 @@ import APP_CONFIG from './config.js';
     hotspots.sort(compareHotspotByTitle);
     state.issues = hotspots;
     renderCommonPledges();
-    renderHotspots(getContentTabHotspots(hotspots));
+    renderHotspots(getMapHotspotsForActiveContentTab(hotspots));
     renderVisibleIssueList();
     updateIssueFilterUi();
     syncContentTabs();
@@ -5948,19 +6156,11 @@ import APP_CONFIG from './config.js';
   }
 
   function resolveItemTypeFilterKey(spot) {
-    return normalizeItemType(
-      spot && spot.itemType,
-      spot && spot.contentTab,
-      { allowEmpty: true }
-    );
+    return resolveSpotDisplayClassification(spot).itemType;
   }
 
   function resolveProgressStatusFilterKey(spot) {
-    return normalizeExistingProgressStatus(
-      spot && spot.progressStatus,
-      spot && spot.contentTab,
-      spot && spot.itemType
-    );
+    return resolveSpotDisplayClassification(spot).progressStatus;
   }
 
   function buildIssueFilterState(type, key, label) {
@@ -6183,7 +6383,7 @@ import APP_CONFIG from './config.js';
     };
     const shouldAnimateMapMarkers = shouldAnimateHotspotContentTransition();
     renderCommonPledges();
-    renderHotspotsWithContentTransition(getContentTabHotspots(state.issues));
+    renderHotspotsWithContentTransition(getMapHotspotsForActiveContentTab(state.issues));
     renderVisibleIssueList({
       skipMapMarkerSync: shouldAnimateMapMarkers
     });
@@ -6265,7 +6465,7 @@ import APP_CONFIG from './config.js';
       elements.mobileSheetToggle.setAttribute("aria-expanded", String(nextExpanded));
       elements.mobileSheetToggle.setAttribute(
         "aria-label",
-        nextExpanded ? "현안 정보 시트 접기" : "현안 정보 시트 펼치기"
+        nextExpanded ? "지도 정보 시트 접기" : "지도 정보 시트 펼치기"
       );
       if (options && options.userInitiated && typeof elements.mobileSheetToggle.focus === "function") {
         elements.mobileSheetToggle.focus({ preventScroll: true });
@@ -6344,7 +6544,7 @@ import APP_CONFIG from './config.js';
       const isActive = tabName === activeTab;
       const isDisabled = tabName === "issues" && !issueListVisible;
       if (tabName === "issues") {
-        tabButton.textContent = getActiveContentTabKey() === CONTENT_TAB_CHANGES ? "변화" : "현안";
+        tabButton.textContent = getActiveContentTabMeta().itemName;
       }
       tabButton.classList.toggle("mobile-sheet-tab-active", isActive);
       tabButton.classList.toggle("mobile-sheet-tab-disabled", isDisabled);
@@ -6428,10 +6628,11 @@ import APP_CONFIG from './config.js';
       elements.sidePanel.classList.toggle("side-panel-has-filter", isActive);
       elements.sidePanel.setAttribute("data-issue-filter-type", activeFilter.type || "none");
       elements.sidePanel.setAttribute("data-issue-filter-label", activeLabel);
-      elements.sidePanel.setAttribute("aria-label", isActive ? "현안 정보, " + activeLabel + " 선택됨" : "현안 정보");
+      const tabMeta = getActiveContentTabMeta();
+      elements.sidePanel.setAttribute("aria-label", isActive ? tabMeta.itemName + " 정보, " + activeLabel + " 선택됨" : "지도 정보");
     }
     if (elements.issueListPanel) {
-      elements.issueListPanel.setAttribute("aria-label", isActive ? getIssueListTitleForActiveFilter() : "선택 현안 목록");
+      elements.issueListPanel.setAttribute("aria-label", getIssueListTitleForActiveFilter());
     }
     if (elements.issueListTitle) {
       elements.issueListTitle.textContent = getIssueListTitleForActiveFilter();
@@ -6697,9 +6898,10 @@ import APP_CONFIG from './config.js';
       feature.set("dongName", spot.dongName || "");
       feature.set("emd_cd", spot.emdCode || "");
       feature.set("spot", spot);
-      feature.setStyle(getHotspotStyle(spot, "normal"));
-      feature.set("hotspotEmphasisMode", "normal");
-      feature.set("hotspotVisualMode", "normal");
+      const emphasisMode = getHotspotBaseEmphasisMode(spot);
+      feature.setStyle(getHotspotStyle(spot, emphasisMode));
+      feature.set("hotspotEmphasisMode", emphasisMode);
+      feature.set("hotspotVisualMode", emphasisMode);
       state.hotspotSource.addFeature(feature);
       state.hotspotData.set(spot.id, spot);
     });
@@ -7188,7 +7390,7 @@ import APP_CONFIG from './config.js';
       const spotId = String(feature.getId() || (spot && spot.id) || "").trim();
       const emphasisMode = hasHighlight
         ? (highlightSet.has(spotId) ? "focus" : "dim")
-        : "normal";
+        : getHotspotBaseEmphasisMode(spot);
       setHotspotFeatureEmphasis(feature, spot, emphasisMode);
     });
     if (state.hotspotAggregateSource && typeof state.hotspotAggregateSource.changed === "function") {
@@ -7214,7 +7416,7 @@ import APP_CONFIG from './config.js';
   }
 
   function normalizeHotspotEmphasisMode(emphasisMode) {
-    return emphasisMode === "focus" || emphasisMode === "dim" ? emphasisMode : "normal";
+    return emphasisMode === "focus" || emphasisMode === "dim" || emphasisMode === "muted" ? emphasisMode : "normal";
   }
 
   function getHotspotStyleMetrics(emphasisMode) {
@@ -7235,6 +7437,13 @@ import APP_CONFIG from './config.js';
         haloRadius: normalHaloRadius,
         coreRadius: normalCoreRadius,
         iconFontSize: 20
+      };
+    }
+    if (mode === "muted") {
+      return {
+        haloRadius: normalHaloRadius,
+        coreRadius: normalCoreRadius,
+        iconFontSize: normalIconFontSize
       };
     }
     return {
@@ -7401,21 +7610,26 @@ import APP_CONFIG from './config.js';
   function createHotspotStyle(spot, emphasisMode, metrics, focusRingOpacity) {
     const categoryMeta = resolveIssueCategoryMeta(spot && spot.categoryId, spot && spot.categoryLabel);
     const baseColor = categoryMeta.color || defaultIssueCategoryColor;
-    const markerColor = mixHexColorWithWhite(baseColor, 0.34);
-    const markerBorderColor = mixHexColorWithWhite(baseColor, 0.10);
     const markerIcon = categoryMeta.icon || "📍";
     const mode = normalizeHotspotEmphasisMode(emphasisMode);
     const isDim = mode === "dim";
+    const isMuted = mode === "muted";
     const isFocus = mode === "focus";
+    const markerColor = isMuted ? "#cbd5e1" : mixHexColorWithWhite(baseColor, 0.34);
+    const markerBorderColor = isMuted ? "#64748b" : mixHexColorWithWhite(baseColor, 0.10);
     const haloRadius = Math.max(1, Number(metrics && metrics.haloRadius) || 22);
     const coreRadius = Math.max(1, Number(metrics && metrics.coreRadius) || 18);
     const iconFontSize = Math.max(1, Number(metrics && metrics.iconFontSize) || 22);
-    const haloFillColor = isDim
+    const haloFillColor = isMuted
+      ? "rgba(248,250,252,0.78)"
+      : isDim
       ? "rgba(255,255,255,0.44)"
       : isFocus
       ? "rgba(255,255,255,0.98)"
       : "rgba(255,255,255,0.90)";
-    const haloStrokeColor = isDim
+    const haloStrokeColor = isMuted
+      ? "rgba(100,116,139,0.24)"
+      : isDim
       ? "rgba(15,23,42,0.14)"
       : isFocus
       ? toRgba(baseColor, 0.58)
@@ -7445,7 +7659,7 @@ import APP_CONFIG from './config.js';
 
     style.push(
       new ol.style.Style({
-        zIndex: isFocus ? 25 : isDim ? 10 : 20,
+        zIndex: isFocus ? 25 : isDim ? 10 : isMuted ? 12 : 20,
         image: new ol.style.Circle({
           radius: haloRadius,
           fill: new ol.style.Fill({ color: haloFillColor }),
@@ -7457,17 +7671,52 @@ import APP_CONFIG from './config.js';
       })
     );
 
-    style.push(
-      new ol.style.Style({
-        zIndex: isFocus ? 26 : isDim ? 11 : 21,
-        image: new ol.style.Circle({
-          radius: coreRadius,
-          fill: new ol.style.Fill({ color: coreFillColor }),
-          stroke: new ol.style.Stroke({
-            color: coreStrokeColor,
-            width: 2.8
-          })
+    const coreStyleOptions = {
+      zIndex: isFocus ? 26 : isDim ? 11 : isMuted ? 13 : 21,
+      image: new ol.style.Circle({
+        radius: coreRadius,
+        fill: new ol.style.Fill({ color: coreFillColor }),
+        stroke: new ol.style.Stroke({
+          color: coreStrokeColor,
+          width: 2.8
+        })
+      })
+    };
+    if (!isMuted) {
+      coreStyleOptions.text = new ol.style.Text({
+        text: markerIcon,
+        placement: "point",
+        justify: "center",
+        textAlign: "center",
+        textBaseline: "middle",
+        offsetX: 0,
+        offsetY: 1,
+        font: "700 " + String(Math.round(iconFontSize)) + "px \"Suit\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+        fill: new ol.style.Fill({
+          color: textFillColor
         }),
+        stroke: new ol.style.Stroke({
+          color: textStrokeColor,
+          width: 2
+        })
+      });
+    }
+    style.push(new ol.style.Style(coreStyleOptions));
+
+    if (isMuted) {
+      style.push(
+        createMutedHotspotIconStyle(markerIcon, iconFontSize, coreStyleOptions.zIndex + 1)
+      );
+    }
+
+    return style;
+  }
+
+  function createMutedHotspotIconStyle(markerIcon, iconFontSize, zIndex) {
+    const image = getMutedHotspotIconImage(markerIcon, iconFontSize);
+    if (!image) {
+      return new ol.style.Style({
+        zIndex,
         text: new ol.style.Text({
           text: markerIcon,
           placement: "point",
@@ -7477,18 +7726,55 @@ import APP_CONFIG from './config.js';
           offsetX: 0,
           offsetY: 1,
           font: "700 " + String(Math.round(iconFontSize)) + "px \"Suit\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
-          fill: new ol.style.Fill({
-            color: textFillColor
-          }),
-          stroke: new ol.style.Stroke({
-            color: textStrokeColor,
-            width: 2
-          })
+          fill: new ol.style.Fill({ color: "#64748b" }),
+          stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.92)", width: 2 })
         })
+      });
+    }
+    return new ol.style.Style({
+      zIndex,
+      image: new ol.style.Icon({
+        img: image.canvas,
+        imgSize: image.size,
+        displacement: [0, -1]
       })
-    );
+    });
+  }
 
-    return style;
+  function getMutedHotspotIconImage(markerIcon, iconFontSize) {
+    if (typeof document === "undefined" || typeof document.createElement !== "function") {
+      return null;
+    }
+    const fontSize = Math.max(1, Math.round(Number(iconFontSize) || 20));
+    const cssSize = Math.max(28, fontSize + 10);
+    const cacheKey = String(markerIcon || "") + "|" + String(fontSize) + "|muted";
+    if (state.hotspotIconImageCache.has(cacheKey)) {
+      return state.hotspotIconImageCache.get(cacheKey);
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = cssSize;
+    canvas.height = cssSize;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return null;
+    }
+    context.clearRect(0, 0, cssSize, cssSize);
+    context.filter = "grayscale(1) saturate(0.05) opacity(0.74)";
+    context.font = "700 " + String(fontSize) + "px \"Suit\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.lineJoin = "round";
+    context.lineWidth = 2;
+    context.strokeStyle = "rgba(255,255,255,0.92)";
+    context.strokeText(String(markerIcon || "📍"), cssSize / 2, (cssSize / 2) + 1);
+    context.fillStyle = "#64748b";
+    context.fillText(String(markerIcon || "📍"), cssSize / 2, (cssSize / 2) + 1);
+    const image = {
+      canvas,
+      size: [cssSize, cssSize]
+    };
+    state.hotspotIconImageCache.set(cacheKey, image);
+    return image;
   }
 
   function getHotspotAggregateStyle(feature) {
@@ -7574,6 +7860,15 @@ import APP_CONFIG from './config.js';
       return false;
     }
 
+    const classification = resolveSpotDisplayClassification(spot);
+    if (
+      shouldUseContentTabs() &&
+      classification.contentTab &&
+      classification.contentTab !== getActiveContentTabKey()
+    ) {
+      setActiveContentTab(classification.contentTab);
+    }
+
     if (spot.id) {
       setHighlightedHotspots([spot.id], {
         selectedHotspotId: spot.id
@@ -7606,30 +7901,48 @@ import APP_CONFIG from './config.js';
   function renderVisibleIssueList(options) {
     updateTotalIssueCountLabel();
     const activeHotspots = getContentTabHotspots(state.issues);
+    const progressStatsHotspots = getProgressStatsHotspotsForActiveContentTab(state.issues);
     const filtered = applyIssueFilter(activeHotspots);
-    renderIssueStatsSummary(activeHotspots);
-    const shouldShowList = hasActiveIssueFilter();
+    renderIssueStatsSummary(activeHotspots, {
+      progressHotspots: progressStatsHotspots
+    });
+    const isFiltered = hasActiveIssueFilter();
+    const shouldShowDefaultList = shouldUseContentTabs() &&
+      getActiveContentTabKey() !== CONTENT_TAB_NOTICES &&
+      activeHotspots.length > 0;
+    const shouldShowList = isFiltered || shouldShowDefaultList;
     if (!(options && options.skipMapMarkerSync)) {
       refreshHotspotAggregateFeatures();
       syncHotspotMarkerDisplayMode();
     }
     setIssueListPanelVisibility(shouldShowList);
-    renderHotspotList(shouldShowList ? filtered : [], {
+    renderHotspotList(isFiltered ? filtered : (shouldShowDefaultList ? activeHotspots : []), {
       preservePanelVisibility: true
     });
-    if (shouldShowList) {
+    if (isFiltered) {
       setHighlightedHotspots(filtered.map((spot) => spot.id));
     }
   }
 
-  function renderIssueStatsSummary(hotspots) {
+  function renderIssueStatsSummary(hotspots, options) {
     if (!elements.issueStatsSummary) {
       return;
     }
 
     const list = Array.isArray(hotspots) ? hotspots : [];
     const tabMeta = getActiveContentTabMeta();
-    if (list.length === 0) {
+    const progressStatsHotspots = options && Array.isArray(options.progressHotspots)
+      ? options.progressHotspots
+      : list;
+    if (shouldUseContentTabs() && getActiveContentTabKey() === CONTENT_TAB_NOTICES) {
+      if (list.length === 0) {
+        elements.issueStatsSummary.innerHTML = "<div class='issue-stats-empty'>표시할 " + escapeHtml(tabMeta.itemName) + " 현황이 없습니다.</div>";
+        return;
+      }
+      renderNoticeStatsSummary(list, tabMeta);
+      return;
+    }
+    if (list.length === 0 && progressStatsHotspots.length === 0) {
       elements.issueStatsSummary.innerHTML = "<div class='issue-stats-empty'>표시할 " + escapeHtml(tabMeta.itemName) + " 현황이 없습니다.</div>";
       return;
     }
@@ -7657,9 +7970,8 @@ import APP_CONFIG from './config.js';
       "</button>";
     const categoryStats = buildIssueCategoryStats(list);
     const dongStats = buildIssueDongStats(list);
-    const itemTypeStats = buildItemTypeStats(list);
-    const progressStatusStats = buildProgressStatusStats(list);
-    const isChangesTab = getActiveContentTabKey() === CONTENT_TAB_CHANGES;
+    const progressStatusStats = buildProgressStatusStats(progressStatsHotspots);
+    const itemName = tabMeta.itemName;
     const dongItems = renderIssueStatsItems(dongStats, "dong", {
       chipClassName: "issue-stats-chip-dong",
       renderHint(item) {
@@ -7675,20 +7987,14 @@ import APP_CONFIG from './config.js';
         return buildCategoryBadgeStyle(item.color);
       }
     });
-    const itemTypeItems = renderIssueStatsItems(itemTypeStats, "itemType", {
-      chipClassName: "issue-stats-chip-type"
-    });
     const progressStatusItems = renderIssueStatsItems(progressStatusStats, "progressStatus", {
-      chipClassName: "issue-stats-chip-status"
+      getChipClassName(item) {
+        return "issue-stats-chip-status issue-stats-chip-status-" + toCssModifier(item.key);
+      },
+      getItemClassName(item) {
+        return isMutedProgressStatusForActiveTab(item.key) ? "issue-stats-filter-btn-muted" : "";
+      }
     });
-    const itemTypeBlock = isChangesTab
-      ? (
-        "<section class='issue-stats-block'>" +
-          "<h4>게시물 성격별 건수</h4>" +
-          "<ul class='issue-stats-list'>" + itemTypeItems + "</ul>" +
-        "</section>"
-      )
-      : "";
 
     elements.issueStatsSummary.innerHTML =
       "<div class='issue-stats-head'>" +
@@ -7697,19 +8003,58 @@ import APP_CONFIG from './config.js';
       "</div>" +
       "<div class='issue-stats-grid'>" +
         "<section class='issue-stats-block'>" +
-          "<h4>" + (isChangesTab ? "동별 변화·안내" : "동별 현안") + "</h4>" +
+          "<h4>동별 " + escapeHtml(itemName) + "</h4>" +
           "<ul class='issue-stats-list'>" + dongItems + "</ul>" +
         "</section>" +
         "<section class='issue-stats-block'>" +
-          "<h4>" + (isChangesTab ? "분야별 변화·안내" : "분야별 현안") + "</h4>" +
+          "<h4>분야별 " + escapeHtml(itemName) + "</h4>" +
           "<ul class='issue-stats-list'>" + categoryItems + "</ul>" +
         "</section>" +
-        itemTypeBlock +
         "<section class='issue-stats-block'>" +
-          "<h4>" + (isChangesTab ? "상태별 건수" : "진행 상태별 현안") + "</h4>" +
+          "<h4>상태별 건수</h4>" +
           "<ul class='issue-stats-list'>" + progressStatusItems + "</ul>" +
         "</section>" +
       "</div>";
+  }
+
+  function renderNoticeStatsSummary(hotspots, tabMeta) {
+    const list = Array.isArray(hotspots) ? hotspots.slice().sort(compareNoticeHotspotByTitleDesc) : [];
+    const noticeItems = list.map((spot) => {
+      const spotId = String(spot && spot.id ? spot.id : "").trim();
+      const safeId = escapeHtml(spotId);
+      const rawTitle = String(spot && spot.title ? spot.title : "").trim() || tabMeta.itemName;
+      const title = escapeHtml(rawTitle);
+      const categoryMeta = resolveIssueCategoryMeta(spot && spot.categoryId, spot && spot.categoryLabel);
+      const categoryLabel = escapeHtml(resolveCategoryLabel(spot && spot.categoryId, spot && spot.categoryLabel));
+      const categoryStyle = buildCategoryBadgeStyle(categoryMeta.color);
+      const dongName = escapeHtml(formatSpotDongLabel(spot));
+      const memoRaw = typeof (spot && spot.memo) === "string" ? spot.memo.trim() : "";
+      const memoHtml = memoRaw ? "<span class='notice-stats-memo'>" + buildLinkedTextHtml(memoRaw) + "</span>" : "";
+      return (
+        "<li class='notice-stats-item'>" +
+          "<button type='button' class='notice-stats-btn' data-action='open-stats-spot' data-spot-id='" + safeId + "' aria-label='" + escapeHtml(rawTitle + " 위치 보기") + "'>" +
+            "<span class='notice-stats-main'>" +
+              "<strong>" + title + "</strong>" +
+              memoHtml +
+            "</span>" +
+            "<span class='notice-stats-meta'>" +
+              "<span class='issue-stats-chip issue-stats-chip-category' style='" + categoryStyle + "'>" + categoryLabel + "</span>" +
+              "<span class='notice-stats-dong'>" + dongName + "</span>" +
+            "</span>" +
+          "</button>" +
+        "</li>"
+      );
+    }).join("");
+
+    elements.issueStatsSummary.innerHTML =
+      "<div class='issue-stats-head'>" +
+        "<span class='issue-stats-title'>" + escapeHtml(tabMeta.statsTitle) + " <span class='issue-stats-scope'>(전체 기준)</span></span>" +
+      "</div>" +
+      "<ul class='notice-stats-list'>" + noticeItems + "</ul>";
+  }
+
+  function compareNoticeHotspotByTitleDesc(a, b) {
+    return compareKoreanText(b && b.title, a && a.title);
   }
 
   function renderIssueStatsItems(stats, filterType, options) {
@@ -7718,17 +8063,24 @@ import APP_CONFIG from './config.js';
       const safeLabel = escapeHtml(item.label);
       const safeKey = escapeHtml(item.key);
       const countLabel = String(item.count) + "건";
-      const chipClassName = "issue-stats-chip " + String(options && options.chipClassName ? options.chipClassName : "").trim();
+      const optionChipClassName = options && typeof options.getChipClassName === "function"
+        ? options.getChipClassName(item)
+        : (options && options.chipClassName ? options.chipClassName : "");
+      const chipClassName = "issue-stats-chip " + String(optionChipClassName).trim();
+      const extraButtonClassName = options && typeof options.getItemClassName === "function"
+        ? String(options.getItemClassName(item) || "").trim().replace(/[^a-zA-Z0-9 _-]/g, "")
+        : "";
       const rawStyle = options && typeof options.getStyle === "function" ? options.getStyle(item) : "";
       const styleAttr = rawStyle ? " style='" + rawStyle + "'" : "";
       const hint = options && typeof options.renderHint === "function" ? options.renderHint(item) : "";
       const isActive = isActiveIssueFilter(filterType, item.key);
       const activeClassName = isActive ? " issue-stats-filter-btn-active" : "";
+      const extraClassName = extraButtonClassName ? " " + extraButtonClassName : "";
       const activeAttrs = isActive ? " aria-current='true'" : "";
       const buttonLabel = escapeHtml(item.label + " " + countLabel + " 보기");
       return (
         "<li class='issue-stats-item'>" +
-          "<button type='button' class='issue-stats-filter-btn" + activeClassName + "' data-action='filter-issues' data-filter-type='" + escapeHtml(filterType) + "' data-filter-key='" + safeKey + "' data-filter-label='" + safeLabel + "' aria-label='" + buttonLabel + "' aria-pressed='" + String(isActive) + "'" + activeAttrs + ">" +
+          "<button type='button' class='issue-stats-filter-btn" + activeClassName + extraClassName + "' data-action='filter-issues' data-filter-type='" + escapeHtml(filterType) + "' data-filter-key='" + safeKey + "' data-filter-label='" + safeLabel + "' aria-label='" + buttonLabel + "' aria-pressed='" + String(isActive) + "'" + activeAttrs + ">" +
             "<span class='" + chipClassName + "'" + styleAttr + ">" + safeLabel + "</span>" +
             "<span class='issue-stats-count'>" + countLabel + "</span>" +
             "<span class='issue-stats-open-indicator' aria-hidden='true'>›</span>" +
@@ -7826,7 +8178,7 @@ import APP_CONFIG from './config.js';
 
   function buildProgressStatusStats(hotspots) {
     const list = Array.isArray(hotspots) ? hotspots : [];
-    const targets = getProgressStatusKeysForContentTab(getActiveContentTabKey());
+    const targets = generalProgressStatusKeys.slice();
     const statsByKey = new Map();
     targets.forEach((progressStatus) => {
       statsByKey.set(progressStatus, {
@@ -7836,7 +8188,11 @@ import APP_CONFIG from './config.js';
       });
     });
     list.forEach((spot) => {
-      const key = resolveProgressStatusFilterKey(spot);
+      const classification = resolveSpotDisplayClassification(spot);
+      if (classification.contentTab === CONTENT_TAB_NOTICES) {
+        return;
+      }
+      const key = classification.progressStatus;
       if (statsByKey.has(key)) {
         statsByKey.get(key).count += 1;
       }
@@ -7863,7 +8219,7 @@ import APP_CONFIG from './config.js';
   }
 
   function activateSpotListItem(item, options) {
-    if (!(item instanceof HTMLElement) || !state.map || !state.hotspotSource) {
+    if (!(item instanceof HTMLElement)) {
       return false;
     }
 
@@ -7871,9 +8227,21 @@ import APP_CONFIG from './config.js';
     if (!spotId) {
       return false;
     }
+    return activateHotspotById(spotId, {
+      returnFocusElement: item,
+      focusPopup: Boolean(options && options.focusItem),
+      focusReturnElement: Boolean(options && options.focusItem)
+    });
+  }
 
-    const feature = state.hotspotSource.getFeatureById(spotId);
-    const spot = state.hotspotData.get(spotId);
+  function activateHotspotById(spotId, options) {
+    const id = String(spotId || "").trim();
+    if (!id || !state.map || !state.hotspotSource) {
+      return false;
+    }
+
+    const feature = state.hotspotSource.getFeatureById(id);
+    const spot = state.hotspotData.get(id);
     if (!feature || !spot) {
       return false;
     }
@@ -7886,15 +8254,18 @@ import APP_CONFIG from './config.js';
       return false;
     }
 
-    if (options && options.focusItem && typeof item.focus === "function") {
-      item.focus({ preventScroll: true });
+    const returnFocusElement = options && options.returnFocusElement instanceof HTMLElement
+      ? options.returnFocusElement
+      : null;
+    if (options && options.focusReturnElement && returnFocusElement && typeof returnFocusElement.focus === "function") {
+      returnFocusElement.focus({ preventScroll: true });
     }
     setHighlightedHotspots([spot.id], {
       selectedHotspotId: spot.id
     });
     openHotspotPopup(coordinate, spot, {
-      returnFocusElement: item,
-      focusPopup: Boolean(options && options.focusItem)
+      returnFocusElement,
+      focusPopup: Boolean(options && options.focusPopup)
     });
     return true;
   }
@@ -7904,7 +8275,13 @@ import APP_CONFIG from './config.js';
   }
 
   function resolveSpotDisplayClassification(spot) {
-    const contentTab = normalizeContentTab(spot && spot.contentTab);
+    const fallbackContentTab = normalizeContentTab(spot && spot.contentTab);
+    const progressStatusKey = normalizeProgressStatusKey(spot && spot.progressStatus);
+    const contentTab = resolveContentTabForClassification(
+      spot && spot.itemType,
+      progressStatusKey,
+      fallbackContentTab
+    );
     const itemType = normalizeItemType(spot && spot.itemType, contentTab, { allowEmpty: false });
     const existingProgressStatus = normalizeExistingProgressStatus(
       spot && spot.progressStatus,
@@ -7923,20 +8300,11 @@ import APP_CONFIG from './config.js';
     const categoryMeta = resolveIssueCategoryMeta(spot && spot.categoryId, spot && spot.categoryLabel);
     const categoryStyle = buildCategoryBadgeStyle(categoryMeta.color);
     const classification = resolveSpotDisplayClassification(spot);
-    const contentTab = classification.contentTab;
-    const itemType = classification.itemType;
     const progressStatus = classification.progressStatus;
     const badges = [
       "<span class='spot-category' style='" + categoryStyle + "'>" + categoryLabel + "</span>"
     ];
-    if (contentTab === CONTENT_TAB_CHANGES && itemType) {
-      badges.push(
-        "<span class='spot-type-badge spot-type-" + escapeHtml(toCssModifier(itemType)) + "'>" +
-          escapeHtml(getItemTypeLabel(itemType)) +
-        "</span>"
-      );
-    }
-    if (progressStatus) {
+    if (classification.contentTab !== CONTENT_TAB_NOTICES && progressStatus) {
       badges.push(
         "<span class='spot-status-badge spot-status-" + escapeHtml(toCssModifier(progressStatus)) + "'>" +
           escapeHtml(getProgressStatusLabel(progressStatus)) +
@@ -7949,8 +8317,10 @@ import APP_CONFIG from './config.js';
   function buildSpotProgressFlowHtml(spot, options) {
     const classification = resolveSpotDisplayClassification(spot);
     const contentTab = classification.contentTab;
-    const itemType = classification.itemType;
     const progressStatus = classification.progressStatus;
+    if (contentTab === CONTENT_TAB_NOTICES) {
+      return "";
+    }
     if (!progressStatus) {
       return "";
     }
@@ -7967,7 +8337,7 @@ import APP_CONFIG from './config.js';
       );
     }
 
-    const steps = getAllowedProgressStatusKeys(contentTab, itemType)
+    const steps = getProgressFlowStatusKeys(contentTab)
       .filter((key) => key !== PROGRESS_STATUS_REVIEW_CLOSED);
     const currentIndex = steps.indexOf(progressStatus);
     if (currentIndex < 0) {
@@ -7981,12 +8351,13 @@ import APP_CONFIG from './config.js';
         : index === currentIndex
           ? "is-current"
           : "is-upcoming";
+      const mutedClassName = isMutedProgressStatusForActiveTab(key) ? " is-muted" : "";
       const label = getProgressStatusLabel(key);
       const currentHtml = index === currentIndex
         ? "<span class='spot-progress-current'>현재</span>"
         : "";
       return (
-        "<span class='spot-progress-step " + stateClass + "'>" +
+        "<span class='spot-progress-step " + stateClass + mutedClassName + "'>" +
           "<span class='spot-progress-marker' aria-hidden='true'></span>" +
           "<span class='spot-progress-label'>" + escapeHtml(label) + "</span>" +
           currentHtml +
@@ -8090,7 +8461,12 @@ import APP_CONFIG from './config.js';
   }
 
   function exposeSpotListTestHooks() {
-    if (typeof window === "undefined" || !navigator.webdriver) {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const hostname = window.location && window.location.hostname;
+    const isLocalTestHost = hostname === "localhost" || hostname === "127.0.0.1";
+    if (!navigator.webdriver && !isLocalTestHost) {
       return;
     }
     window.__spotListTestHooks = {
@@ -8121,7 +8497,7 @@ import APP_CONFIG from './config.js';
       focusCategoryIssues,
       renderVisibleIssueListWithData(issues) {
         state.issues = Array.isArray(issues) ? issues : [];
-        renderHotspots(getContentTabHotspots(state.issues));
+        renderHotspots(getMapHotspotsForActiveContentTab(state.issues));
         renderCommonPledges();
         renderVisibleIssueList();
       },
@@ -8133,6 +8509,24 @@ import APP_CONFIG from './config.js';
       },
       getSelectedHotspotId() {
         return state.selectedHotspotId || "";
+      },
+      getHotspotFeatureStatesForTest() {
+        if (!state.hotspotSource) {
+          return [];
+        }
+        return state.hotspotSource.getFeatures().map((feature) => {
+          const spot = feature.get("spot") || {};
+          const classification = resolveSpotDisplayClassification(spot);
+          return {
+            id: String(feature.getId() || spot.id || ""),
+            contentTab: classification.contentTab,
+            emphasisMode: String(feature.get("hotspotEmphasisMode") || ""),
+            visualMode: String(feature.get("hotspotVisualMode") || "")
+          };
+        }).sort((a, b) => a.id.localeCompare(b.id));
+      },
+      getHotspotIconCacheKeysForTest() {
+        return Array.from(state.hotspotIconImageCache.keys()).sort();
       },
       getHotspotClientPointForTest(spotId) {
         if (!state.map || !state.hotspotSource || typeof state.map.getPixelFromCoordinate !== "function") {
@@ -9290,9 +9684,9 @@ import APP_CONFIG from './config.js';
   function buildHotspotSavingMessage(uploadCount) {
     const count = Number(uploadCount) || 0;
     if (count > 0) {
-      return "사진 " + String(count) + "장을 업로드한 뒤 현안을 저장합니다. 완료될 때까지 잠시만 기다려 주세요.";
+      return "사진 " + String(count) + "장을 업로드한 뒤 항목을 저장합니다. 완료될 때까지 잠시만 기다려 주세요.";
     }
-    return "내용을 저장하는 중입니다. 완료될 때까지 잠시만 기다려 주세요.";
+    return "항목을 저장하는 중입니다. 완료될 때까지 잠시만 기다려 주세요.";
   }
 
   function setSpotSaveStatus(message, isError) {
@@ -10166,9 +10560,13 @@ import APP_CONFIG from './config.js';
       const formData = new FormData(elements.form);
       const title = String(formData.get("title") || "").trim();
       const memo = String(formData.get("memo") || "").trim();
-      const contentTab = normalizeContentTab(formData.get("contentTab"));
-      const itemType = resolveSpotFormItemType(contentTab);
-      const progressStatus = resolveSpotFormProgressStatus(contentTab, itemType);
+      const formItemType = getSpotFormBaseItemType();
+      const progressTab = formItemType === ITEM_TYPE_NOTICE
+        ? CONTENT_TAB_NOTICES
+        : resolveContentTabForClassification(formItemType, formData.get("progressStatus"), CONTENT_TAB_ISSUES);
+      const progressStatus = resolveSpotFormProgressStatus(progressTab, formItemType);
+      const itemType = resolveSpotFormItemType(formItemType, progressStatus);
+      const contentTab = resolveContentTabForClassification(itemType, progressStatus, CONTENT_TAB_ISSUES);
       const level = Number(formData.get("level") || 3);
       const categoryId = String(formData.get("categoryId") || "").trim();
       const issueRefId = normalizeIssueCatalogId(formData.get("issueRefId"));
@@ -10206,7 +10604,7 @@ import APP_CONFIG from './config.js';
       }
 
       if (!isValidHotspotClassification(contentTab, itemType, progressStatus)) {
-        window.alert("표시 탭, 게시물 성격, 진행 상태의 조합을 확인하세요.");
+        window.alert("게시물 구분과 진행 상태의 조합을 확인하세요.");
         syncSpotClassificationControls();
         return;
       }
@@ -10339,11 +10737,14 @@ import APP_CONFIG from './config.js';
     const categoryInput = elements.form.querySelector("#spot-category");
     const memoInput = elements.form.querySelector("#spot-memo");
     const issueRefSelect = elements.form.querySelector("#spot-issue-ref");
-    const contentTab = normalizeContentTab(spot.contentTab);
+    const classification = resolveSpotDisplayClassification(spot);
+    const contentTab = classification.contentTab;
     const existingItemType = normalizeItemType(spot.itemType, contentTab, { allowEmpty: true });
-    const formItemType = existingItemType || getDefaultItemTypeForContentTab(contentTab);
+    const formItemType = classification.itemType === ITEM_TYPE_NOTICE
+      ? ITEM_TYPE_NOTICE
+      : ITEM_TYPE_IMPROVEMENT;
     const existingProgressStatus = normalizeExistingProgressStatus(spot.progressStatus, contentTab, existingItemType);
-    const formProgressStatus = existingProgressStatus || getDefaultProgressStatus(contentTab, formItemType);
+    const formProgressStatus = existingProgressStatus || classification.progressStatus || getDefaultProgressStatus(contentTab, formItemType);
     const showMissingClassificationWarning = !existingItemType || !existingProgressStatus;
 
     if (titleInput) {
@@ -10455,9 +10856,9 @@ import APP_CONFIG from './config.js';
     }
 
     const spot = state.hotspotData.get(targetId);
-    const title = spot && spot.title ? String(spot.title) : "이 현안";
+    const title = spot && spot.title ? String(spot.title) : "이 항목";
     const spotPhotoStoragePaths = getSpotPhotoStoragePaths(spot);
-    const confirmed = window.confirm("'" + title + "' 현안을 삭제할까요?");
+    const confirmed = window.confirm("'" + title + "' 항목을 삭제할까요?");
     if (!confirmed) {
       return;
     }
@@ -10472,7 +10873,7 @@ import APP_CONFIG from './config.js';
         exitHotspotEditMode(true);
       }
     } catch (error) {
-      window.alert("현안 삭제 실패: " + toMessage(error));
+      window.alert("삭제 실패: " + toMessage(error));
     }
   }
 
@@ -10768,7 +11169,6 @@ import APP_CONFIG from './config.js';
     const memoHtml = memoRaw ? buildLinkedTextHtml(memoRaw) : "-";
     const badgesHtml = buildSpotBadgesHtml(spot);
     const progressFlowHtml = buildSpotProgressFlowHtml(spot);
-    const safeDong = escapeHtml(formatSpotDongLabel(spot));
     const safeUser = escapeHtml(spot.updatedBy || "-");
     const safeTime = escapeHtml(formatTimestamp(spot.updatedAt));
     const photoDataUrls = getSpotPhotoDataUrls(spot);
@@ -10807,7 +11207,6 @@ import APP_CONFIG from './config.js';
       photoHtml +
       badgesHtml +
       progressFlowHtml +
-      "<div>소속 동: " + safeDong + "</div>" +
       "<div class='map-popup-memo'><span class='map-popup-label'>내용: </span>" + memoHtml + "</div>" +
       editorInfo +
       popupActions,
@@ -10877,7 +11276,7 @@ import APP_CONFIG from './config.js';
     state.mapPopupDismissClearsDongFilter = Boolean(options && options.dismissClearsDongFilter);
     state.mapPopupClearsHotspotSelection = Boolean(options && options.clearsHotspotSelection);
     elements.mapPopup.innerHTML =
-      "<button type='button' class='map-popup-close' data-action='close-popup' aria-label='현안 팝업 닫기' title='닫기'>" +
+      "<button type='button' class='map-popup-close' data-action='close-popup' aria-label='지도 팝업 닫기' title='닫기'>" +
         getPhotoControlIconMarkup("close") +
       "</button>" +
       "<div class='map-popup-body'>" + String(html || "") + "</div>";
@@ -11079,17 +11478,6 @@ import APP_CONFIG from './config.js';
       return "이미 로그인 요청이 진행 중입니다. 잠시 후 다시 시도하세요.";
     }
     return toMessage(error);
-  }
-
-  function toMillis(value) {
-    if (!value) {
-      return 0;
-    }
-    if (typeof value.toMillis === "function") {
-      return value.toMillis();
-    }
-    const date = new Date(value);
-    return Number.isFinite(date.getTime()) ? date.getTime() : 0;
   }
 
   function formatTimestamp(value) {

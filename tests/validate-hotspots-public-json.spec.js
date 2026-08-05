@@ -32,8 +32,17 @@ function runValidator(snapshotPath) {
 }
 
 test("Public hotspot validator accepts new classification fields", () => {
-  // 신규 변화 분류와 기존 achievements 호환 데이터를 함께 허용한다.
+  // 공개 스냅샷은 현안/변화/안내와 확인/완료 상태만 허용한다.
   const snapshotPath = writeSnapshot([
+    {
+      id: "valid-issue",
+      title: "확인할 현안",
+      contentTab: "issues",
+      itemType: "issue",
+      progressStatus: "checking",
+      lat: 37.394,
+      lng: 127.111
+    },
     {
       id: "valid-change",
       title: "보행로 볼라드 보수",
@@ -44,18 +53,11 @@ test("Public hotspot validator accepts new classification fields", () => {
       lng: 127.111
     },
     {
-      id: "legacy-change",
-      title: "운중천 안전통제선 설치",
-      contentTab: "achievements",
-      lat: 37.391,
-      lng: 127.079
-    },
-    {
-      id: "review-closed-issue",
-      title: "추진 어려운 현안",
-      contentTab: "issues",
-      itemType: "issue",
-      progressStatus: "review_closed",
+      id: "valid-notice",
+      title: "공사 안내",
+      contentTab: "notices",
+      itemType: "notice",
+      progressStatus: "completed",
       lat: 37.392,
       lng: 127.08
     }
@@ -65,14 +67,14 @@ test("Public hotspot validator accepts new classification fields", () => {
 });
 
 test("Public hotspot validator rejects invalid classification combo", () => {
-  // 개선 게시물에는 안내 상태를 저장할 수 없다.
+  // 변화 탭에는 완료 상태만 저장할 수 있다.
   const snapshotPath = writeSnapshot([
     {
       id: "invalid-change",
       title: "잘못된 상태",
       contentTab: "changes",
       itemType: "improvement",
-      progressStatus: "active",
+      progressStatus: "checking",
       lat: 37.394,
       lng: 127.111
     }

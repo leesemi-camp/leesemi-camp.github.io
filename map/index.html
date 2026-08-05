@@ -4,12 +4,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>우리동네 현안도, 이세미입니다</title>
-    <meta name="description" content="판교·운중·백현·대장의 현안과 달라진 모습, 안전·생활 안내를 지도에서 확인하세요.">
+    <meta name="description" content="판교·운중·백현·대장의 현안과 변화, 안내를 지도에서 확인하세요.">
     <meta property="og:locale" content="ko_KR">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="성남시의원(판교·운중·백현·대장) 이세미">
     <meta property="og:title" content="우리동네 현안도, 이세미입니다">
-    <meta property="og:description" content="판교·운중·백현·대장의 현안과 달라진 모습, 안전·생활 안내를 지도에서 확인하세요.">
+    <meta property="og:description" content="판교·운중·백현·대장의 현안과 변화, 안내를 지도에서 확인하세요.">
     <meta property="og:url" content="https://leesemi-camp.github.io/map/">
     <meta property="og:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
     <meta property="og:image:url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
@@ -20,7 +20,7 @@
     <meta property="og:image:alt" content="성남시의원(판교·운중·백현·대장) 이세미 링크 미리보기 이미지">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="우리동네 현안도, 이세미입니다">
-    <meta name="twitter:description" content="판교·운중·백현·대장의 현안과 달라진 모습, 안전·생활 안내를 지도에서 확인하세요.">
+    <meta name="twitter:description" content="판교·운중·백현·대장의 현안과 변화, 안내를 지도에서 확인하세요.">
     <meta name="twitter:url" content="https://leesemi-camp.github.io/map/">
     <meta name="twitter:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -49,7 +49,7 @@
                         <path d="M6 10.5V20h12v-9.5"/>
                     </svg>
                 </a>
-                <a href="/map/edit/" class="icon-btn" aria-label="현안 수정으로 이동" title="현안 수정">
+                <a href="/map/edit/" class="icon-btn" aria-label="지도 수정으로 이동" title="지도 수정">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25z"/>
                         <path d="m14.06 4.19 3.75 3.75"/>
@@ -60,18 +60,19 @@
 
         <section class="workspace">
             <div class="map-wrap map-wrap-initializing">
-                <div id="map" class="map" role="application" aria-label="동별 현안 지도" tabindex="0"></div>
+                <div id="map" class="map" role="application" aria-label="동별 우리동네 지도" tabindex="0"></div>
                 <div id="map-popup" class="map-popup hidden" aria-hidden="true"></div>
             </div>
 
-            <aside class="side-panel" aria-label="현안 정보">
-                <button id="mobile-sheet-toggle" type="button" class="mobile-sheet-grip" aria-expanded="true" aria-controls="mobile-sheet-content" aria-label="현안 정보 시트 접기"></button>
+            <aside class="side-panel" aria-label="지도 정보">
+                <button id="mobile-sheet-toggle" type="button" class="mobile-sheet-grip" aria-expanded="true" aria-controls="mobile-sheet-content" aria-label="지도 정보 시트 접기"></button>
                 <div id="mobile-sheet-content" class="mobile-sheet-content">
-                    <div class="content-tabs" role="tablist" aria-label="현안도 보기 선택">
-                        <button type="button" class="content-tab content-tab-active" data-content-tab="issues" role="tab" aria-selected="true">우리동네 현안</button>
-                        <button type="button" class="content-tab" data-content-tab="changes" role="tab" aria-selected="false">우리동네 변화</button>
+                    <div class="content-tabs" role="tablist" aria-label="지도 보기 선택">
+                        <button type="button" class="content-tab content-tab-active" data-content-tab="issues" role="tab" aria-selected="true">현안</button>
+                        <button type="button" class="content-tab" data-content-tab="changes" role="tab" aria-selected="false">변화</button>
+                        <button type="button" class="content-tab" data-content-tab="notices" role="tab" aria-selected="false">안내</button>
                     </div>
-                    <div class="mobile-sheet-tabs" role="tablist" aria-label="현안 정보 보기">
+                    <div class="mobile-sheet-tabs" role="tablist" aria-label="지도 정보 보기">
                         <button type="button" class="mobile-sheet-tab mobile-sheet-tab-active" data-mobile-sheet-tab="stats" role="tab" aria-selected="true" aria-controls="mobile-stats-panel">통계</button>
                         <button type="button" class="mobile-sheet-tab" data-mobile-sheet-tab="issues" role="tab" aria-selected="false" aria-controls="issue-list-panel" disabled>현안</button>
                     </div>

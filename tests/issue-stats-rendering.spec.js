@@ -47,8 +47,7 @@ async function waitForHooks(page) {
     return (
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.renderVisibleIssueListWithData === "function" &&
-      document.querySelector("#issue-stats-summary") &&
-      document.querySelector("#issue-stats-summary").textContent.trim().length > 0
+      document.querySelector("#issue-stats-summary")
     );
   });
 }
@@ -169,7 +168,7 @@ test("Issue stats prioritizes dong totals", async ({ page }) => {
   });
   expect(headings[0]).toBe("동별 현안");
   expect(headings[1]).toBe("분야별 현안");
-  expect(headings[2]).toBe("진행 상태별 현안");
+  expect(headings[2]).toBe("상태별 건수");
 });
 
 test("Mobile sheet combines stats and common tab", async ({ page }) => {
@@ -180,6 +179,7 @@ test("Mobile sheet combines stats and common tab", async ({ page }) => {
   await expect(page.locator("[data-mobile-sheet-tab='issues']")).toHaveCount(1);
   await expect(page.locator("[data-mobile-sheet-tab='common']")).toHaveCount(0);
   await expect(page.locator("#common-pledge-panel")).toBeVisible();
+  await expect(page.locator("#common-pledge-panel .pledge-item:not(.pledge-item-empty) p")).toHaveCount(0);
 });
 
 test("Issue stats rows look actionable", async ({ page }) => {
@@ -263,6 +263,7 @@ test("Issue stats height stays stable", async ({ page }) => {
       { id: "stable-b", title: "운중 현안", categoryId: "education_childcare", dongName: "운중동" }
     ]);
   });
+  await page.evaluate(() => document.fonts ? document.fonts.ready : Promise.resolve());
   const statsEl = page.locator("#issue-stats-summary");
   const inactiveHeight = await statsEl.evaluate((element) => element.getBoundingClientRect().height);
   await page.locator("#issue-stats-summary [data-filter-type='dong'][data-filter-label='판교동']").click();
@@ -288,8 +289,8 @@ test("renderVisibleIssueListWithData updates total count label", async ({ page }
   expect(text).toContain("2건");
 });
 
-test("Issue list stays hidden until a filter is selected", async ({ page }) => {
-  // 필터 선택 전에는 현안 카드 목록을 접어 통계와 지도를 우선 보여줌
+test("Issue list shows all issues before filtering", async ({ page }) => {
+  // 필터 선택 전에도 공통 현안 아래 전체 현안 목록을 보여줌
   await waitForHooks(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.renderVisibleIssueListWithData([
@@ -297,9 +298,68 @@ test("Issue list stays hidden until a filter is selected", async ({ page }) => {
       { id: "d2", title: "운중 현안", categoryId: "environment_park", dongName: "운중동" }
     ]);
   });
-  await expect(page.locator("#issue-list-panel")).toHaveClass(/issue-list-panel-hidden/);
-  await expect(page.locator("#spot-list")).not.toContainText("판교 현안");
-  await expect(page.locator("#spot-list")).not.toContainText("운중 현안");
+  await expect(page.locator(".content-tabs")).toHaveCSS("position", "sticky");
+  const tabBackdrop = await page.locator(".content-tabs").evaluate((element) => {
+    const baseStyle = window.getComputedStyle(element);
+    const beforeStyle = window.getComputedStyle(element, "::before");
+    const style = window.getComputedStyle(element, "::after");
+    return {
+      marginTop: baseStyle.marginTop,
+      marginLeft: baseStyle.marginLeft,
+      paddingTop: baseStyle.paddingTop,
+      background: baseStyle.backgroundColor,
+      beforeContent: beforeStyle.content,
+      beforeBackground: beforeStyle.backgroundColor,
+      beforeTop: beforeStyle.top,
+      height: style.height,
+      content: style.content,
+      backgroundImage: style.backgroundImage,
+      pointerEvents: style.pointerEvents
+    };
+  });
+  expect(tabBackdrop.marginTop).toBe("0px");
+  expect(tabBackdrop.marginLeft).toBe("0px");
+  expect(tabBackdrop.paddingTop).toBe("3px");
+  expect(tabBackdrop.background).toBe("rgb(237, 244, 255)");
+  expect(tabBackdrop.beforeContent).not.toBe("none");
+  expect(tabBackdrop.beforeBackground).toBe("rgb(246, 249, 252)");
+  expect(tabBackdrop.beforeTop).toBe("-18px");
+  expect(tabBackdrop.height).toBe("12px");
+  expect(tabBackdrop.content).not.toBe("none");
+  expect(tabBackdrop.backgroundImage).toContain("linear-gradient");
+  expect(tabBackdrop.backgroundImage).toContain("246, 249, 252");
+  expect(tabBackdrop.pointerEvents).toBe("none");
+  await expect(page.locator("#issue-list-panel")).not.toHaveClass(/issue-list-panel-hidden/);
+  await expect(page.locator("#issue-list-panel")).toHaveAttribute("aria-label", "우리동네 현안");
+  await expect(page.locator("#spot-list")).toContainText("판교 현안");
+  await expect(page.locator("#spot-list")).toContainText("운중 현안");
+});
+
+test("Mobile content tab backdrop does not paint sheet gap", async ({ page }) => {
+  // 모바일은 탭과 내용 사이를 같은 시트 배경으로 맞추되, 접힘 손잡이 막대는 보여야 한다.
+  await page.setViewportSize({ width: 390, height: 900 });
+  await waitForHooks(page);
+  const tabBackdrop = await page.locator(".content-tabs").evaluate((element) => {
+    const beforeStyle = window.getComputedStyle(element, "::before");
+    const afterStyle = window.getComputedStyle(element, "::after");
+    const sidePanel = document.querySelector(".side-panel");
+    const grip = document.querySelector(".mobile-sheet-grip");
+    const sideStyle = sidePanel ? window.getComputedStyle(sidePanel) : null;
+    const gripStyle = grip ? window.getComputedStyle(grip) : null;
+    const gripHandleStyle = grip ? window.getComputedStyle(grip, "::before") : null;
+    return {
+      beforeDisplay: beforeStyle.display,
+      afterDisplay: afterStyle.display,
+      sideBackground: sideStyle ? sideStyle.backgroundColor : "",
+      gripBackground: gripStyle ? gripStyle.backgroundColor : "",
+      gripHandleBackground: gripHandleStyle ? gripHandleStyle.backgroundColor : ""
+    };
+  });
+  expect(tabBackdrop.beforeDisplay).toBe("none");
+  expect(tabBackdrop.afterDisplay).toBe("none");
+  expect(tabBackdrop.sideBackground).toBe("rgb(247, 250, 255)");
+  expect(tabBackdrop.gripBackground).toBe(tabBackdrop.sideBackground);
+  expect(tabBackdrop.gripHandleBackground).toBe("rgb(191, 208, 230)");
 });
 
 test("Clicking category stats filters issue list", async ({ page }) => {
@@ -324,27 +384,42 @@ test("Clicking category stats filters issue list", async ({ page }) => {
 });
 
 test("Clicking progress status stats filters issue list", async ({ page }) => {
-  // 진행 상태 통계 버튼을 누르면 해당 상태 현안만 표시됨
+  // 진행 상태 통계 버튼은 확인/완료를 모두 보여주고 해당 탭으로 이동한다.
   await waitForHooks(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.renderVisibleIssueListWithData([
-      { id: "status-a", title: "조치 요청 현안", categoryId: "traffic_parking", dongName: "판교동", progressStatus: "action_requested" },
-      { id: "status-b", title: "협의 중 현안", categoryId: "environment_park", dongName: "운중동", progressStatus: "consulting" }
+      { id: "status-a", title: "확인 현안", categoryId: "traffic_parking", dongName: "판교동", progressStatus: "checking" },
+      { id: "status-b", title: "완료된 변화", contentTab: "changes", itemType: "improvement", progressStatus: "completed", categoryId: "environment_park", dongName: "운중동" }
     ]);
   });
-  await page.locator("#issue-stats-summary [data-filter-type='progressStatus'][data-filter-key='action_requested']").click();
+  const checkingStatus = page.locator("#issue-stats-summary [data-filter-type='progressStatus'][data-filter-key='checking']");
+  const completedStatus = page.locator("#issue-stats-summary [data-filter-type='progressStatus'][data-filter-key='completed']");
+  await expect(checkingStatus).toContainText("1건");
+  await expect(completedStatus).toContainText("1건");
+  await expect(completedStatus).toHaveClass(/issue-stats-filter-btn-muted/);
+
+  await checkingStatus.click();
   const spotList = page.locator("#spot-list");
   const statsEl = page.locator("#issue-stats-summary");
-  await expect(spotList).toContainText("조치 요청 현안");
-  await expect(spotList).not.toContainText("협의 중 현안");
-  await expect(statsEl).toContainText("진행 상태: 조치 요청");
+  await expect(spotList).toContainText("확인 현안");
+  await expect(spotList).not.toContainText("완료된 변화");
+  await expect(statsEl).toContainText("진행 상태: 확인");
+
+  await page.locator("#issue-stats-summary [data-filter-type='progressStatus'][data-filter-key='completed']").click();
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__spotListTestHooks.getActiveContentTab());
+  }).toBe("changes");
+  await expect(spotList).toContainText("완료된 변화");
+  await expect(spotList).not.toContainText("확인 현안");
+  await expect(statsEl).toContainText("진행 상태: 완료");
+  await expect(page.locator("#issue-stats-summary [data-filter-type='progressStatus'][data-filter-key='checking']")).toHaveClass(/issue-stats-filter-btn-muted/);
 });
 
-test("Changes stats filters by item type", async ({ page }) => {
-  // 변화 탭에서는 게시물 성격별 통계 버튼으로 목록을 필터링함
+test("Notice tab lists notice items without status filters", async ({ page }) => {
+  // 안내 탭은 상태 없이 안내 목록을 제목 내림차순으로 보여준다.
   await waitForHooks(page);
   await page.evaluate(() => {
-    window.__spotListTestHooks.setActiveContentTab("changes");
+    window.__spotListTestHooks.setActiveContentTab("notices");
     window.__spotListTestHooks.renderVisibleIssueListWithData([
       {
         id: "change-a",
@@ -356,23 +431,35 @@ test("Changes stats filters by item type", async ({ page }) => {
         dongName: "판교동"
       },
       {
-        id: "change-b",
-        title: "공사 현장 안전 안내",
-        contentTab: "changes",
-        itemType: "safety_notice",
-        progressStatus: "active",
+        id: "notice-old",
+        title: "260709 운중천 안전통제선 설치",
+        contentTab: "notices",
+        itemType: "notice",
+        progressStatus: "checking",
+        categoryId: "safety_security",
+        dongName: "운중동"
+      },
+      {
+        id: "notice-new",
+        title: "260727 대장도서관 공사 현장 금연 안내",
+        contentTab: "notices",
+        itemType: "notice",
+        progressStatus: "checking",
         categoryId: "education_childcare",
         dongName: "대장동"
       }
     ]);
   });
-  await expect(page.locator("#issue-stats-summary")).toContainText("게시물 성격별 건수");
-  await expect(page.locator("#issue-stats-summary")).toContainText("상태별 건수");
-  await page.locator("#issue-stats-summary [data-filter-type='itemType'][data-filter-key='safety_notice']").click();
-  const spotList = page.locator("#spot-list");
-  await expect(spotList).toContainText("공사 현장 안전 안내");
-  await expect(spotList).not.toContainText("보행로 볼라드 보수");
-  await expect(page.locator("#issue-stats-summary")).toContainText("게시물 성격: 안전 안내");
+  await expect(page.locator("#issue-stats-summary")).toContainText("안내 현황");
+  await expect(page.locator("#issue-stats-summary")).not.toContainText("전체 안내");
+  await expect(page.locator("#issue-stats-summary .notice-stats-total")).toHaveCount(0);
+  await expect(page.locator("#issue-stats-summary .notice-stats-main strong")).toHaveText([
+    "260727 대장도서관 공사 현장 금연 안내",
+    "260709 운중천 안전통제선 설치"
+  ]);
+  await expect(page.locator("#issue-stats-summary")).not.toContainText("상태별 건수");
+  await expect(page.locator("#issue-stats-summary [data-filter-type='progressStatus']")).toHaveCount(0);
+  await expect(page.locator("#issue-stats-summary")).not.toContainText("보행로 볼라드 보수");
 });
 
 test("Desktop side panel prioritizes selected result", async ({ page }) => {
@@ -425,7 +512,8 @@ test("Mobile sheet switches to issue tab after filter", async ({ page }) => {
   });
 
   await expect(page.locator("[data-mobile-sheet-tab='stats']")).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("[data-mobile-sheet-tab='issues']")).toBeDisabled();
+  await expect(page.locator("[data-mobile-sheet-tab='issues']")).toBeEnabled();
+  await expect(page.locator("#issue-list-panel")).not.toHaveClass(/issue-list-panel-hidden/);
   await expect(page.locator(".mobile-sheet-tabs")).toBeHidden();
 
   await page.locator("#issue-stats-summary [data-filter-type='category'][data-filter-label='🚌 교통·주차']").click();
@@ -457,8 +545,10 @@ test("Mobile sheet switches to issue tab after filter", async ({ page }) => {
 
   await page.locator("#issue-list-clear-filter-btn").click();
   await expect(page.locator("[data-mobile-sheet-tab='stats']")).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("[data-mobile-sheet-tab='issues']")).toBeDisabled();
-  await expect(page.locator("#issue-list-panel")).toHaveClass(/issue-list-panel-hidden/);
+  await expect(page.locator("[data-mobile-sheet-tab='issues']")).toBeEnabled();
+  await expect(page.locator("#issue-list-panel")).not.toHaveClass(/issue-list-panel-hidden/);
+  await expect(page.locator("#spot-list")).toContainText("교통 현안");
+  await expect(page.locator("#spot-list")).toContainText("교육 현안");
 });
 
 test("Mobile sheet grip collapses and expands sheet", async ({ page }) => {
@@ -639,8 +729,8 @@ test("Clicking dong stats filters issue list", async ({ page }) => {
   await expect(page.locator("#issue-stats-summary")).toContainText("동: 운중동");
 });
 
-test("Clear issue filter hides issue list", async ({ page }) => {
-  // 전체 보기를 누르면 필터가 해제되고 상세 목록은 다시 접힘
+test("Clear issue filter returns to full issue list", async ({ page }) => {
+  // 전체 보기를 누르면 필터가 해제되고 전체 현안 목록으로 돌아감
   await waitForHooks(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.renderVisibleIssueListWithData([
@@ -652,19 +742,15 @@ test("Clear issue filter hides issue list", async ({ page }) => {
   await page.locator("#issue-stats-summary #clear-issue-filter-btn").click();
   const spotList = page.locator("#spot-list");
   const statsEl = page.locator("#issue-stats-summary");
-  const animationState = await page.evaluate(() => {
-    const stats = document.querySelector("#issue-stats-summary");
-    const list = document.querySelector("#spot-list");
-    return {
-      statsRefreshing: Boolean(stats && stats.classList.contains("issue-stats-refreshing")),
-      listRefreshing: Boolean(list && list.classList.contains("spot-list-refreshing"))
-    };
-  });
-  expect(animationState.statsRefreshing).toBe(false);
-  expect(animationState.listRefreshing).toBe(false);
-  await expect(page.locator("#issue-list-panel")).toHaveClass(/issue-list-panel-hidden/);
-  await expect(spotList).not.toContainText("판교 현안");
-  await expect(spotList).not.toContainText("운중 현안");
+  await expect.poll(async () => {
+    return statsEl.evaluate((element) => element.classList.contains("issue-stats-refreshing"));
+  }).toBe(false);
+  await expect.poll(async () => {
+    return spotList.evaluate((element) => element.classList.contains("spot-list-refreshing"));
+  }).toBe(false);
+  await expect(page.locator("#issue-list-panel")).not.toHaveClass(/issue-list-panel-hidden/);
+  await expect(spotList).toContainText("판교 현안");
+  await expect(spotList).toContainText("운중 현안");
   await expect(statsEl).toContainText("전체 기준");
   await expect(statsEl.locator("#clear-issue-filter-btn")).toHaveClass(/issue-stats-clear-btn-inactive/);
   await expect(statsEl.locator("#clear-issue-filter-btn")).toBeDisabled();

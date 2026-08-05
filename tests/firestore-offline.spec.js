@@ -142,15 +142,27 @@ test("Common pledge tags use squircle rhythm", async ({ page }) => {
 test("View mode does not request Firestore", async ({ page }) => {
   // 공개 열람 화면은 Firestore 대신 정적 JSON 스냅샷만 사용한다.
   const firestoreRequests = [];
+  let snapshotRequests = 0;
   page.on("request", (request) => {
     if (request.url().includes("firestore.googleapis.com")) {
       firestoreRequests.push(request.url());
     }
   });
-  const snapshotResponse = page.waitForResponse((response) => {
-    return response.url().includes("/data/hotspots.public.json") && response.ok();
+  await page.route("**/data/hotspots.public.json", (route) => {
+    snapshotRequests += 1;
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        source: "firestore",
+        collection: "crowd_hotspots",
+        count: 0,
+        hotspots: []
+      })
+    });
   });
   await page.goto("/map/");
-  await snapshotResponse;
+  await expect.poll(() => snapshotRequests).toBe(1);
   expect(firestoreRequests).toHaveLength(0);
 });

@@ -56,49 +56,47 @@ test("Edit page category options include traffic_parking", async ({ page }) => {
   expect(text).toContain("교통");
 });
 
-test("Edit page content tab uses changes value", async ({ page }) => {
-  // 변화 탭은 신규 저장값 changes를 사용함
+test("Edit page stores content tab as derived hidden value", async ({ page }) => {
+  // 탭은 구분/진행 상태에서 자동 계산되므로 숨은 필드로만 유지한다.
   await page.goto("/map/edit/");
-  const changeOption = page.locator("#spot-content-tab option[value='changes']");
-  await expect(changeOption).toBeAttached();
-  await expect(changeOption).toHaveText("우리동네 변화");
+  await expect(page.locator("#spot-content-tab")).toHaveAttribute("type", "hidden");
+  await expect(page.locator("#spot-content-tab")).toHaveValue("issues");
 });
 
-test("Edit page hides item type for issue tab", async ({ page }) => {
-  // 현안 탭에서는 게시물 성격을 고정하므로 필드를 숨김
+test("Edit page classification uses two statuses", async ({ page }) => {
+  // 진행 상태는 확인/완료 두 가지로만 고른다.
   await page.goto("/map/edit/");
   await waitForEditAuthSettled(page);
-  await expect(page.locator("#spot-progress-status option")).toHaveCount(4);
-  await page.evaluate(() => {
-    const select = document.querySelector("#spot-content-tab");
-    select.value = "issues";
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  });
-  await expect(page.locator("#spot-item-type-field")).toHaveClass(/hidden/);
-  await expect(page.locator("#spot-progress-status option")).toHaveText(["확인 중", "조치 요청", "협의 중", "검토 종료"]);
-});
-
-test("Edit page changes item type controls progress statuses", async ({ page }) => {
-  // 변화 탭에서는 게시물 성격에 따라 진행 상태 옵션이 바뀜
-  await page.goto("/map/edit/");
-  await waitForEditAuthSettled(page);
-  await expect(page.locator("#spot-progress-status option")).toHaveCount(4);
-  await page.evaluate(() => {
-    const select = document.querySelector("#spot-content-tab");
-    select.value = "changes";
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  });
   await expect(page.locator("#spot-item-type-field")).not.toHaveClass(/hidden/);
-  await expect(page.locator("#spot-item-type option")).toHaveText(["개선", "안전 안내", "생활 안내"]);
-  await expect(page.locator("#spot-progress-status option")).toHaveText(["추진 중", "개선 완료"]);
+  await expect(page.locator("#spot-progress-status-field")).not.toHaveClass(/hidden/);
+  await expect(page.locator("#spot-item-type option")).toHaveText(["현안·변화", "안내"]);
+  await expect(page.locator("#spot-progress-status option")).toHaveText(["확인", "완료"]);
+  await expect(page.locator("#spot-content-tab")).toHaveValue("issues");
+});
+
+test("Edit page derives tab from classification", async ({ page }) => {
+  // 일반 항목은 완료면 변화, 안내 항목은 안내 탭으로 저장된다.
+  await page.goto("/map/edit/");
+  await waitForEditAuthSettled(page);
+  await page.evaluate(() => {
+    const progress = document.querySelector("#spot-progress-status");
+    progress.value = "completed";
+    progress.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect(page.locator("#spot-progress-status option")).toHaveText(["확인", "완료"]);
+  await expect(page.locator("#spot-progress-status")).toHaveValue("completed");
+  await expect(page.locator("#spot-content-tab")).toHaveValue("changes");
+  await expect(page.locator("#spot-progress-status-field")).not.toHaveClass(/hidden/);
 
   await page.evaluate(() => {
     const select = document.querySelector("#spot-item-type");
-    select.value = "safety_notice";
+    select.value = "notice";
     select.dispatchEvent(new Event("change", { bubbles: true }));
   });
-  await expect(page.locator("#spot-progress-status option")).toHaveText(["안내 중", "안내 종료"]);
-  await expect(page.locator("#spot-progress-status")).toHaveValue("active");
+  await expect(page.locator("#spot-progress-status option")).toHaveText(["확인", "완료"]);
+  await expect(page.locator("#spot-progress-status")).toHaveValue("checking");
+  await expect(page.locator("#spot-progress-status-field")).toHaveClass(/hidden/);
+  await expect(page.locator("#spot-content-tab")).toHaveValue("notices");
 });
 
 test("Edit page dong select has auto option", async ({ page }) => {

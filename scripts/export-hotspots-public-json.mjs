@@ -9,6 +9,14 @@ const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const FIRESTORE_SCOPE = "https://www.googleapis.com/auth/datastore";
 const DEFAULT_OUTPUT_PATH = "data/hotspots.public.json";
 const DEFAULT_PAGE_SIZE = 1000;
+const CONTENT_TAB_ISSUES = "issues";
+const CONTENT_TAB_CHANGES = "changes";
+const CONTENT_TAB_NOTICES = "notices";
+const ITEM_TYPE_ISSUE = "issue";
+const ITEM_TYPE_IMPROVEMENT = "improvement";
+const ITEM_TYPE_NOTICE = "notice";
+const PROGRESS_STATUS_CHECKING = "checking";
+const PROGRESS_STATUS_COMPLETED = "completed";
 
 const PUBLIC_FIELD_MASKS = [
   "title",
@@ -300,6 +308,114 @@ function normalizeString(value) {
   return String(value || "").trim();
 }
 
+function normalizeClassificationToken(value) {
+  return String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function normalizeContentTab(value) {
+  const token = normalizeClassificationToken(value);
+  if (
+    token === CONTENT_TAB_CHANGES ||
+    token === "change" ||
+    token === "achievements" ||
+    token === "achievement" ||
+    token === "completed" ||
+    token === "complete" ||
+    token === "done" ||
+    token === "성과" ||
+    token === "변화" ||
+    token === "개선" ||
+    token === "완료"
+  ) {
+    return CONTENT_TAB_CHANGES;
+  }
+  if (
+    token === CONTENT_TAB_NOTICES ||
+    token === "notice" ||
+    token === "notices" ||
+    token === "guide" ||
+    token === "guides" ||
+    token === "info" ||
+    token === "안내" ||
+    token === "안내도"
+  ) {
+    return CONTENT_TAB_NOTICES;
+  }
+  return CONTENT_TAB_ISSUES;
+}
+
+function isNoticeItemType(value) {
+  const token = normalizeClassificationToken(value);
+  return (
+    token === ITEM_TYPE_NOTICE ||
+    token === "notice" ||
+    token === "notices" ||
+    token === "safetynotice" ||
+    token === "lifenotice" ||
+    token === "안내" ||
+    token === "안전안내" ||
+    token === "생활안내"
+  );
+}
+
+function normalizeProgressStatus(value, fallbackContentTab) {
+  const token = normalizeClassificationToken(value);
+  if (
+    token === PROGRESS_STATUS_COMPLETED ||
+    token === "complete" ||
+    token === "done" ||
+    token === "ended" ||
+    token === "end" ||
+    token === "closed" ||
+    token === "완료" ||
+    token === "개선완료" ||
+    token === "종료" ||
+    token === "안내종료"
+  ) {
+    return PROGRESS_STATUS_COMPLETED;
+  }
+  if (
+    token === PROGRESS_STATUS_CHECKING ||
+    token === "actionrequested" ||
+    token === "consulting" ||
+    token === "inprogress" ||
+    token === "active" ||
+    token === "reviewclosed" ||
+    token === "확인" ||
+    token === "확인중" ||
+    token === "조치요청" ||
+    token === "협의" ||
+    token === "협의중" ||
+    token === "추진중" ||
+    token === "진행중" ||
+    token === "안내중" ||
+    token === "검토종료"
+  ) {
+    return PROGRESS_STATUS_CHECKING;
+  }
+  return normalizeContentTab(fallbackContentTab) === CONTENT_TAB_CHANGES
+    ? PROGRESS_STATUS_COMPLETED
+    : PROGRESS_STATUS_CHECKING;
+}
+
+function resolveContentTab(itemType, progressStatus, fallbackContentTab) {
+  if (isNoticeItemType(itemType) || normalizeContentTab(fallbackContentTab) === CONTENT_TAB_NOTICES) {
+    return CONTENT_TAB_NOTICES;
+  }
+  return progressStatus === PROGRESS_STATUS_COMPLETED
+    ? CONTENT_TAB_CHANGES
+    : CONTENT_TAB_ISSUES;
+}
+
+function resolveItemType(itemType, contentTab, progressStatus) {
+  if (isNoticeItemType(itemType) || contentTab === CONTENT_TAB_NOTICES) {
+    return ITEM_TYPE_NOTICE;
+  }
+  return progressStatus === PROGRESS_STATUS_COMPLETED
+    ? ITEM_TYPE_IMPROVEMENT
+    : ITEM_TYPE_ISSUE;
+}
+
 function normalizePhotoUrls(value) {
   const items = [];
   if (Array.isArray(value)) {
@@ -340,6 +456,12 @@ function toPublicHotspot(document) {
   if (legacyPhotoUrl && (legacyPhotoUrl.startsWith("https://") || legacyPhotoUrl.startsWith("http://")) && !photoUrls.includes(legacyPhotoUrl)) {
     photoUrls.push(legacyPhotoUrl);
   }
+  const rawContentTab = normalizeString(getFirstValue(data, ["contentTab", "content_tab", "mapTab", "map_tab", "displayTab", "display_tab", "status"], ""));
+  const rawItemType = normalizeString(getFirstValue(data, ["itemType", "item_type"], ""));
+  const rawProgressStatus = normalizeString(getFirstValue(data, ["progressStatus", "progress_status"], ""));
+  const progressStatus = normalizeProgressStatus(rawProgressStatus, rawContentTab);
+  const contentTab = resolveContentTab(rawItemType, progressStatus, rawContentTab);
+  const itemType = resolveItemType(rawItemType, contentTab, progressStatus);
 
   return {
     id: getDocumentId(document),
@@ -347,9 +469,9 @@ function toPublicHotspot(document) {
     title: normalizeString(data.title),
     memo: normalizeString(data.memo),
     level: normalizeNumber(data.level) || 3,
-    contentTab: normalizeString(getFirstValue(data, ["contentTab", "content_tab", "mapTab", "map_tab", "displayTab", "display_tab", "status"], "")),
-    itemType: normalizeString(getFirstValue(data, ["itemType", "item_type"], "")),
-    progressStatus: normalizeString(getFirstValue(data, ["progressStatus", "progress_status"], "")),
+    contentTab,
+    itemType,
+    progressStatus,
     categoryId: normalizeString(getFirstValue(data, ["categoryId", "category_id"], "")),
     categoryLabel: normalizeString(getFirstValue(data, ["categoryLabel", "category_label"], "")),
     lat,

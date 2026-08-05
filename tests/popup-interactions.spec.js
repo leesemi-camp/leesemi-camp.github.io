@@ -44,8 +44,7 @@ async function waitForSpotListHooks(page) {
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.renderHotspotList === "function" &&
       typeof window.__spotListTestHooks.renderVisibleIssueListWithData === "function" &&
-      document.querySelector("#issue-stats-summary") &&
-      document.querySelector("#issue-stats-summary").textContent.trim().length > 0
+      document.querySelector("#issue-stats-summary")
     );
   });
 }
@@ -230,7 +229,7 @@ test("Clear issue filter button is hidden initially", async ({ page }) => {
 });
 
 test("Escape clears active dong filter", async ({ page }) => {
-  // Esc 키를 누르면 활성 동 필터가 해제되고 전체 목록으로 돌아감
+  // Esc 키를 누르면 활성 동 필터가 해제되고 전체 현안 목록으로 돌아감
   await blockFirestore(page);
   await gotoMap(page);
   await waitForSpotListHooks(page);
@@ -261,22 +260,18 @@ test("Escape clears active dong filter", async ({ page }) => {
 
   await page.keyboard.press("Escape");
 
-  const listState = await spotList.evaluate((element) => {
-    return {
-      refreshing: element.classList.contains("spot-list-refreshing")
-    };
-  });
-  const statsRefreshing = await statsEl.evaluate((element) => {
-    return element.classList.contains("issue-stats-refreshing");
-  });
-  expect(listState.refreshing).toBe(false);
-  expect(statsRefreshing).toBe(false);
+  await expect.poll(async () => {
+    return spotList.evaluate((element) => element.classList.contains("spot-list-refreshing"));
+  }).toBe(false);
+  await expect.poll(async () => {
+    return statsEl.evaluate((element) => element.classList.contains("issue-stats-refreshing"));
+  }).toBe(false);
   await expect(clearBtn).toHaveClass(/issue-stats-clear-btn-inactive/);
   await expect(clearBtn).toBeDisabled();
   await expect(statsEl).toContainText("전체 기준");
-  await expect(issueListPanel).toHaveClass(/issue-list-panel-hidden/);
-  await expect(spotList).not.toContainText("판교 현안");
-  await expect(spotList).not.toContainText("운중 현안");
+  await expect(issueListPanel).not.toHaveClass(/issue-list-panel-hidden/);
+  await expect(spotList).toContainText("판교 현안");
+  await expect(spotList).toContainText("운중 현안");
 });
 
 test("Escape closes dong popup and clears dong filter together", async ({ page }) => {
@@ -563,7 +558,7 @@ test("Hotspot popup renders classification badges", async ({ page }) => {
   ]);
   await gotoMap(page);
   await waitForSpotListHooks(page);
-  await page.getByRole("tab", { name: "우리동네 변화" }).click();
+  await page.getByRole("tab", { name: "변화" }).click();
   await page.evaluate(() => {
     window.__spotListTestHooks.setActiveDongFilter("판교동");
   });
@@ -575,11 +570,68 @@ test("Hotspot popup renders classification badges", async ({ page }) => {
   const popup = page.locator("#map-popup");
   await expect(popup).not.toHaveClass(/hidden/);
   await expect(popup.locator(".spot-category")).toHaveText("🚨 안전·치안");
-  await expect(popup.locator(".spot-type-badge")).toHaveText("개선");
-  await expect(popup.locator(".spot-status-badge")).toHaveText("개선 완료");
-  await expect(popup.locator(".spot-progress-flow")).toContainText("추진 중");
-  await expect(popup.locator(".spot-progress-step.is-current")).toContainText("개선 완료");
+  await expect(popup.locator(".spot-type-badge")).toHaveCount(0);
+  await expect(popup.locator(".spot-status-badge")).toHaveText("완료");
+  await expect(popup.locator(".spot-progress-flow")).not.toContainText("추진 중");
+  await expect(popup.locator(".spot-progress-step.is-current")).toContainText("완료");
   await expect(popup.locator(".spot-progress-step.is-current")).toContainText("현재");
+  await expect(popup).not.toContainText("소속 동:");
+});
+
+test("Muted completed marker opens changes tab with blue completed status", async ({ page }) => {
+  // 현안 탭에서 회색 완료 마커를 열면 변화 탭으로 이동하고 완료 상태를 파란색으로 강조함
+  await blockFirestore(page, [
+    {
+      id: "checking-marker-popup",
+      title: "확인 중인 현안",
+      progressStatus: "checking",
+      categoryId: "traffic_parking",
+      dongName: "판교동",
+      lat: 37.394,
+      lng: 127.111
+    },
+    {
+      id: "completed-muted-popup",
+      title: "완료된 변화",
+      contentTab: "changes",
+      itemType: "improvement",
+      progressStatus: "completed",
+      categoryId: "traffic_parking",
+      dongName: "판교동",
+      lat: 37.3943,
+      lng: 127.1116
+    }
+  ]);
+  await gotoMap(page);
+  await waitForSpotListHooks(page);
+
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__spotListTestHooks.getHotspotFeatureStatesForTest());
+  }).toEqual([
+    { id: "checking-marker-popup", contentTab: "issues", emphasisMode: "normal", visualMode: "normal" },
+    { id: "completed-muted-popup", contentTab: "changes", emphasisMode: "muted", visualMode: "muted" }
+  ]);
+
+  const didOpen = await page.evaluate(() => {
+    window.__spotListTestHooks.centerHotspotForTest("completed-muted-popup", 16);
+    return window.__spotListTestHooks.openHotspotForTest("completed-muted-popup");
+  });
+  expect(didOpen).toBe(true);
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__spotListTestHooks.getActiveContentTab());
+  }).toBe("changes");
+
+  const popup = page.locator("#map-popup");
+  await expect(popup).not.toHaveClass(/hidden/);
+  const statusBadge = popup.locator(".spot-status-badge");
+  const currentStep = popup.locator(".spot-progress-step.is-current");
+  await expect(statusBadge).toHaveText("완료");
+  await expect(statusBadge).toHaveCSS("color", "rgb(29, 78, 216)");
+  await expect(statusBadge).toHaveCSS("background-color", "rgb(234, 242, 255)");
+  await expect(currentStep).toContainText("완료");
+  await expect(currentStep).toContainText("현재");
+  await expect(currentStep).not.toHaveClass(/is-muted/);
+  await expect(currentStep.locator(".spot-progress-label")).toHaveCSS("color", "rgb(23, 74, 124)");
 });
 
 test("Hotspot popup links and wraps long memo URLs", async ({ page }) => {

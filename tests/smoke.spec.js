@@ -83,7 +83,7 @@ test("Map view renders", async ({ page }) => {
 });
 
 test("Map content tabs filter items", async ({ page }) => {
-  // 현안과 변화 항목은 각 탭에서 따로 집계하고 표시한다.
+  // 현안, 변화, 안내 항목은 각 탭에서 따로 집계하고 표시한다.
   await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
   await page.route("**/data/hotspots.public.json", (route) => {
     route.fulfill({
@@ -93,7 +93,7 @@ test("Map content tabs filter items", async ({ page }) => {
         generatedAt: "2026-01-01T00:00:00.000Z",
         source: "firestore",
         collection: "crowd_hotspots",
-        count: 4,
+        count: 5,
         hotspots: [
           {
             id: "issue-1",
@@ -117,7 +117,7 @@ test("Map content tabs filter items", async ({ page }) => {
             id: "achievement-1",
             title: "통학로 조명 개선 완료",
             memo: "야간 보행 안전 개선",
-            contentTab: "achievements",
+            contentTab: "changes",
             itemType: "improvement",
             progressStatus: "completed",
             categoryId: "safety_security",
@@ -130,10 +130,24 @@ test("Map content tabs filter items", async ({ page }) => {
             title: "공원 시설 정비 완료",
             memo: "노후 시설 개선",
             contentTab: "changes",
+            itemType: "improvement",
+            progressStatus: "completed",
             categoryId: "environment_park",
             dongName: "운중동",
             lat: 37.39,
             lng: 127.08
+          },
+          {
+            id: "notice-1",
+            title: "공사 안내",
+            memo: "보행로 우회 안내",
+            contentTab: "notices",
+            itemType: "notice",
+            progressStatus: "checking",
+            categoryId: "traffic_parking",
+            dongName: "대장동",
+            lat: 37.381,
+            lng: 127.071
           }
         ]
       })
@@ -142,13 +156,39 @@ test("Map content tabs filter items", async ({ page }) => {
 
   await page.goto("/map/");
   await expect(page.locator("#total-issue-count")).toHaveText("총 현안 건수: 2건");
+  await expect(page.locator("#spot-list")).toContainText("통학로 정비 요청");
+  await expect(page.locator("#spot-list")).toContainText("주차장 확충 요청");
+  await expect(page.locator("#spot-list")).not.toContainText("통학로 조명 개선 완료");
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__spotListTestHooks.getHotspotFeatureStatesForTest());
+  }).toEqual([
+    { id: "achievement-1", contentTab: "changes", emphasisMode: "muted", visualMode: "muted" },
+    { id: "achievement-2", contentTab: "changes", emphasisMode: "muted", visualMode: "muted" },
+    { id: "issue-1", contentTab: "issues", emphasisMode: "normal", visualMode: "normal" },
+    { id: "issue-2", contentTab: "issues", emphasisMode: "normal", visualMode: "normal" }
+  ]);
+  // 컬러 마커는 기존 텍스트 렌더를 유지하고, 흑백 마커만 보조 이미지 캐시를 쓴다.
+  const initialIconCacheKeys = await page.evaluate(() => window.__spotListTestHooks.getHotspotIconCacheKeysForTest());
+  expect(initialIconCacheKeys.some((key) => key.endsWith("|muted"))).toBe(true);
+  expect(initialIconCacheKeys.some((key) => key.endsWith("|color"))).toBe(false);
   await expect(page).toHaveTitle("우리동네 현안도, 이세미입니다");
 
   const beforeFirstTabTransition = await getMarkerTransitionSequence(page);
-  await page.getByRole("tab", { name: "우리동네 변화" }).click();
+  await page.getByRole("tab", { name: "변화" }).click();
   await expectMarkerCrossfade(page, beforeFirstTabTransition);
-  await expect(page.locator("#total-issue-count")).toHaveText("총 변화·안내 건수: 2건");
-  await expect(page.locator("#common-pledge-title")).toHaveText("우리동네 변화");
+  await expect(page.locator("#total-issue-count")).toHaveText("총 변화 건수: 2건");
+  await expect(page.locator("#common-pledge-title")).toHaveText("지역구 공통 변화");
+  await expect(page.locator("#spot-list")).toContainText("통학로 조명 개선 완료");
+  await expect(page.locator("#spot-list")).toContainText("공원 시설 정비 완료");
+  await expect(page.locator("#spot-list")).not.toContainText("통학로 정비 요청");
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__spotListTestHooks.getHotspotFeatureStatesForTest());
+  }).toEqual([
+    { id: "achievement-1", contentTab: "changes", emphasisMode: "normal", visualMode: "normal" },
+    { id: "achievement-2", contentTab: "changes", emphasisMode: "normal", visualMode: "normal" },
+    { id: "issue-1", contentTab: "issues", emphasisMode: "muted", visualMode: "muted" },
+    { id: "issue-2", contentTab: "issues", emphasisMode: "muted", visualMode: "muted" }
+  ]);
   await expect(page.locator(".topbar-title")).toHaveText("우리동네 변화도, 이세미입니다");
   await expect(page).toHaveTitle("우리동네 변화도, 이세미입니다");
   await page.waitForFunction(() => {
@@ -157,14 +197,29 @@ test("Map content tabs filter items", async ({ page }) => {
   });
 
   const beforeReverseTabTransition = await getMarkerTransitionSequence(page);
-  await page.getByRole("tab", { name: "우리동네 현안" }).click();
+  await page.getByRole("tab", { name: "현안" }).click();
   await expectMarkerCrossfade(page, beforeReverseTabTransition);
   await page.waitForFunction(() => {
     const state = window.__spotListTestHooks.getHotspotAggregateState();
     return state && !state.contentTransitionActive;
   });
 
-  await page.getByRole("tab", { name: "우리동네 변화" }).click();
+  await page.getByRole("tab", { name: "안내" }).click();
+  await expect(page.locator("#total-issue-count")).toHaveText("총 안내 건수: 1건");
+  await expect(page.locator("#common-pledge-panel")).toBeHidden();
+  await expect(page.locator(".topbar-title")).toHaveText("우리동네 안내도, 이세미입니다");
+  await expect(page).toHaveTitle("우리동네 안내도, 이세미입니다");
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__spotListTestHooks.getHotspotFeatureStatesForTest());
+  }).toEqual([
+    { id: "notice-1", contentTab: "notices", emphasisMode: "normal", visualMode: "normal" }
+  ]);
+  await page.waitForFunction(() => {
+    const state = window.__spotListTestHooks.getHotspotAggregateState();
+    return state && !state.contentTransitionActive;
+  });
+
+  await page.getByRole("tab", { name: "변화" }).click();
   await page.waitForFunction(() => {
     const state = window.__spotListTestHooks.getHotspotAggregateState();
     return state && !state.contentTransitionActive;
@@ -347,8 +402,7 @@ test("Optimized boundary GeoJSON uses browser cache", async ({ page }) => {
   await page.waitForFunction(() => {
     return (
       window.__spotListTestHooks &&
-      document.querySelector("#issue-stats-summary") &&
-      document.querySelector("#issue-stats-summary").textContent.trim().length > 0
+      document.querySelector("#issue-stats-summary")
     );
   });
 
@@ -734,8 +788,7 @@ test("Map spot memo state", async ({ page }) => {
     return (
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.renderHotspotList === "function" &&
-      document.querySelector("#issue-stats-summary") &&
-      document.querySelector("#issue-stats-summary").textContent.trim().length > 0
+      document.querySelector("#issue-stats-summary")
     );
   });
 

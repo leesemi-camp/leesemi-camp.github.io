@@ -445,9 +445,9 @@ body[data-map-mode="view"] .map .ol-viewport {
 }
 
 .spot-status-completed {
-    color: #1e6234;
-    background: #e8f6ed;
-    border-color: #bddfc8;
+    color: #1d4ed8;
+    background: #eaf2ff;
+    border-color: #93c5fd;
 }
 
 .spot-status-active {
@@ -776,6 +776,7 @@ body.modal-open {
     }
 
     body[data-map-mode="view"] .side-panel {
+        --side-panel-sticky-bg: rgb(247, 250, 255);
         position: absolute;
         left: var(--mobile-sheet-inset);
         right: var(--mobile-sheet-inset);
@@ -791,7 +792,7 @@ body.modal-open {
         border: 1px solid rgba(205, 220, 240, 0.92);
         border-radius: var(--mobile-sheet-radius);
         padding: 8px 10px calc(var(--mobile-sheet-inset) + env(safe-area-inset-bottom));
-        background: rgba(247, 250, 255, 0.96);
+        background: var(--side-panel-sticky-bg);
         box-shadow:
             0 -16px 34px rgba(13, 32, 63, 0.18),
             0 2px 8px rgba(13, 32, 63, 0.08);
@@ -809,7 +810,7 @@ body.modal-open {
         height: calc(42px + env(safe-area-inset-bottom));
         min-height: 0;
         max-height: calc(42px + env(safe-area-inset-bottom));
-        background: rgba(247, 250, 255, 0.98);
+        background: var(--side-panel-sticky-bg);
         box-shadow:
             0 -10px 22px rgba(13, 32, 63, 0.16),
             0 2px 8px rgba(13, 32, 63, 0.08);
@@ -831,7 +832,7 @@ body.modal-open {
         margin: -2px 0 0;
         border: 0;
         border-radius: 12px;
-        background: transparent;
+        background: var(--side-panel-sticky-bg);
         cursor: pointer;
         touch-action: none;
     }

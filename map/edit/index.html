@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>우리동네 현안도 수정 - 성남시의원(판교·운중·백현·대장) 이세미</title>
-  <meta name="description" content="성남시의원(판교·운중·백현·대장) 이세미의 우리동네 현안도 등록·수정 화면입니다.">
+  <title>우리동네 지도 수정 - 성남시의원(판교·운중·백현·대장) 이세미</title>
+  <meta name="description" content="성남시의원(판교·운중·백현·대장) 이세미의 우리동네 지도 등록·수정 화면입니다.">
   <meta property="og:locale" content="ko_KR">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="성남시의원(판교·운중·백현·대장) 이세미">
-  <meta property="og:title" content="우리동네 현안도 수정 - 성남시의원(판교·운중·백현·대장) 이세미">
-  <meta property="og:description" content="현안 등록·수정 화면입니다.">
+  <meta property="og:title" content="우리동네 지도 수정 - 성남시의원(판교·운중·백현·대장) 이세미">
+  <meta property="og:description" content="현안·변화·안내 등록·수정 화면입니다.">
   <meta property="og:url" content="https://leesemi-camp.github.io/map/edit/">
   <meta property="og:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
   <meta property="og:image:url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
@@ -19,8 +19,8 @@
   <meta property="og:image:height" content="450">
   <meta property="og:image:alt" content="성남시의원(판교·운중·백현·대장) 이세미 링크 미리보기 이미지">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="우리동네 현안도 수정 - 성남시의원(판교·운중·백현·대장) 이세미">
-  <meta name="twitter:description" content="현안 등록·수정 화면입니다.">
+  <meta name="twitter:title" content="우리동네 지도 수정 - 성남시의원(판교·운중·백현·대장) 이세미">
+  <meta name="twitter:description" content="현안·변화·안내 등록·수정 화면입니다.">
   <meta name="twitter:url" content="https://leesemi-camp.github.io/map/edit/">
   <meta name="twitter:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -39,8 +39,8 @@
 <body data-map-mode="edit">
   <main class="layout">
     <section id="login-panel" class="panel">
-      <h1>우리동네 현안도 수정</h1>
-      <p class="muted">허용된 계정으로 로그인한 사용자만 현안을 등록/수정할 수 있습니다.</p>
+      <h1>우리동네 지도 수정</h1>
+      <p class="muted">허용된 계정으로 로그인한 사용자만 항목을 등록/수정할 수 있습니다.</p>
       <button id="login-btn" type="button" class="btn-primary">Google 계정으로 로그인</button>
       <p id="status-text" class="status">초기화 중...</p>
     </section>
@@ -49,7 +49,7 @@
       <header class="topbar">
         <div class="topbar-texts">
           <div class="topbar-title-row">
-            <h2 class="topbar-title">우리동네 현안도 수정</h2>
+            <h2 class="topbar-title">우리동네 지도 수정</h2>
             <span id="total-issue-count" class="topbar-total-issue-count">총 현안 건수: 0건</span>
           </div>
         </div>
@@ -60,7 +60,7 @@
               <path d="M6 10.5V20h12v-9.5"/>
             </svg>
           </a>
-          <a href="../" class="icon-btn" aria-label="현안 열람 화면으로 이동" title="열람 모드">
+          <a href="../" class="icon-btn" aria-label="지도 열람 화면으로 이동" title="열람 모드">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/>
               <circle cx="12" cy="12" r="3"/>
@@ -78,7 +78,7 @@
 
       <section class="workspace">
         <div class="map-wrap map-wrap-initializing">
-          <div id="map" class="map" role="application" aria-label="동별 현안 지도"></div>
+          <div id="map" class="map" role="application" aria-label="동별 우리동네 지도"></div>
           <button id="mobile-current-location-btn" type="button" class="mobile-map-action">현위치 입력</button>
           <div id="map-popup" class="map-popup hidden" aria-hidden="true"></div>
         </div>
@@ -101,11 +101,7 @@
 
               <input id="spot-level" name="level" type="hidden" value="3">
 
-              <label for="spot-content-tab">표시 탭</label>
-              <select id="spot-content-tab" name="contentTab">
-                <option value="issues">우리동네 현안</option>
-                <option value="changes">우리동네 변화</option>
-              </select>
+              <input id="spot-content-tab" name="contentTab" type="hidden" value="issues">
 
             <div id="spot-issue-ref-field" class="spot-issue-ref-field hidden">
               <label for="spot-issue-ref">연동 현안 선택(시트)</label>
@@ -125,12 +121,11 @@
               <option value="maintenance_repair">🚧 보수·정비</option>
             </select>
 
-              <div id="spot-item-type-field" class="spot-item-type-field hidden">
-                <label for="spot-item-type">게시물 성격</label>
+              <div id="spot-item-type-field" class="spot-item-type-field">
+                <label for="spot-item-type">게시물 구분</label>
                 <select id="spot-item-type" name="itemType">
-                  <option value="improvement">개선</option>
-                  <option value="safety_notice">안전 안내</option>
-                  <option value="life_notice">생활 안내</option>
+                  <option value="improvement">현안·변화</option>
+                  <option value="notice">안내</option>
                 </select>
               </div>
 
@@ -188,7 +183,7 @@
             <ul id="common-pledge-list" class="pledge-list"></ul>
           </section>
 
-          <h3 class="list-title">등록된 지역 현안</h3>
+          <h3 class="list-title">등록된 지도 항목</h3>
           <ul id="spot-list" class="spot-list"></ul>
         </aside>
       </section>
