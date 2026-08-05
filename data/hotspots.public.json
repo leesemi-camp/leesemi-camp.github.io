@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-04T12:06:51.964Z",
+  "generatedAt": "2026-08-05T11:24:41.873Z",
   "source": "firestore",
   "collection": "crowd_hotspots",
-  "count": 68,
+  "count": 69,
   "hotspots": [
     {
       "id": "zGu99pgxdB7gbir8wasx",
@@ -1008,6 +1008,33 @@
       "photoUrl": "",
       "photoProcessingVersion": 3,
       "updatedAt": "2026-07-28T16:01:58.206Z"
+    },
+    {
+      "id": "X4xmFVOhFmKVpE8BkRco",
+      "issueRefId": "",
+      "title": "서판교터널 점검구 덮개 교체공사",
+      "memo": "https://blog.naver.com/leesemi114/224365520718",
+      "level": 3,
+      "contentTab": "changes",
+      "itemType": "life_notice",
+      "progressStatus": "active",
+      "categoryId": "traffic_parking",
+      "categoryLabel": "🚌 교통·주차",
+      "lat": 37.37896,
+      "lng": 127.074338,
+      "dongName": "운중동",
+      "emdCode": "41135118",
+      "dongSelectionMode": "auto",
+      "dongKey": "name:운중동",
+      "groupLabel": "",
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FX4xmFVOhFmKVpE8BkRco%2F1785845629020-ad22e346e62e47f3.jpg?alt=media&token=df2a651b-ecef-4349-a922-9556bb8ad16a",
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FX4xmFVOhFmKVpE8BkRco%2F1785845632458-78214201996b1e03.jpg?alt=media&token=8b4cabb8-be05-4289-96f6-0b3e167f1e4d",
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FX4xmFVOhFmKVpE8BkRco%2F1785845635323-afc0e0491814d6d9.jpg?alt=media&token=beb89af5-bb02-4647-b3de-5729834eb332"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FX4xmFVOhFmKVpE8BkRco%2F1785845629020-ad22e346e62e47f3.jpg?alt=media&token=df2a651b-ecef-4349-a922-9556bb8ad16a",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-08-04T12:13:57.903Z"
     },
     {
       "id": "sVmcdQ058t1dwUXYfjfP",
