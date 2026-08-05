@@ -48,21 +48,20 @@ async function waitForHooks(page) {
     return (
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.renderVisibleIssueListWithData === "function" &&
-      stats &&
-      stats.textContent.trim().length > 0
+      stats
     );
   });
 }
 
 test("Issue stats shows empty message when no hotspots", async ({ page }) => {
-  // renderIssueStatsSummary([]) → 빈 상태 메시지가 표시됨
+  // renderIssueStatsSummary([]) → 선택 레이어 범위의 빈 상태 메시지가 표시됨
   await waitForHooks(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.renderIssueStatsSummary([]);
   });
   const statsEl = page.locator("#issue-stats-summary");
   const html = await statsEl.innerHTML();
-  expect(html).toContain("표시할 현안 현황이 없습니다");
+  expect(html).toContain("표시할 현안/변화 현황이 없습니다");
 });
 
 test("Issue stats shows category section with one hotspot", async ({ page }) => {
@@ -81,7 +80,7 @@ test("Issue stats shows category section with one hotspot", async ({ page }) => 
   });
   const statsEl = page.locator("#issue-stats-summary");
   const html = await statsEl.innerHTML();
-  expect(html).toContain("분야별 현안");
+  expect(html).toContain("분야별 현안/변화");
   expect(html).toContain("1건");
 });
 
@@ -168,8 +167,8 @@ test("Issue stats prioritizes dong totals", async ({ page }) => {
     return Array.from(document.querySelectorAll("#issue-stats-summary .issue-stats-block h4"))
       .map((element) => element.textContent.trim());
   });
-  expect(headings[0]).toBe("동별 현안");
-  expect(headings[1]).toBe("분야별 현안");
+  expect(headings[0]).toBe("동별 현안/변화");
+  expect(headings[1]).toBe("분야별 현안/변화");
   expect(headings[2]).toBe("상태별 건수");
 });
 
@@ -278,7 +277,7 @@ test("Issue stats height stays stable", async ({ page }) => {
 });
 
 test("renderVisibleIssueListWithData updates total count label", async ({ page }) => {
-  // renderVisibleIssueListWithData 호출 시 총 현안 건수 레이블이 업데이트됨
+  // renderVisibleIssueListWithData 호출 시 선택 레이어 총건수 레이블이 업데이트됨
   await waitForHooks(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.renderVisibleIssueListWithData([
@@ -287,81 +286,96 @@ test("renderVisibleIssueListWithData updates total count label", async ({ page }
     ]);
   });
   const countEl = page.locator("#total-issue-count");
-  const text = await countEl.textContent();
-  expect(text).toContain("2건");
+  await expect(countEl).toHaveText("총 현안/변화 건수: 2건");
 });
 
-test("Issue list shows all issues before filtering", async ({ page }) => {
-  // 필터 선택 전에도 공통 현안 아래 전체 현안 목록을 보여줌
+test("Issue list shows selected layers before filtering", async ({ page }) => {
+  // 필터 선택 전에도 켜진 레이어 전체 목록을 보여주고, 선택 레이어는 파란색으로 강조한다.
   await waitForHooks(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.renderVisibleIssueListWithData([
       { id: "d1", title: "판교 현안", categoryId: "traffic_parking", dongName: "판교동" },
-      { id: "d2", title: "운중 현안", categoryId: "environment_park", dongName: "운중동" }
+      { id: "d2", title: "운중 현안", categoryId: "environment_park", dongName: "운중동" },
+      {
+        id: "d3",
+        title: "판교 변화",
+        contentTab: "changes",
+        itemType: "improvement",
+        progressStatus: "completed",
+        categoryId: "traffic_parking",
+        dongName: "판교동"
+      }
     ]);
   });
-  await expect(page.locator(".content-tabs")).toHaveCSS("position", "sticky");
-  const tabBackdrop = await page.locator(".content-tabs").evaluate((element) => {
+  await expect(page.locator(".map-layer-tabs")).toHaveCSS("position", "absolute");
+  const layerControls = await page.locator(".map-layer-tabs").evaluate((element) => {
     const baseStyle = window.getComputedStyle(element);
     const beforeStyle = window.getComputedStyle(element, "::before");
     const style = window.getComputedStyle(element, "::after");
+    const parentClass = element.parentElement ? element.parentElement.className : "";
     return {
-      marginTop: baseStyle.marginTop,
-      marginLeft: baseStyle.marginLeft,
-      paddingTop: baseStyle.paddingTop,
+      parentClass,
+      display: baseStyle.display,
+      top: baseStyle.top,
+      left: baseStyle.left,
       background: baseStyle.backgroundColor,
-      beforeContent: beforeStyle.content,
-      beforeBackground: beforeStyle.backgroundColor,
-      beforeTop: beforeStyle.top,
-      height: style.height,
-      content: style.content,
-      backgroundImage: style.backgroundImage,
-      pointerEvents: style.pointerEvents
+      beforeDisplay: beforeStyle.display,
+      afterDisplay: style.display,
+      pointerEvents: baseStyle.pointerEvents
     };
   });
-  expect(tabBackdrop.marginTop).toBe("0px");
-  expect(tabBackdrop.marginLeft).toBe("0px");
-  expect(tabBackdrop.paddingTop).toBe("3px");
-  expect(tabBackdrop.background).toBe("rgb(237, 244, 255)");
-  expect(tabBackdrop.beforeContent).not.toBe("none");
-  expect(tabBackdrop.beforeBackground).toBe("rgb(246, 249, 252)");
-  expect(tabBackdrop.beforeTop).toBe("-18px");
-  expect(tabBackdrop.height).toBe("12px");
-  expect(tabBackdrop.content).not.toBe("none");
-  expect(tabBackdrop.backgroundImage).toContain("linear-gradient");
-  expect(tabBackdrop.backgroundImage).toContain("246, 249, 252");
-  expect(tabBackdrop.pointerEvents).toBe("none");
+  expect(layerControls.parentClass).toContain("map-wrap");
+  expect(layerControls.display).toBe("flex");
+  expect(layerControls.top).toBe("14px");
+  expect(layerControls.left).toBe("56px");
+  expect(layerControls.background).toBe("rgba(0, 0, 0, 0)");
+  expect(layerControls.beforeDisplay).toBe("none");
+  expect(layerControls.afterDisplay).toBe("none");
+  expect(layerControls.pointerEvents).toBe("none");
+  await expect(page.locator(".map-layer-tabs [data-content-tab='issues']")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".map-layer-tabs [data-content-tab='changes']")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".map-layer-tabs [data-content-tab='notices']")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".map-layer-tabs [data-content-tab='issues']")).toHaveCSS("background-color", "rgb(0, 62, 154)");
+  await expect(page.locator(".map-layer-tabs [data-content-tab='changes']")).toHaveCSS("background-color", "rgb(0, 62, 154)");
   await expect(page.locator("#issue-list-panel")).not.toHaveClass(/issue-list-panel-hidden/);
-  await expect(page.locator("#issue-list-panel")).toHaveAttribute("aria-label", "우리동네 현안");
+  await expect(page.locator("#issue-list-panel")).toHaveAttribute("aria-label", "우리동네 현안/변화");
   await expect(page.locator("#spot-list")).toContainText("판교 현안");
   await expect(page.locator("#spot-list")).toContainText("운중 현안");
+  await expect(page.locator("#spot-list")).toContainText("판교 변화");
 });
 
-test("Mobile content tab backdrop does not paint sheet gap", async ({ page }) => {
-  // 모바일은 탭과 내용 사이를 같은 시트 배경으로 맞추되, 접힘 손잡이 막대는 보여야 한다.
+test("Mobile layer controls float above map and sheet grip stays visible", async ({ page }) => {
+  // 모바일에서는 레이어 컨트롤을 지도 위에 띄우고, 바텀시트 손잡이는 시트 배경 위에 유지한다.
   await page.setViewportSize({ width: 390, height: 900 });
   await waitForHooks(page);
-  const tabBackdrop = await page.locator(".content-tabs").evaluate((element) => {
-    const beforeStyle = window.getComputedStyle(element, "::before");
-    const afterStyle = window.getComputedStyle(element, "::after");
+  const layerState = await page.locator(".map-layer-tabs").evaluate((element) => {
+    const style = window.getComputedStyle(element);
     const sidePanel = document.querySelector(".side-panel");
     const grip = document.querySelector(".mobile-sheet-grip");
     const sideStyle = sidePanel ? window.getComputedStyle(sidePanel) : null;
     const gripStyle = grip ? window.getComputedStyle(grip) : null;
     const gripHandleStyle = grip ? window.getComputedStyle(grip, "::before") : null;
+    const zoom = document.querySelector(".map .ol-zoom");
+    const zoomStyle = zoom ? window.getComputedStyle(zoom) : null;
     return {
-      beforeDisplay: beforeStyle.display,
-      afterDisplay: afterStyle.display,
+      position: style.position,
+      top: style.top,
+      left: style.left,
       sideBackground: sideStyle ? sideStyle.backgroundColor : "",
+      gripDisplay: gripStyle ? gripStyle.display : "",
       gripBackground: gripStyle ? gripStyle.backgroundColor : "",
-      gripHandleBackground: gripHandleStyle ? gripHandleStyle.backgroundColor : ""
+      gripHandleBackground: gripHandleStyle ? gripHandleStyle.backgroundColor : "",
+      zoomDisplay: zoomStyle ? zoomStyle.display : ""
     };
   });
-  expect(tabBackdrop.beforeDisplay).toBe("none");
-  expect(tabBackdrop.afterDisplay).toBe("none");
-  expect(tabBackdrop.sideBackground).toBe("rgb(247, 250, 255)");
-  expect(tabBackdrop.gripBackground).toBe(tabBackdrop.sideBackground);
-  expect(tabBackdrop.gripHandleBackground).toBe("rgb(191, 208, 230)");
+  expect(layerState.position).toBe("absolute");
+  expect(layerState.top).toBe("12px");
+  expect(layerState.left).toBe("12px");
+  expect(layerState.sideBackground).toBe("rgb(247, 250, 255)");
+  expect(layerState.gripDisplay).toBe("flex");
+  expect(layerState.gripBackground).toBe(layerState.sideBackground);
+  expect(layerState.gripHandleBackground).toBe("rgb(191, 208, 230)");
+  expect(layerState.zoomDisplay).toBe("none");
 });
 
 test("Clicking category stats filters issue list", async ({ page }) => {
@@ -398,7 +412,7 @@ test("Clicking progress status stats filters issue list", async ({ page }) => {
   const completedStatus = page.locator("#issue-stats-summary [data-filter-type='progressStatus'][data-filter-key='completed']");
   await expect(checkingStatus).toContainText("1건");
   await expect(completedStatus).toContainText("1건");
-  await expect(completedStatus).toHaveClass(/issue-stats-filter-btn-muted/);
+  await expect(completedStatus).not.toHaveClass(/issue-stats-filter-btn-muted/);
 
   await checkingStatus.click();
   const spotList = page.locator("#spot-list");
@@ -414,14 +428,17 @@ test("Clicking progress status stats filters issue list", async ({ page }) => {
   await expect(spotList).toContainText("완료된 변화");
   await expect(spotList).not.toContainText("확인 현안");
   await expect(statsEl).toContainText("진행 상태: 완료");
-  await expect(page.locator("#issue-stats-summary [data-filter-type='progressStatus'][data-filter-key='checking']")).toHaveClass(/issue-stats-filter-btn-muted/);
+  await expect(page.locator("#issue-stats-summary [data-filter-type='progressStatus'][data-filter-key='checking']")).not.toHaveClass(/issue-stats-filter-btn-muted/);
 });
 
-test("Notice tab lists notice items without status filters", async ({ page }) => {
-  // 안내 탭은 상태 없이 안내 목록을 제목 내림차순으로 보여준다.
+test("Notice layer lists notice items without status filters", async ({ page }) => {
+  // 안내 레이어만 켜진 경우 상태 없이 안내 목록을 제목 내림차순으로 보여준다.
   await waitForHooks(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.setActiveContentTab("notices");
+    window.__spotListTestHooks.setActiveContentTab("issues");
+    window.__spotListTestHooks.setActiveContentTab("issues", { toggleLayer: true });
+    window.__spotListTestHooks.setActiveContentTab("changes", { toggleLayer: true });
     window.__spotListTestHooks.renderVisibleIssueListWithData([
       {
         id: "change-a",
@@ -482,8 +499,8 @@ test("Desktop side panel prioritizes selected result", async ({ page }) => {
 
   await expect(sidePanel).toHaveClass(/side-panel-has-filter/);
   await expect(sidePanel).toHaveAttribute("data-issue-filter-type", "dong");
-  await expect(page.locator("#issue-list-title")).toHaveText("판교동 현안");
-  await expect(page.locator("#issue-list-panel")).toHaveAttribute("aria-label", "판교동 현안");
+  await expect(page.locator("#issue-list-title")).toHaveText("판교동 현안/변화");
+  await expect(page.locator("#issue-list-panel")).toHaveAttribute("aria-label", "판교동 현안/변화");
   await expect(page.locator("#issue-list-clear-filter-btn")).toBeVisible();
   await expect(page.locator("#issue-list-clear-filter-btn")).toBeEnabled();
 
@@ -499,7 +516,7 @@ test("Desktop side panel prioritizes selected result", async ({ page }) => {
 
   await page.locator("#issue-list-clear-filter-btn").click();
   await expect(sidePanel).not.toHaveClass(/side-panel-has-filter/);
-  await expect(page.locator("#issue-list-title")).toHaveText("우리동네 현안");
+  await expect(page.locator("#issue-list-title")).toHaveText("우리동네 현안/변화");
 });
 
 test("Mobile sheet switches to issue tab after filter", async ({ page }) => {

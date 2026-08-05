@@ -60,6 +60,11 @@
 
         <section class="workspace">
             <div class="map-wrap map-wrap-initializing">
+                <div class="content-tabs map-layer-tabs" aria-label="지도 레이어 선택">
+                    <button type="button" class="content-tab content-tab-active content-tab-visible" data-content-tab="issues" aria-pressed="true">현안</button>
+                    <button type="button" class="content-tab content-tab-visible" data-content-tab="changes" aria-pressed="true">변화</button>
+                    <button type="button" class="content-tab" data-content-tab="notices" aria-pressed="false">안내</button>
+                </div>
                 <div id="map" class="map" role="application" aria-label="동별 우리동네 지도" tabindex="0"></div>
                 <div id="map-popup" class="map-popup hidden" aria-hidden="true"></div>
             </div>
@@ -67,11 +72,6 @@
             <aside class="side-panel" aria-label="지도 정보">
                 <button id="mobile-sheet-toggle" type="button" class="mobile-sheet-grip" aria-expanded="true" aria-controls="mobile-sheet-content" aria-label="지도 정보 시트 접기"></button>
                 <div id="mobile-sheet-content" class="mobile-sheet-content">
-                    <div class="content-tabs" role="tablist" aria-label="지도 보기 선택">
-                        <button type="button" class="content-tab content-tab-active" data-content-tab="issues" role="tab" aria-selected="true">현안</button>
-                        <button type="button" class="content-tab" data-content-tab="changes" role="tab" aria-selected="false">변화</button>
-                        <button type="button" class="content-tab" data-content-tab="notices" role="tab" aria-selected="false">안내</button>
-                    </div>
                     <div class="mobile-sheet-tabs" role="tablist" aria-label="지도 정보 보기">
                         <button type="button" class="mobile-sheet-tab mobile-sheet-tab-active" data-mobile-sheet-tab="stats" role="tab" aria-selected="true" aria-controls="mobile-stats-panel">통계</button>
                         <button type="button" class="mobile-sheet-tab" data-mobile-sheet-tab="issues" role="tab" aria-selected="false" aria-controls="issue-list-panel" disabled>현안</button>

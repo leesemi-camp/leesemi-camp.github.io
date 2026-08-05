@@ -768,6 +768,10 @@ body.modal-open {
         border-radius: inherit;
     }
 
+    body[data-map-mode="view"] .map .ol-zoom {
+        display: none;
+    }
+
     .side-panel {
         border-right: none;
         border-top: 1px solid var(--line);

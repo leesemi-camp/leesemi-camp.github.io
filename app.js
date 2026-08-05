@@ -79,6 +79,7 @@ import APP_CONFIG from './config.js';
       label: ""
     },
     activeContentTab: "issues",
+    visibleContentTabs: null,
     spotPhotoDataUrls: [],
     spotPhotoProcessingInProgress: false,
     photoSlideshowSerial: 0,
@@ -837,7 +838,8 @@ import APP_CONFIG from './config.js';
             const targetTab = getContentTabForProgressStatus(filterKey || filterLabel);
             if (targetTab && shouldUseContentTabs() && getActiveContentTabKey() !== targetTab) {
               setActiveContentTab(targetTab, {
-                userInitiated: true
+                userInitiated: true,
+                keepLayerVisible: true
               });
             }
           }
@@ -889,7 +891,8 @@ import APP_CONFIG from './config.js';
         tabButton.addEventListener("click", () => {
           const tabName = String(tabButton.getAttribute("data-content-tab") || "").trim();
           setActiveContentTab(tabName, {
-            userInitiated: true
+            userInitiated: true,
+            toggleLayer: true
           });
         });
       });
@@ -1864,10 +1867,12 @@ import APP_CONFIG from './config.js';
     if (!elements.commonPledgeList) {
       return;
     }
-    const activeTab = getActiveContentTabKey();
-    const tabMeta = getActiveContentTabMeta();
-    const isIssuesTab = !shouldUseContentTabs() || activeTab === CONTENT_TAB_ISSUES;
-    const shouldHidePanel = shouldUseContentTabs() && activeTab === CONTENT_TAB_NOTICES;
+    const visibleTabs = getVisibleContentTabSet();
+    const tabMeta = getVisibleContentTabScopeMeta();
+    const isIssuesOnly = !shouldUseContentTabs() ||
+      (visibleTabs.size === 1 && visibleTabs.has(CONTENT_TAB_ISSUES));
+    const shouldUseIssuePledgeTemplate = !shouldUseContentTabs() || visibleTabs.has(CONTENT_TAB_ISSUES);
+    const shouldHidePanel = shouldUseContentTabs() && !hasVisibleNonNoticeContentLayer();
     if (elements.commonPledgePanel) {
       elements.commonPledgePanel.classList.toggle("hidden", shouldHidePanel);
       elements.commonPledgePanel.toggleAttribute("hidden", shouldHidePanel);
@@ -1885,11 +1890,11 @@ import APP_CONFIG from './config.js';
     }
     const activeHotspots = getContentTabHotspots(state.issues);
     if (elements.commonPledgeTitle) {
-      elements.commonPledgeTitle.textContent = isIssuesTab ? "지역구 공통 현안" : "지역구 공통 " + tabMeta.itemName;
+      elements.commonPledgeTitle.textContent = isIssuesOnly ? "지역구 공통 현안" : "지역구 공통 " + tabMeta.itemName;
     }
-    const pledgeConfig = isIssuesTab && config.data && Array.isArray(config.data.commonPledges) && config.data.commonPledges.length > 0
+    const pledgeConfig = shouldUseIssuePledgeTemplate && config.data && Array.isArray(config.data.commonPledges) && config.data.commonPledges.length > 0
       ? config.data.commonPledges
-      : (isIssuesTab ? defaultCommonPledges : []);
+      : (shouldUseIssuePledgeTemplate ? defaultCommonPledges : []);
     const commonIssueTagMap = buildCommonIssueTagMap(activeHotspots);
     state.commonIssueTagMap = commonIssueTagMap;
     const commonIssueTagsByCategory = buildCommonIssueTagsByCategory(activeHotspots);
@@ -1931,7 +1936,7 @@ import APP_CONFIG from './config.js';
       );
     });
     if (html.length === 0) {
-      const message = isIssuesTab
+      const message = shouldUseIssuePledgeTemplate
         ? "표시할 공통 현안이 없습니다."
         : tabMeta.emptyMessage;
       html.push(
@@ -3967,12 +3972,90 @@ import APP_CONFIG from './config.js';
     return Array.isArray(elements.contentTabs) && elements.contentTabs.length > 0;
   }
 
+  function createDefaultVisibleContentTabSet() {
+    return new Set([
+      CONTENT_TAB_ISSUES,
+      CONTENT_TAB_CHANGES
+    ]);
+  }
+
+  function getVisibleContentTabSet() {
+    if (!(state.visibleContentTabs instanceof Set)) {
+      state.visibleContentTabs = createDefaultVisibleContentTabSet();
+    }
+    return state.visibleContentTabs;
+  }
+
+  function getVisibleContentTabKeys() {
+    const visibleTabs = getVisibleContentTabSet();
+    return contentTabOptions
+      .map((item) => item.key)
+      .filter((key) => visibleTabs.has(key));
+  }
+
+  function getFirstVisibleContentTabKey() {
+    return getVisibleContentTabKeys()[0] || CONTENT_TAB_ISSUES;
+  }
+
   function getActiveContentTabKey() {
     return normalizeContentTab(state.activeContentTab);
   }
 
   function getActiveContentTabMeta() {
     return getContentTabMeta(getActiveContentTabKey());
+  }
+
+  function getKoreanAndParticle(value) {
+    const text = String(value || "").trim();
+    const code = text ? text.charCodeAt(text.length - 1) : 0;
+    return code >= 0xac00 && code <= 0xd7a3 && (code - 0xac00) % 28 > 0 ? "과" : "와";
+  }
+
+  function getVisibleContentTabPageTitle(visibleKeys) {
+    const keys = Array.isArray(visibleKeys) ? visibleKeys : [];
+    if (keys.length === 1) {
+      return getContentTabMeta(keys[0]).pageTitle;
+    }
+    if (keys.length === contentTabOptions.length) {
+      return "우리동네 소식도, 이세미입니다";
+    }
+    if (keys.length === 2) {
+      const firstLabel = getContentTabMeta(keys[0]).label;
+      const secondLabel = getContentTabMeta(keys[1]).label;
+      return "우리동네 " + firstLabel + getKoreanAndParticle(firstLabel) + " " + secondLabel + "도, 이세미입니다";
+    }
+    return "";
+  }
+
+  function getVisibleContentTabScopeMeta() {
+    if (!shouldUseContentTabs()) {
+      return getActiveContentTabMeta();
+    }
+    const visibleKeys = getVisibleContentTabKeys();
+    if (visibleKeys.length === 1) {
+      return getContentTabMeta(visibleKeys[0]);
+    }
+    const itemName = visibleKeys
+      .map((key) => getContentTabMeta(key).label)
+      .join("/");
+    return {
+      pageTitle: getVisibleContentTabPageTitle(visibleKeys),
+      statsTitle: itemName + " 현황",
+      countPrefix: "총 " + itemName + " 건수",
+      defaultListTitle: "우리동네 " + itemName,
+      emptyMessage: "등록된 " + itemName + " 항목이 없습니다.",
+      itemName
+    };
+  }
+
+  function hasVisibleNonNoticeContentLayer() {
+    const visibleTabs = getVisibleContentTabSet();
+    return visibleTabs.has(CONTENT_TAB_ISSUES) || visibleTabs.has(CONTENT_TAB_CHANGES);
+  }
+
+  function isOnlyNoticeContentLayerVisible() {
+    const visibleKeys = getVisibleContentTabKeys();
+    return visibleKeys.length === 1 && visibleKeys[0] === CONTENT_TAB_NOTICES;
   }
 
   function normalizeClassificationKey(value) {
@@ -4089,8 +4172,8 @@ import APP_CONFIG from './config.js';
     if (!shouldUseContentTabs()) {
       return false;
     }
-    const primaryStatus = getPrimaryProgressStatusForContentTab(getActiveContentTabKey());
-    return Boolean(primaryStatus && normalizeProgressStatusKey(progressStatus) !== primaryStatus);
+    const contentTab = getContentTabForProgressStatus(progressStatus);
+    return Boolean(contentTab && !getVisibleContentTabSet().has(contentTab));
   }
 
   function getDefaultProgressStatus(contentTab, itemType) {
@@ -4223,8 +4306,8 @@ import APP_CONFIG from './config.js';
     if (!shouldUseContentTabs()) {
       return list;
     }
-    const activeTab = getActiveContentTabKey();
-    return list.filter((spot) => resolveSpotDisplayClassification(spot).contentTab === activeTab);
+    const visibleTabs = getVisibleContentTabSet();
+    return list.filter((spot) => visibleTabs.has(resolveSpotDisplayClassification(spot).contentTab));
   }
 
   function getMapHotspotsForActiveContentTab(hotspots) {
@@ -4232,27 +4315,12 @@ import APP_CONFIG from './config.js';
     if (!shouldUseContentTabs()) {
       return list;
     }
-    const activeTab = getActiveContentTabKey();
-    if (activeTab === CONTENT_TAB_NOTICES) {
-      return list.filter((spot) => resolveSpotDisplayClassification(spot).contentTab === CONTENT_TAB_NOTICES);
-    }
-    return list.filter((spot) => resolveSpotDisplayClassification(spot).contentTab !== CONTENT_TAB_NOTICES);
+    const visibleTabs = getVisibleContentTabSet();
+    return list.filter((spot) => visibleTabs.has(resolveSpotDisplayClassification(spot).contentTab));
   }
 
-  function shouldMuteHotspotForActiveContentTab(spot) {
-    if (!shouldUseContentTabs()) {
-      return false;
-    }
-    const activeTab = getActiveContentTabKey();
-    if (activeTab !== CONTENT_TAB_ISSUES && activeTab !== CONTENT_TAB_CHANGES) {
-      return false;
-    }
-    const contentTab = resolveSpotDisplayClassification(spot).contentTab;
-    return contentTab !== CONTENT_TAB_NOTICES && contentTab !== activeTab;
-  }
-
-  function getHotspotBaseEmphasisMode(spot) {
-    return shouldMuteHotspotForActiveContentTab(spot) ? "muted" : "normal";
+  function getHotspotBaseEmphasisMode() {
+    return "normal";
   }
 
   function getProgressStatsHotspotsForActiveContentTab(hotspots) {
@@ -4260,11 +4328,11 @@ import APP_CONFIG from './config.js';
     if (!shouldUseContentTabs()) {
       return list;
     }
-    const activeTab = getActiveContentTabKey();
-    if (activeTab === CONTENT_TAB_NOTICES) {
-      return [];
-    }
-    return list.filter((spot) => resolveSpotDisplayClassification(spot).contentTab !== CONTENT_TAB_NOTICES);
+    const visibleTabs = getVisibleContentTabSet();
+    return list.filter((spot) => {
+      const contentTab = resolveSpotDisplayClassification(spot).contentTab;
+      return contentTab !== CONTENT_TAB_NOTICES && visibleTabs.has(contentTab);
+    });
   }
 
   function updateTotalIssueCountLabel() {
@@ -4272,7 +4340,7 @@ import APP_CONFIG from './config.js';
       return;
     }
     const totalCount = getContentTabHotspots(state.issues).length;
-    const tabMeta = getActiveContentTabMeta();
+    const tabMeta = getVisibleContentTabScopeMeta();
     elements.totalIssueCount.textContent = tabMeta.countPrefix + ": " + String(totalCount) + "건";
   }
 
@@ -6257,7 +6325,7 @@ import APP_CONFIG from './config.js';
 
   function getIssueListTitleForActiveFilter() {
     const activeFilter = getActiveIssueFilter();
-    const tabMeta = getActiveContentTabMeta();
+    const tabMeta = getVisibleContentTabScopeMeta();
     if (!activeFilter.type || !activeFilter.label) {
       return tabMeta.defaultListTitle;
     }
@@ -6369,11 +6437,39 @@ import APP_CONFIG from './config.js';
   function setActiveContentTab(tabName, options) {
     const nextTab = normalizeContentTab(tabName);
     const currentTab = getActiveContentTabKey();
-    if (nextTab === currentTab) {
+    const visibleTabs = getVisibleContentTabSet();
+    const previousVisibleKey = getVisibleContentTabKeys().join("|");
+    let nextActiveTab = currentTab;
+
+    if (options && options.toggleLayer) {
+      const isVisible = visibleTabs.has(nextTab);
+      if (isVisible) {
+        if (visibleTabs.size > 1) {
+          visibleTabs.delete(nextTab);
+          if (nextTab === currentTab) {
+            nextActiveTab = getFirstVisibleContentTabKey();
+          }
+        } else {
+          nextActiveTab = nextTab;
+        }
+      } else {
+        visibleTabs.add(nextTab);
+        nextActiveTab = nextTab;
+      }
+    } else if (options && options.keepLayerVisible) {
+      visibleTabs.add(nextTab);
+      nextActiveTab = nextTab;
+    } else {
+      visibleTabs.add(nextTab);
+      nextActiveTab = nextTab;
+    }
+
+    const nextVisibleKey = getVisibleContentTabKeys().join("|");
+    if (nextActiveTab === currentTab && nextVisibleKey === previousVisibleKey) {
       syncContentTabs();
       return false;
     }
-    state.activeContentTab = nextTab;
+    state.activeContentTab = nextActiveTab;
     closePopup();
     clearHighlightedHotspots();
     state.activeIssueFilter = {
@@ -6406,7 +6502,8 @@ import APP_CONFIG from './config.js';
       return;
     }
     const activeTab = getActiveContentTabKey();
-    const tabMeta = getContentTabMeta(activeTab);
+    const tabMeta = getVisibleContentTabScopeMeta();
+    const visibleTabs = getVisibleContentTabSet();
     if (tabMeta.pageTitle) {
       document.title = tabMeta.pageTitle;
       if (elements.topbarTitle) {
@@ -6416,14 +6513,20 @@ import APP_CONFIG from './config.js';
     elements.contentTabs.forEach((tabButton) => {
       const tabName = normalizeContentTab(tabButton.getAttribute("data-content-tab"));
       const isActive = tabName === activeTab;
+      const isVisible = visibleTabs.has(tabName);
       tabButton.classList.toggle("content-tab-active", isActive);
-      tabButton.setAttribute("aria-selected", String(isActive));
+      tabButton.classList.toggle("content-tab-visible", isVisible);
+      tabButton.setAttribute("aria-pressed", String(isVisible));
+      tabButton.toggleAttribute("aria-current", isActive);
+      tabButton.removeAttribute("aria-selected");
+      tabButton.title = getContentTabMeta(tabName).label + " 레이어";
     });
     if (elements.sidePanel) {
       elements.sidePanel.setAttribute("data-content-tab", activeTab);
     }
     if (document.body) {
       document.body.setAttribute("data-content-tab", activeTab);
+      document.body.setAttribute("data-visible-content-tabs", getVisibleContentTabKeys().join(" "));
     }
   }
 
@@ -6544,7 +6647,7 @@ import APP_CONFIG from './config.js';
       const isActive = tabName === activeTab;
       const isDisabled = tabName === "issues" && !issueListVisible;
       if (tabName === "issues") {
-        tabButton.textContent = getActiveContentTabMeta().itemName;
+        tabButton.textContent = getVisibleContentTabScopeMeta().itemName;
       }
       tabButton.classList.toggle("mobile-sheet-tab-active", isActive);
       tabButton.classList.toggle("mobile-sheet-tab-disabled", isDisabled);
@@ -6628,7 +6731,7 @@ import APP_CONFIG from './config.js';
       elements.sidePanel.classList.toggle("side-panel-has-filter", isActive);
       elements.sidePanel.setAttribute("data-issue-filter-type", activeFilter.type || "none");
       elements.sidePanel.setAttribute("data-issue-filter-label", activeLabel);
-      const tabMeta = getActiveContentTabMeta();
+      const tabMeta = getVisibleContentTabScopeMeta();
       elements.sidePanel.setAttribute("aria-label", isActive ? tabMeta.itemName + " 정보, " + activeLabel + " 선택됨" : "지도 정보");
     }
     if (elements.issueListPanel) {
@@ -7145,7 +7248,7 @@ import APP_CONFIG from './config.js';
     if (activeFilter.type === "dong") {
       return [];
     }
-    return applyIssueFilter(getContentTabHotspots(state.issues)).filter((spot) => {
+    return applyIssueFilter(getMapHotspotsForActiveContentTab(state.issues)).filter((spot) => {
       return Number.isFinite(Number(spot && spot.lat)) && Number.isFinite(Number(spot && spot.lng));
     });
   }
@@ -7912,9 +8015,7 @@ import APP_CONFIG from './config.js';
       progressHotspots: progressStatsHotspots
     });
     const isFiltered = hasActiveIssueFilter();
-    const shouldShowDefaultList = shouldUseContentTabs() &&
-      getActiveContentTabKey() !== CONTENT_TAB_NOTICES &&
-      activeHotspots.length > 0;
+    const shouldShowDefaultList = shouldUseContentTabs() && activeHotspots.length > 0;
     const shouldShowList = isFiltered || shouldShowDefaultList;
     if (!(options && options.skipMapMarkerSync)) {
       refreshHotspotAggregateFeatures();
@@ -7935,16 +8036,19 @@ import APP_CONFIG from './config.js';
     }
 
     const list = Array.isArray(hotspots) ? hotspots : [];
-    const tabMeta = getActiveContentTabMeta();
+    const tabMeta = getVisibleContentTabScopeMeta();
     const progressStatsHotspots = options && Array.isArray(options.progressHotspots)
       ? options.progressHotspots
       : list;
-    if (shouldUseContentTabs() && getActiveContentTabKey() === CONTENT_TAB_NOTICES) {
-      if (list.length === 0) {
+    if (shouldUseContentTabs() && isOnlyNoticeContentLayerVisible()) {
+      const noticeList = list.filter((spot) => {
+        return resolveSpotDisplayClassification(spot).contentTab === CONTENT_TAB_NOTICES;
+      });
+      if (noticeList.length === 0) {
         elements.issueStatsSummary.innerHTML = "<div class='issue-stats-empty'>표시할 " + escapeHtml(tabMeta.itemName) + " 현황이 없습니다.</div>";
         return;
       }
-      renderNoticeStatsSummary(list, tabMeta);
+      renderNoticeStatsSummary(noticeList, tabMeta);
       return;
     }
     if (list.length === 0 && progressStatsHotspots.length === 0) {
@@ -8207,7 +8311,7 @@ import APP_CONFIG from './config.js';
 
   function getActiveIssueFilterEmptyMessage() {
     const activeFilter = getActiveIssueFilter();
-    const tabMeta = getActiveContentTabMeta();
+    const tabMeta = getVisibleContentTabScopeMeta();
     if (activeFilter.type === "dong") {
       return activeFilter.label + "에 등록된 " + tabMeta.itemName + " 항목이 없습니다.";
     }
@@ -8398,9 +8502,9 @@ import APP_CONFIG from './config.js';
     }
 
     const showEditorActions = isEditMode();
-    const tabMeta = getActiveContentTabMeta();
     const items = list.map((spot) => {
-      const rawTitle = String(spot.title || "").trim() || tabMeta.itemName;
+      const spotTabMeta = getContentTabMeta(resolveSpotDisplayClassification(spot).contentTab);
+      const rawTitle = String(spot.title || "").trim() || spotTabMeta.itemName;
       const title = escapeHtml(rawTitle);
       const memoRaw = typeof spot.memo === "string" ? spot.memo.trim() : "";
       const memo = memoRaw ? buildLinkedTextHtml(memoRaw) : "";
@@ -8508,6 +8612,9 @@ import APP_CONFIG from './config.js';
       },
       getActiveContentTab() {
         return getActiveContentTabKey();
+      },
+      getVisibleContentTabs() {
+        return getVisibleContentTabKeys();
       },
       getHighlightedHotspotIds() {
         return Array.from(state.highlightedHotspotIds || []);
@@ -9125,7 +9232,7 @@ import APP_CONFIG from './config.js';
     }
     const safeDong = escapeHtml(resolveMergedDongName(dongName) || "동 정보 없음");
     const safeCount = Number.isFinite(Number(count)) ? Math.max(0, Number(count)) : 0;
-    const tabMeta = getActiveContentTabMeta();
+    const tabMeta = getVisibleContentTabScopeMeta();
     openPopup(
       coordinate,
       "<strong>" + safeDong + "</strong>" +

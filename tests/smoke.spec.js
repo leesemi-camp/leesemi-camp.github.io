@@ -82,8 +82,8 @@ test("Map view renders", async ({ page }) => {
   await expect(page.locator("#spot-list")).toBeAttached();
 });
 
-test("Map content tabs filter items", async ({ page }) => {
-  // 현안, 변화, 안내 항목은 각 탭에서 따로 집계하고 표시한다.
+test("Map layer controls show selected layers in list", async ({ page }) => {
+  // 현안/변화/안내는 지도 레이어로 표시하고, 켜진 레이어 전체를 좌측 목록 기준으로 삼는다.
   await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
   await page.route("**/data/hotspots.public.json", (route) => {
     route.fulfill({
@@ -155,63 +155,84 @@ test("Map content tabs filter items", async ({ page }) => {
   });
 
   await page.goto("/map/");
-  await expect(page.locator("#total-issue-count")).toHaveText("총 현안 건수: 2건");
+  await expect(page.locator("#total-issue-count")).toHaveText("총 현안/변화 건수: 4건");
   await expect(page.locator("#spot-list")).toContainText("통학로 정비 요청");
   await expect(page.locator("#spot-list")).toContainText("주차장 확충 요청");
-  await expect(page.locator("#spot-list")).not.toContainText("통학로 조명 개선 완료");
-  await expect.poll(async () => {
-    return page.evaluate(() => window.__spotListTestHooks.getHotspotFeatureStatesForTest());
-  }).toEqual([
-    { id: "achievement-1", contentTab: "changes", emphasisMode: "muted", visualMode: "muted" },
-    { id: "achievement-2", contentTab: "changes", emphasisMode: "muted", visualMode: "muted" },
-    { id: "issue-1", contentTab: "issues", emphasisMode: "normal", visualMode: "normal" },
-    { id: "issue-2", contentTab: "issues", emphasisMode: "normal", visualMode: "normal" }
-  ]);
-  // 컬러 마커는 기존 텍스트 렌더를 유지하고, 흑백 마커만 보조 이미지 캐시를 쓴다.
-  const initialIconCacheKeys = await page.evaluate(() => window.__spotListTestHooks.getHotspotIconCacheKeysForTest());
-  expect(initialIconCacheKeys.some((key) => key.endsWith("|muted"))).toBe(true);
-  expect(initialIconCacheKeys.some((key) => key.endsWith("|color"))).toBe(false);
-  await expect(page).toHaveTitle("우리동네 현안도, 이세미입니다");
-
-  const beforeFirstTabTransition = await getMarkerTransitionSequence(page);
-  await page.getByRole("tab", { name: "변화" }).click();
-  await expectMarkerCrossfade(page, beforeFirstTabTransition);
-  await expect(page.locator("#total-issue-count")).toHaveText("총 변화 건수: 2건");
-  await expect(page.locator("#common-pledge-title")).toHaveText("지역구 공통 변화");
   await expect(page.locator("#spot-list")).toContainText("통학로 조명 개선 완료");
   await expect(page.locator("#spot-list")).toContainText("공원 시설 정비 완료");
-  await expect(page.locator("#spot-list")).not.toContainText("통학로 정비 요청");
   await expect.poll(async () => {
     return page.evaluate(() => window.__spotListTestHooks.getHotspotFeatureStatesForTest());
   }).toEqual([
     { id: "achievement-1", contentTab: "changes", emphasisMode: "normal", visualMode: "normal" },
     { id: "achievement-2", contentTab: "changes", emphasisMode: "normal", visualMode: "normal" },
-    { id: "issue-1", contentTab: "issues", emphasisMode: "muted", visualMode: "muted" },
-    { id: "issue-2", contentTab: "issues", emphasisMode: "muted", visualMode: "muted" }
+    { id: "issue-1", contentTab: "issues", emphasisMode: "normal", visualMode: "normal" },
+    { id: "issue-2", contentTab: "issues", emphasisMode: "normal", visualMode: "normal" }
   ]);
-  await expect(page.locator(".topbar-title")).toHaveText("우리동네 변화도, 이세미입니다");
-  await expect(page).toHaveTitle("우리동네 변화도, 이세미입니다");
-  await page.waitForFunction(() => {
-    const state = window.__spotListTestHooks.getHotspotAggregateState();
-    return state && !state.contentTransitionActive;
-  });
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__spotListTestHooks.getVisibleContentTabs());
+  }).toEqual(["issues", "changes"]);
+  // 레이어 마커는 모두 같은 컬러 렌더 경로를 사용한다.
+  const initialIconCacheKeys = await page.evaluate(() => window.__spotListTestHooks.getHotspotIconCacheKeysForTest());
+  expect(initialIconCacheKeys.some((key) => key.endsWith("|muted"))).toBe(false);
+  expect(initialIconCacheKeys.some((key) => key.endsWith("|color"))).toBe(false);
+  await expect(page.locator(".topbar-title")).toHaveText("우리동네 현안과 변화도, 이세미입니다");
+  await expect(page).toHaveTitle("우리동네 현안과 변화도, 이세미입니다");
 
-  const beforeReverseTabTransition = await getMarkerTransitionSequence(page);
-  await page.getByRole("tab", { name: "현안" }).click();
-  await expectMarkerCrossfade(page, beforeReverseTabTransition);
-  await page.waitForFunction(() => {
-    const state = window.__spotListTestHooks.getHotspotAggregateState();
-    return state && !state.contentTransitionActive;
-  });
-
-  await page.getByRole("tab", { name: "안내" }).click();
-  await expect(page.locator("#total-issue-count")).toHaveText("총 안내 건수: 1건");
-  await expect(page.locator("#common-pledge-panel")).toBeHidden();
-  await expect(page.locator(".topbar-title")).toHaveText("우리동네 안내도, 이세미입니다");
-  await expect(page).toHaveTitle("우리동네 안내도, 이세미입니다");
+  const beforeFirstTabTransition = await getMarkerTransitionSequence(page);
+  await page.locator(".map-layer-tabs [data-content-tab='changes']").click();
+  await expectMarkerCrossfade(page, beforeFirstTabTransition);
+  await expect(page.locator("#total-issue-count")).toHaveText("총 현안 건수: 2건");
+  await expect(page.locator("#common-pledge-title")).toHaveText("지역구 공통 현안");
+  await expect(page.locator("#spot-list")).not.toContainText("통학로 조명 개선 완료");
+  await expect(page.locator("#spot-list")).not.toContainText("공원 시설 정비 완료");
+  await expect(page.locator("#spot-list")).toContainText("통학로 정비 요청");
   await expect.poll(async () => {
     return page.evaluate(() => window.__spotListTestHooks.getHotspotFeatureStatesForTest());
   }).toEqual([
+    { id: "issue-1", contentTab: "issues", emphasisMode: "normal", visualMode: "normal" },
+    { id: "issue-2", contentTab: "issues", emphasisMode: "normal", visualMode: "normal" }
+  ]);
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__spotListTestHooks.getVisibleContentTabs());
+  }).toEqual(["issues"]);
+  await expect(page.locator(".topbar-title")).toHaveText("우리동네 현안도, 이세미입니다");
+  await expect(page).toHaveTitle("우리동네 현안도, 이세미입니다");
+  await page.waitForFunction(() => {
+    const state = window.__spotListTestHooks.getHotspotAggregateState();
+    return state && !state.contentTransitionActive;
+  });
+
+  const beforeSecondTabTransition = await getMarkerTransitionSequence(page);
+  await page.locator(".map-layer-tabs [data-content-tab='changes']").click();
+  await expectMarkerCrossfade(page, beforeSecondTabTransition);
+  await expect(page.locator("#total-issue-count")).toHaveText("총 현안/변화 건수: 4건");
+  await expect(page.locator("#common-pledge-title")).toHaveText("지역구 공통 현안/변화");
+  await expect(page.locator("#spot-list")).toContainText("통학로 조명 개선 완료");
+  await expect(page.locator("#spot-list")).toContainText("공원 시설 정비 완료");
+  await expect(page.locator("#spot-list")).toContainText("통학로 정비 요청");
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__spotListTestHooks.getVisibleContentTabs());
+  }).toEqual(["issues", "changes"]);
+  await expect(page.locator(".topbar-title")).toHaveText("우리동네 현안과 변화도, 이세미입니다");
+  await expect(page).toHaveTitle("우리동네 현안과 변화도, 이세미입니다");
+  await page.waitForFunction(() => {
+    const state = window.__spotListTestHooks.getHotspotAggregateState();
+    return state && !state.contentTransitionActive;
+  });
+
+  await page.locator(".map-layer-tabs [data-content-tab='notices']").click();
+  await expect(page.locator("#total-issue-count")).toHaveText("총 현안/변화/안내 건수: 5건");
+  await expect(page.locator("#common-pledge-panel")).toBeVisible();
+  await expect(page.locator("#spot-list")).toContainText("공사 안내");
+  await expect(page.locator(".topbar-title")).toHaveText("우리동네 소식도, 이세미입니다");
+  await expect(page).toHaveTitle("우리동네 소식도, 이세미입니다");
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__spotListTestHooks.getHotspotFeatureStatesForTest());
+  }).toEqual([
+    { id: "achievement-1", contentTab: "changes", emphasisMode: "normal", visualMode: "normal" },
+    { id: "achievement-2", contentTab: "changes", emphasisMode: "normal", visualMode: "normal" },
+    { id: "issue-1", contentTab: "issues", emphasisMode: "normal", visualMode: "normal" },
+    { id: "issue-2", contentTab: "issues", emphasisMode: "normal", visualMode: "normal" },
     { id: "notice-1", contentTab: "notices", emphasisMode: "normal", visualMode: "normal" }
   ]);
   await page.waitForFunction(() => {
@@ -219,14 +240,9 @@ test("Map content tabs filter items", async ({ page }) => {
     return state && !state.contentTransitionActive;
   });
 
-  await page.getByRole("tab", { name: "변화" }).click();
-  await page.waitForFunction(() => {
-    const state = window.__spotListTestHooks.getHotspotAggregateState();
-    return state && !state.contentTransitionActive;
-  });
-  await page.getByRole("button", { name: "🚨 안전·치안 1건 보기" }).click();
+  await page.getByRole("button", { name: "🚨 안전·치안 2건 보기" }).click();
   await expect(page.locator("#spot-list")).toContainText("통학로 조명 개선 완료");
-  await expect(page.locator("#spot-list")).not.toContainText("통학로 정비 요청");
+  await expect(page.locator("#spot-list")).toContainText("통학로 정비 요청");
 });
 
 test("Mobile map header stays compact", async ({ page }) => {
@@ -570,20 +586,15 @@ test("Initial mobile map pans and zooms before controls are primed", async ({ pa
   });
   expect(interactionPoint).not.toBeNull();
 
+  await expect(page.locator(".map .ol-zoom")).toBeHidden();
+
   const initialViewState = await page.evaluate(() => window.__spotListTestHooks.getMapViewState());
   if (browserName === "webkit") {
-    await page.locator(".ol-zoom-in").click();
-    await expect.poll(() => {
-      return page.evaluate(() => window.__spotListTestHooks.getMapViewState().zoom);
-    }).toBeGreaterThan(initialViewState.zoom + 0.02);
-    await page.waitForFunction(() => !window.__spotListTestHooks.getMapViewState().animating);
-
-    const controlZoomState = await page.evaluate(() => window.__spotListTestHooks.getMapViewState());
-    await page.locator(".ol-zoom-out").click();
-    await expect.poll(() => {
-      return page.evaluate(() => window.__spotListTestHooks.getMapViewState().zoom);
-    }).toBeLessThan(controlZoomState.zoom - 0.02);
-    await page.waitForFunction(() => !window.__spotListTestHooks.getMapViewState().animating);
+    // 모바일에서는 +/- 버튼을 숨기므로 WebKit은 지도 상태 훅으로 줌 가능 상태만 확인한다.
+    const zoomed = await page.evaluate((zoom) => window.__spotListTestHooks.setMapZoomForTest(zoom), initialViewState.zoom + 1);
+    expect(zoomed).toBeGreaterThan(initialViewState.zoom + 0.5);
+    const restored = await page.evaluate((zoom) => window.__spotListTestHooks.setMapZoomForTest(zoom), initialViewState.zoom);
+    expect(restored).toBeLessThan(zoomed - 0.5);
   } else {
     const wheelTargetedMapSurface = await page.evaluate((point) => {
       const target = document.elementFromPoint(point.startX, point.startY);
@@ -610,7 +621,25 @@ test("Initial mobile map pans and zooms before controls are primed", async ({ pa
 
     await page.waitForFunction(() => !window.__spotListTestHooks.getMapViewState().animating);
     const wheelZoomState = await page.evaluate(() => window.__spotListTestHooks.getMapViewState());
-    await page.locator(".ol-zoom-out").click();
+    const wheelZoomedOut = await page.evaluate((point) => {
+      const target = document.elementFromPoint(point.startX, point.startY);
+      if (!target || target.closest(".ol-viewport") !== document.querySelector(".map .ol-viewport")) {
+        return false;
+      }
+      for (let i = 0; i < 3; i += 1) {
+        target.dispatchEvent(new WheelEvent("wheel", {
+          bubbles: true,
+          cancelable: true,
+          clientX: point.startX,
+          clientY: point.startY,
+          deltaMode: 0,
+          deltaX: 0,
+          deltaY: 600
+        }));
+      }
+      return true;
+    }, interactionPoint);
+    expect(wheelZoomedOut).toBe(true);
     await expect.poll(() => {
       return page.evaluate(() => window.__spotListTestHooks.getMapViewState().zoom);
     }).toBeLessThan(wheelZoomState.zoom - 0.02);

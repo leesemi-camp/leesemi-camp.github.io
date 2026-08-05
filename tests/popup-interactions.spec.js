@@ -125,7 +125,7 @@ test("Clicking issue stats dong filter does not error", async ({ page }) => {
   await expect(page.locator("#issue-stats-summary #clear-issue-filter-btn")).not.toHaveClass(/issue-stats-clear-btn-inactive/);
   await expect(page.locator("#map-popup")).not.toHaveClass(/hidden/);
   await expect(page.locator("#map-popup")).toContainText("판교동");
-  await expect(page.locator("#map-popup")).toContainText("현안 건수: 1건");
+  await expect(page.locator("#map-popup")).toContainText("현안/변화 건수: 1건");
   // 앱이 정상 상태를 유지해야 함
   await expect(page.locator("#app-shell")).toBeVisible();
 });
@@ -560,7 +560,6 @@ test("Hotspot popup renders classification badges", async ({ page }) => {
   ]);
   await gotoMap(page);
   await waitForSpotListHooks(page);
-  await page.getByRole("tab", { name: "변화" }).click();
   await page.evaluate(() => {
     window.__spotListTestHooks.setActiveDongFilter("판교동");
   });
@@ -580,8 +579,8 @@ test("Hotspot popup renders classification badges", async ({ page }) => {
   await expect(popup).not.toContainText("소속 동:");
 });
 
-test("Muted completed marker opens changes tab with blue completed status", async ({ page }) => {
-  // 현안 탭에서 회색 완료 마커를 열면 변화 탭으로 이동하고 완료 상태를 파란색으로 강조함
+test("Completed marker opens changes layer with blue completed status", async ({ page }) => {
+  // 현안 기준 목록에서 완료 마커를 열면 변화 레이어가 기준이 되고 완료 상태를 파란색으로 강조함
   await blockFirestore(page, [
     {
       id: "checking-marker-popup",
@@ -611,7 +610,7 @@ test("Muted completed marker opens changes tab with blue completed status", asyn
     return page.evaluate(() => window.__spotListTestHooks.getHotspotFeatureStatesForTest());
   }).toEqual([
     { id: "checking-marker-popup", contentTab: "issues", emphasisMode: "normal", visualMode: "normal" },
-    { id: "completed-muted-popup", contentTab: "changes", emphasisMode: "muted", visualMode: "muted" }
+    { id: "completed-muted-popup", contentTab: "changes", emphasisMode: "normal", visualMode: "normal" }
   ]);
 
   const didOpen = await page.evaluate(() => {
@@ -922,7 +921,7 @@ test("Common issue tag filters list and focuses map markers", async ({ page }) =
   await expect(spotList).toContainText("판교역 주변 정체");
   await expect(spotList).toContainText("운중로 병목");
   await expect(spotList).not.toContainText("다른 현안");
-  await expect(page.locator("#issue-stats-summary")).toContainText("공통 현안: [상습정체]");
+  await expect(page.locator("#issue-stats-summary")).toContainText("공통 현안/변화: [상습정체]");
   await expect(commonTagButton).toHaveClass(/pledge-common-tag-active/);
   await expect(page.locator("#issue-stats-summary #clear-issue-filter-btn")).not.toHaveClass(/issue-stats-clear-btn-inactive/);
   await expect.poll(() => {

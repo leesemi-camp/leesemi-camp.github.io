@@ -609,6 +609,88 @@ body[data-map-mode="view"] .workspace {
   box-shadow: 0 2px 8px rgba(31, 63, 102, 0.11);
 }
 
+.map-layer-tabs {
+  position: absolute;
+  top: 14px;
+  left: 56px;
+  z-index: 7;
+  display: inline-flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  max-width: calc(100% - 88px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  isolation: auto;
+  pointer-events: none;
+}
+
+.map-layer-tabs::before,
+.map-layer-tabs::after {
+  display: none;
+}
+
+.map-layer-tabs .content-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 62px;
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid rgba(195, 212, 235, 0.96);
+  border-radius: 999px;
+  background: rgba(246, 249, 252, 0.88);
+  color: #5d748f;
+  box-shadow: 0 6px 18px rgba(23, 46, 77, 0.12);
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+}
+
+.map-layer-tabs .content-tab::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #9aaec8;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.82);
+}
+
+.map-layer-tabs .content-tab-visible {
+  border-color: rgb(0, 62, 154);
+  background: rgb(0, 62, 154);
+  color: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.88),
+    0 8px 22px rgba(0, 62, 154, 0.28);
+}
+
+.map-layer-tabs .content-tab-visible::before {
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.24);
+}
+
+.map-layer-tabs .content-tab-active {
+  border-color: rgb(0, 62, 154);
+  box-shadow:
+    0 0 0 2px rgba(0, 62, 154, 0.18),
+    0 10px 26px rgba(0, 42, 112, 0.28);
+}
+
+.map-layer-tabs .content-tab-visible.content-tab-active {
+  background: rgb(0, 62, 154);
+  color: #ffffff;
+}
+
+.map-layer-tabs .content-tab:not(.content-tab-visible) {
+  opacity: 0.76;
+}
+
 .content-tab:focus-visible {
   outline: 2px solid #2f6fb8;
   outline-offset: 2px;
@@ -2587,6 +2669,30 @@ body.photo-lightbox-open {
   body[data-map-mode="view"] .map .ol-viewport {
     overflow: hidden;
     border-radius: inherit;
+  }
+
+  body[data-map-mode="view"] .map-layer-tabs {
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    max-width: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  body[data-map-mode="view"] .map-layer-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  body[data-map-mode="view"] .map-layer-tabs .content-tab {
+    min-width: 68px;
+    min-height: 36px;
+    padding: 0 12px;
+    box-shadow: 0 8px 22px rgba(13, 32, 63, 0.18);
+  }
+
+  body[data-map-mode="view"] .map .ol-zoom {
+    display: none;
   }
 
   .side-panel {
