@@ -8610,6 +8610,29 @@ import APP_CONFIG from './config.js';
         renderCommonPledges();
         renderVisibleIssueList();
       },
+      setVisibleContentTabsForTest(tabNames) {
+        const requestedTabs = Array.isArray(tabNames) ? tabNames : [];
+        const validTabs = requestedTabs
+          .map((tabName) => normalizeContentTab(tabName))
+          .filter((tabName, index, list) => {
+            return contentTabOptions.some((item) => item.key === tabName) && list.indexOf(tabName) === index;
+          });
+        state.visibleContentTabs = new Set(validTabs.length > 0 ? validTabs : [CONTENT_TAB_ISSUES]);
+        state.activeContentTab = getFirstVisibleContentTabKey();
+        closePopup();
+        clearHighlightedHotspots();
+        state.activeIssueFilter = {
+          type: "",
+          key: "",
+          label: ""
+        };
+        renderHotspots(getMapHotspotsForActiveContentTab(state.issues));
+        renderCommonPledges();
+        renderVisibleIssueList();
+        updateIssueFilterUi();
+        syncContentTabs();
+        return getVisibleContentTabKeys();
+      },
       getActiveContentTab() {
         return getActiveContentTabKey();
       },

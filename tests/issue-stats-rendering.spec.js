@@ -53,6 +53,13 @@ async function waitForHooks(page) {
   });
 }
 
+// WebKit에서는 통계 DOM 반영 직후 클릭이 앞서갈 수 있어 표시 확인 후 클릭한다.
+async function clickIssueStatsFilter(page, selector) {
+  const filterButton = page.locator(selector);
+  await expect(filterButton).toBeVisible();
+  await filterButton.click();
+}
+
 test("Issue stats shows empty message when no hotspots", async ({ page }) => {
   // renderIssueStatsSummary([]) → 선택 레이어 범위의 빈 상태 메시지가 표시됨
   await waitForHooks(page);
@@ -267,7 +274,7 @@ test("Issue stats height stays stable", async ({ page }) => {
   await page.evaluate(() => document.fonts ? document.fonts.ready : Promise.resolve());
   const statsEl = page.locator("#issue-stats-summary");
   const inactiveHeight = await statsEl.evaluate((element) => element.getBoundingClientRect().height);
-  await page.locator("#issue-stats-summary [data-filter-type='dong'][data-filter-label='판교동']").click();
+  await clickIssueStatsFilter(page, "#issue-stats-summary [data-filter-type='dong'][data-filter-label='판교동']");
   const activeHeight = await statsEl.evaluate((element) => element.getBoundingClientRect().height);
   await page.locator("#issue-stats-summary #clear-issue-filter-btn").click();
   const clearedHeight = await statsEl.evaluate((element) => element.getBoundingClientRect().height);
@@ -387,7 +394,7 @@ test("Clicking category stats filters issue list", async ({ page }) => {
       { id: "cat-b", title: "환경 현안", categoryId: "environment_park", dongName: "운중동" }
     ]);
   });
-  await page.locator("#issue-stats-summary [data-filter-type='category'][data-filter-label='🚌 교통·주차']").click();
+  await clickIssueStatsFilter(page, "#issue-stats-summary [data-filter-type='category'][data-filter-label='🚌 교통·주차']");
   const spotList = page.locator("#spot-list");
   const statsEl = page.locator("#issue-stats-summary");
   const clearBtn = statsEl.locator("#clear-issue-filter-btn");
@@ -421,7 +428,7 @@ test("Clicking progress status stats filters issue list", async ({ page }) => {
   await expect(spotList).not.toContainText("완료된 변화");
   await expect(statsEl).toContainText("진행 상태: 확인");
 
-  await page.locator("#issue-stats-summary [data-filter-type='progressStatus'][data-filter-key='completed']").click();
+  await clickIssueStatsFilter(page, "#issue-stats-summary [data-filter-type='progressStatus'][data-filter-key='completed']");
   await expect.poll(async () => {
     return page.evaluate(() => window.__spotListTestHooks.getActiveContentTab());
   }).toBe("changes");
@@ -435,10 +442,7 @@ test("Notice layer lists notice items without status filters", async ({ page }) 
   // 안내 레이어만 켜진 경우 상태 없이 안내 목록을 제목 내림차순으로 보여준다.
   await waitForHooks(page);
   await page.evaluate(() => {
-    window.__spotListTestHooks.setActiveContentTab("notices");
-    window.__spotListTestHooks.setActiveContentTab("issues");
-    window.__spotListTestHooks.setActiveContentTab("issues", { toggleLayer: true });
-    window.__spotListTestHooks.setActiveContentTab("changes", { toggleLayer: true });
+    window.__spotListTestHooks.setVisibleContentTabsForTest(["notices"]);
     window.__spotListTestHooks.renderVisibleIssueListWithData([
       {
         id: "change-a",
@@ -495,7 +499,7 @@ test("Desktop side panel prioritizes selected result", async ({ page }) => {
   const sidePanel = page.locator(".side-panel");
   await expect(sidePanel).not.toHaveClass(/side-panel-has-filter/);
 
-  await page.locator("#issue-stats-summary [data-filter-type='dong'][data-filter-label='판교동']").click();
+  await clickIssueStatsFilter(page, "#issue-stats-summary [data-filter-type='dong'][data-filter-label='판교동']");
 
   await expect(sidePanel).toHaveClass(/side-panel-has-filter/);
   await expect(sidePanel).toHaveAttribute("data-issue-filter-type", "dong");
@@ -535,7 +539,7 @@ test("Mobile sheet switches to issue tab after filter", async ({ page }) => {
   await expect(page.locator("#issue-list-panel")).not.toHaveClass(/issue-list-panel-hidden/);
   await expect(page.locator(".mobile-sheet-tabs")).toBeHidden();
 
-  await page.locator("#issue-stats-summary [data-filter-type='category'][data-filter-label='🚌 교통·주차']").click();
+  await clickIssueStatsFilter(page, "#issue-stats-summary [data-filter-type='category'][data-filter-label='🚌 교통·주차']");
 
   await expect(page.locator(".mobile-sheet-tabs")).toBeVisible();
   await expect(page.locator("[data-mobile-sheet-tab='issues']")).toHaveAttribute("aria-selected", "true");
@@ -713,7 +717,7 @@ test("Mobile dong popup centers as sheet changes", async ({ page }) => {
     });
   };
 
-  await page.locator("#issue-stats-summary [data-filter-type='dong'][data-filter-label='판교동']").click();
+  await clickIssueStatsFilter(page, "#issue-stats-summary [data-filter-type='dong'][data-filter-label='판교동']");
   await page.waitForFunction(() => {
     const hooks = window.__spotListTestHooks;
     const popup = document.querySelector("#map-popup");
@@ -741,7 +745,7 @@ test("Clicking dong stats filters issue list", async ({ page }) => {
       { id: "dong-b", title: "운중 현안", categoryId: "environment_park", dongName: "운중동" }
     ]);
   });
-  await page.locator("#issue-stats-summary [data-filter-type='dong'][data-filter-label='운중동']").click();
+  await clickIssueStatsFilter(page, "#issue-stats-summary [data-filter-type='dong'][data-filter-label='운중동']");
   const spotList = page.locator("#spot-list");
   await expect(spotList).not.toContainText("판교 현안");
   await expect(spotList).toContainText("운중 현안");
@@ -757,7 +761,7 @@ test("Clear issue filter returns to full issue list", async ({ page }) => {
       { id: "clear-b", title: "운중 현안", categoryId: "environment_park", dongName: "운중동" }
     ]);
   });
-  await page.locator("#issue-stats-summary [data-filter-type='dong'][data-filter-label='판교동']").click();
+  await clickIssueStatsFilter(page, "#issue-stats-summary [data-filter-type='dong'][data-filter-label='판교동']");
   await page.locator("#issue-stats-summary #clear-issue-filter-btn").click();
   const spotList = page.locator("#spot-list");
   const statsEl = page.locator("#issue-stats-summary");

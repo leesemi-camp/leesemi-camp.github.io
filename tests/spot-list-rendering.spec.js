@@ -36,14 +36,14 @@ async function waitForHook(page) {
 }
 
 test("Empty list renders generic message", async ({ page }) => {
-  // 현안 없을 때 일반 안내 문구 확인
+  // 기본 선택 레이어에 항목이 없을 때 일반 안내 문구 확인
   await waitForHook(page);
   const text = await page.evaluate(() => {
     window.__spotListTestHooks.renderHotspotList([]);
     const el = document.querySelector("#spot-list .empty");
     return el ? el.textContent.trim() : "";
   });
-  expect(text).toBe("등록된 지역 현안이 없습니다.");
+  expect(text).toBe("등록된 현안/변화 항목이 없습니다.");
 });
 
 test("Spot renders category badge and dong label", async ({ page }) => {
