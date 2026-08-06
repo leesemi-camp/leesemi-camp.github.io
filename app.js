@@ -72,6 +72,7 @@ import APP_CONFIG from './config.js';
     issueCatalogList: [],
     issueCatalogMap: new Map(),
     issues: [],
+    hotspotTestDataLocked: false,
     commonIssueTagMap: new Map(),
     activeIssueFilter: {
       type: "",
@@ -5926,6 +5927,9 @@ import APP_CONFIG from './config.js';
         void processHotspotSnapshot(snapshot);
       },
       (error) => {
+        if (state.hotspotTestDataLocked) {
+          return;
+        }
         clearHotspotFeatures();
         state.issues = [];
         renderCommonPledges();
@@ -5944,6 +5948,9 @@ import APP_CONFIG from './config.js';
       const snapshot = await collectionRef.get();
       await processHotspotSnapshot(snapshot);
     } catch (error) {
+      if (state.hotspotTestDataLocked) {
+        return;
+      }
       clearHotspotFeatures();
       state.issues = [];
       renderCommonPledges();
@@ -5967,6 +5974,9 @@ import APP_CONFIG from './config.js';
       const records = normalizeHotspotSnapshotRecords(payload);
       await processHotspotRecords(records);
     } catch (error) {
+      if (state.hotspotTestDataLocked) {
+        return;
+      }
       clearHotspotFeatures();
       state.issues = [];
       renderCommonPledges();
@@ -6005,6 +6015,9 @@ import APP_CONFIG from './config.js';
 
   async function processHotspotRecords(records) {
     await ensureIssueCatalogLoaded();
+    if (state.hotspotTestDataLocked) {
+      return;
+    }
     const hotspots = [];
     const list = Array.isArray(records) ? records : [];
     list.forEach((record) => {
@@ -8605,6 +8618,7 @@ import APP_CONFIG from './config.js';
       focusDongIssues,
       focusCategoryIssues,
       renderVisibleIssueListWithData(issues) {
+        state.hotspotTestDataLocked = true;
         state.issues = Array.isArray(issues) ? issues : [];
         renderHotspots(getMapHotspotsForActiveContentTab(state.issues));
         renderCommonPledges();

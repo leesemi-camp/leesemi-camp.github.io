@@ -42,15 +42,21 @@ async function blockFirestore(page) {
 // 테스트 훅이 준비될 때까지 대기한다.
 async function waitForHooks(page) {
   await blockFirestore(page);
-  await page.goto("/map/", { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => {
+  const waitForReady = () => page.waitForFunction(() => {
     const stats = document.querySelector("#issue-stats-summary");
     return (
       window.__spotListTestHooks &&
       typeof window.__spotListTestHooks.renderVisibleIssueListWithData === "function" &&
       stats
     );
-  });
+  }, null, { timeout: 15000 });
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
+  try {
+    await waitForReady();
+  } catch (error) {
+    await page.goto("/map/", { waitUntil: "domcontentloaded" });
+    await waitForReady();
+  }
 }
 
 // WebKit에서는 통계 DOM 반영 직후 클릭이 앞서갈 수 있어 표시 확인 후 클릭한다.
@@ -483,6 +489,66 @@ test("Notice layer lists notice items without status filters", async ({ page }) 
   await expect(page.locator("#issue-stats-summary")).not.toContainText("상태별 건수");
   await expect(page.locator("#issue-stats-summary [data-filter-type='progressStatus']")).toHaveCount(0);
   await expect(page.locator("#issue-stats-summary")).not.toContainText("보행로 볼라드 보수");
+});
+
+test("Injected notice data survives late public snapshot", async ({ page }) => {
+  // 테스트 훅 데이터는 늦게 도착한 public snapshot에 덮이지 않는다.
+  let markSnapshotRequested = () => {};
+  let releaseSnapshot = () => {};
+  const snapshotRequested = new Promise((resolve) => {
+    markSnapshotRequested = resolve;
+  });
+  const snapshotRelease = new Promise((resolve) => {
+    releaseSnapshot = resolve;
+  });
+
+  await page.route("**/firestore.googleapis.com/**", (route) => route.abort());
+  await page.route("**/data/hotspots.public.json", async (route) => {
+    markSnapshotRequested();
+    await snapshotRelease;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        source: "firestore",
+        collection: "crowd_hotspots",
+        count: 0,
+        hotspots: []
+      })
+    });
+  });
+
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
+  await snapshotRequested;
+  await page.waitForFunction(() => {
+    return (
+      window.__spotListTestHooks &&
+      typeof window.__spotListTestHooks.renderVisibleIssueListWithData === "function" &&
+      typeof window.__spotListTestHooks.setVisibleContentTabsForTest === "function"
+    );
+  });
+  await page.evaluate(() => {
+    window.__spotListTestHooks.setVisibleContentTabsForTest(["notices"]);
+    window.__spotListTestHooks.renderVisibleIssueListWithData([
+      {
+        id: "late-notice",
+        title: "260801 늦은 스냅샷 안내",
+        contentTab: "notices",
+        itemType: "notice",
+        progressStatus: "checking",
+        categoryId: "traffic_parking",
+        dongName: "판교동"
+      }
+    ]);
+  });
+
+  const noticeTitle = page.locator("#issue-stats-summary .notice-stats-main strong");
+  await expect(noticeTitle).toHaveText("260801 늦은 스냅샷 안내");
+  const snapshotResponse = page.waitForResponse("**/data/hotspots.public.json");
+  releaseSnapshot();
+  await snapshotResponse;
+  await expect(noticeTitle).toHaveText("260801 늦은 스냅샷 안내");
 });
 
 test("Desktop side panel prioritizes selected result", async ({ page }) => {
