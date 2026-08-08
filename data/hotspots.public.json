@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-06T11:28:23.201Z",
+  "generatedAt": "2026-08-08T09:42:43.785Z",
   "source": "firestore",
   "collection": "crowd_hotspots",
-  "count": 69,
+  "count": 70,
   "hotspots": [
     {
       "id": "zGu99pgxdB7gbir8wasx",
@@ -562,8 +562,8 @@
       "contentTab": "changes",
       "itemType": "improvement",
       "progressStatus": "completed",
-      "categoryId": "safety_security",
-      "categoryLabel": "🚨 안전·치안",
+      "categoryId": "maintenance_repair",
+      "categoryLabel": "🚧 보수·정비",
       "lat": 37.389248,
       "lng": 127.090714,
       "dongName": "판교동",
@@ -577,7 +577,7 @@
       ],
       "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FzCfiPGUNT8AEPXhZiVml%2F1785214623125-ec14f69d6ad38976.jpg?alt=media&token=0aba7ee3-aad2-4d8e-a62e-380be2eebdb8",
       "photoProcessingVersion": 3,
-      "updatedAt": "2026-07-28T14:29:04.825Z"
+      "updatedAt": "2026-08-07T14:05:25.505Z"
     },
     {
       "id": "519FpS0Zh4CvIkxrddZR",
@@ -603,6 +603,33 @@
       "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2F519FpS0Zh4CvIkxrddZR%2F1785215038229-8d1a822cee342d7f.jpg?alt=media&token=0dd57544-32cf-4f99-99d5-7d709383afab",
       "photoProcessingVersion": 3,
       "updatedAt": "2026-07-28T15:56:02.679Z"
+    },
+    {
+      "id": "X4xmFVOhFmKVpE8BkRco",
+      "issueRefId": "",
+      "title": "260727 서판교터널 점검구 덮개 교체공사",
+      "memo": "https://blog.naver.com/leesemi114/224365520718",
+      "level": 3,
+      "contentTab": "notices",
+      "itemType": "notice",
+      "progressStatus": "checking",
+      "categoryId": "traffic_parking",
+      "categoryLabel": "🚌 교통·주차",
+      "lat": 37.37896,
+      "lng": 127.074338,
+      "dongName": "운중동",
+      "emdCode": "41135118",
+      "dongSelectionMode": "auto",
+      "dongKey": "name:운중동",
+      "groupLabel": "",
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FX4xmFVOhFmKVpE8BkRco%2F1785845629020-ad22e346e62e47f3.jpg?alt=media&token=df2a651b-ecef-4349-a922-9556bb8ad16a",
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FX4xmFVOhFmKVpE8BkRco%2F1785845632458-78214201996b1e03.jpg?alt=media&token=8b4cabb8-be05-4289-96f6-0b3e167f1e4d",
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FX4xmFVOhFmKVpE8BkRco%2F1785845635323-afc0e0491814d6d9.jpg?alt=media&token=beb89af5-bb02-4647-b3de-5729834eb332"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FX4xmFVOhFmKVpE8BkRco%2F1785845629020-ad22e346e62e47f3.jpg?alt=media&token=df2a651b-ecef-4349-a922-9556bb8ad16a",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-08-07T14:00:54.584Z"
     },
     {
       "id": "RJETUEdEeLsbyN7ySRW3",
@@ -1010,33 +1037,6 @@
       "updatedAt": "2026-07-28T16:01:58.206Z"
     },
     {
-      "id": "X4xmFVOhFmKVpE8BkRco",
-      "issueRefId": "",
-      "title": "서판교터널 점검구 덮개 교체공사",
-      "memo": "https://blog.naver.com/leesemi114/224365520718",
-      "level": 3,
-      "contentTab": "notices",
-      "itemType": "notice",
-      "progressStatus": "checking",
-      "categoryId": "traffic_parking",
-      "categoryLabel": "🚌 교통·주차",
-      "lat": 37.37896,
-      "lng": 127.074338,
-      "dongName": "운중동",
-      "emdCode": "41135118",
-      "dongSelectionMode": "auto",
-      "dongKey": "name:운중동",
-      "groupLabel": "",
-      "photoUrls": [
-        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FX4xmFVOhFmKVpE8BkRco%2F1785845629020-ad22e346e62e47f3.jpg?alt=media&token=df2a651b-ecef-4349-a922-9556bb8ad16a",
-        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FX4xmFVOhFmKVpE8BkRco%2F1785845632458-78214201996b1e03.jpg?alt=media&token=8b4cabb8-be05-4289-96f6-0b3e167f1e4d",
-        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FX4xmFVOhFmKVpE8BkRco%2F1785845635323-afc0e0491814d6d9.jpg?alt=media&token=beb89af5-bb02-4647-b3de-5729834eb332"
-      ],
-      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FX4xmFVOhFmKVpE8BkRco%2F1785845629020-ad22e346e62e47f3.jpg?alt=media&token=df2a651b-ecef-4349-a922-9556bb8ad16a",
-      "photoProcessingVersion": 3,
-      "updatedAt": "2026-08-04T12:13:57.903Z"
-    },
-    {
       "id": "sVmcdQ058t1dwUXYfjfP",
       "issueRefId": "",
       "title": "소방서 개설 요구",
@@ -1201,6 +1201,32 @@
       "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2F6hQbmbgch7W4SdIU1uXq%2F1776953103983-046154f317d625fe.jpg?alt=media&token=4e54aa99-d383-4df1-a7ad-7b78b0ba8136",
       "photoProcessingVersion": 3,
       "updatedAt": "2026-07-28T15:55:12.759Z"
+    },
+    {
+      "id": "wZP1vqHJdIwMkfgzhXcp",
+      "issueRefId": "",
+      "title": "운중동916 보행로 용출수",
+      "memo": "https://blog.naver.com/leesemi114/224363676283",
+      "level": 3,
+      "contentTab": "issues",
+      "itemType": "issue",
+      "progressStatus": "checking",
+      "categoryId": "maintenance_repair",
+      "categoryLabel": "🚧 보수·정비",
+      "lat": 37.384483,
+      "lng": 127.074191,
+      "dongName": "운중동",
+      "emdCode": "41135115",
+      "dongSelectionMode": "auto",
+      "dongKey": "name:운중동",
+      "groupLabel": "",
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FwZP1vqHJdIwMkfgzhXcp%2F1786111476198-9bf98a936a18fa7d.jpg?alt=media&token=b721a04e-73af-4e2d-ae2c-eef37f472eb8",
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FwZP1vqHJdIwMkfgzhXcp%2F1786111479550-e39a5ac0224d54df.jpg?alt=media&token=2444c5d1-5495-4dc2-8a72-2563017d8641"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FwZP1vqHJdIwMkfgzhXcp%2F1786111476198-9bf98a936a18fa7d.jpg?alt=media&token=b721a04e-73af-4e2d-ae2c-eef37f472eb8",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-08-07T14:04:44.407Z"
     },
     {
       "id": "zazX81vAX1ix3hU2BzMa",
