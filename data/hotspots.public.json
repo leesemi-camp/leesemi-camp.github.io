@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-08T09:42:43.785Z",
+  "generatedAt": "2026-08-11T10:04:07.751Z",
   "source": "firestore",
   "collection": "crowd_hotspots",
-  "count": 70,
+  "count": 71,
   "hotspots": [
     {
       "id": "zGu99pgxdB7gbir8wasx",
@@ -1523,6 +1523,32 @@
       "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FKI8rcRa0hLwYE5PndrQr%2F1777967725850-1be54df024bbb350.jpg?alt=media&token=d7990a3e-fdbb-475e-8802-a1e7c7f0487e",
       "photoProcessingVersion": 3,
       "updatedAt": "2026-07-28T15:57:04.936Z"
+    },
+    {
+      "id": "HgV2rlyfR6XTtSRAmkLq",
+      "issueRefId": "",
+      "title": "판교도서관 사거리, 포트홀 보수",
+      "memo": "https://blog.naver.com/leesemi114/224374871420",
+      "level": 3,
+      "contentTab": "changes",
+      "itemType": "improvement",
+      "progressStatus": "completed",
+      "categoryId": "maintenance_repair",
+      "categoryLabel": "🚧 보수·정비",
+      "lat": 37.389477,
+      "lng": 127.089925,
+      "dongName": "판교동",
+      "emdCode": "41135108",
+      "dongSelectionMode": "auto",
+      "dongKey": "name:판교동",
+      "groupLabel": "",
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FHgV2rlyfR6XTtSRAmkLq%2F1786414620747-2d4f10c3a9a6e78c.jpg?alt=media&token=250987fc-42ab-4a2d-ae27-e7e3f1b6f78b",
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FHgV2rlyfR6XTtSRAmkLq%2F1786414624209-7d1fc01db2d178e9.jpg?alt=media&token=0fdaa722-903c-46e9-8f8f-4280a189b65a"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FHgV2rlyfR6XTtSRAmkLq%2F1786414620747-2d4f10c3a9a6e78c.jpg?alt=media&token=250987fc-42ab-4a2d-ae27-e7e3f1b6f78b",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-08-11T02:19:47.826Z"
     },
     {
       "id": "VsBwypOG6KVC7LzhHwPQ",
