@@ -634,31 +634,45 @@ body[data-map-mode="view"] .workspace {
 }
 
 .map-layer-tabs .content-tab {
+  --content-tab-color: #2f6fb8;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 7px;
   flex: 0 0 auto;
-  min-width: 62px;
-  min-height: 38px;
-  padding: 0 13px;
-  border: 1px solid rgba(195, 212, 235, 0.96);
+  min-width: 88px;
+  min-height: 44px;
+  padding: 0 15px;
+  border: 1px solid rgba(195, 212, 235, 0.98);
   border-radius: 999px;
-  background: rgba(246, 249, 252, 0.88);
-  color: #5d748f;
+  background: rgba(255, 255, 255, 0.94);
+  color: #111827;
   box-shadow: 0 6px 18px rgba(23, 46, 77, 0.12);
   pointer-events: auto;
   backdrop-filter: blur(8px);
 }
 
-.map-layer-tabs .content-tab::before {
-  content: "";
-  width: 7px;
-  height: 7px;
+.map-layer-tabs [data-content-tab="issues"] {
+  --content-tab-color: #2f6fb8;
+}
+
+.map-layer-tabs [data-content-tab="changes"] {
+  --content-tab-color: #d9480f;
+}
+
+.map-layer-tabs [data-content-tab="notices"] {
+  --content-tab-color: #2b8a3e;
+}
+
+.content-tab-icon {
+  width: 19px;
+  height: 19px;
   flex: 0 0 auto;
-  border-radius: 999px;
-  background: #9aaec8;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.82);
+  fill: none;
+  stroke: var(--content-tab-color);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .map-layer-tabs .content-tab-visible {
@@ -670,9 +684,8 @@ body[data-map-mode="view"] .workspace {
     0 8px 22px rgba(0, 62, 154, 0.28);
 }
 
-.map-layer-tabs .content-tab-visible::before {
-  background: #ffffff;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.24);
+.map-layer-tabs .content-tab-visible .content-tab-icon {
+  stroke: #ffffff;
 }
 
 .map-layer-tabs .content-tab-active {
@@ -688,7 +701,7 @@ body[data-map-mode="view"] .workspace {
 }
 
 .map-layer-tabs .content-tab:not(.content-tab-visible) {
-  opacity: 0.76;
+  opacity: 1;
 }
 
 .content-tab:focus-visible {
@@ -2685,9 +2698,9 @@ body.photo-lightbox-open {
   }
 
   body[data-map-mode="view"] .map-layer-tabs .content-tab {
-    min-width: 68px;
-    min-height: 36px;
-    padding: 0 12px;
+    min-width: 92px;
+    min-height: 44px;
+    padding: 0 15px;
     box-shadow: 0 8px 22px rgba(13, 32, 63, 0.18);
   }
 

@@ -61,9 +61,31 @@
         <section class="workspace">
             <div class="map-wrap map-wrap-initializing">
                 <div class="content-tabs map-layer-tabs" aria-label="지도 레이어 선택">
-                    <button type="button" class="content-tab content-tab-active content-tab-visible" data-content-tab="issues" aria-pressed="true">현안</button>
-                    <button type="button" class="content-tab content-tab-visible" data-content-tab="changes" aria-pressed="true">변화</button>
-                    <button type="button" class="content-tab" data-content-tab="notices" aria-pressed="false">안내</button>
+                    <button type="button" class="content-tab content-tab-active content-tab-visible" data-content-tab="issues" aria-pressed="true">
+                        <svg class="content-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>
+                            <path d="M12 8v4"/>
+                            <path d="M12 16h.01"/>
+                        </svg>
+                        <span>현안</span>
+                    </button>
+                    <button type="button" class="content-tab content-tab-visible" data-content-tab="changes" aria-pressed="true">
+                        <svg class="content-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+                            <path d="M20 3v4"/>
+                            <path d="M22 5h-4"/>
+                            <path d="M4 17v2"/>
+                            <path d="M5 18H3"/>
+                        </svg>
+                        <span>변화</span>
+                    </button>
+                    <button type="button" class="content-tab" data-content-tab="notices" aria-pressed="false">
+                        <svg class="content-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m3 11 18-5v12L3 14v-3z"/>
+                            <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
+                        </svg>
+                        <span>안내</span>
+                    </button>
                 </div>
                 <div id="map" class="map" role="application" aria-label="동별 우리동네 지도" tabindex="0"></div>
                 <div id="map-popup" class="map-popup hidden" aria-hidden="true"></div>

@@ -303,7 +303,7 @@ test("renderVisibleIssueListWithData updates total count label", async ({ page }
 });
 
 test("Issue list shows selected layers before filtering", async ({ page }) => {
-  // 필터 선택 전에도 켜진 레이어 전체 목록을 보여주고, 선택 레이어는 파란색으로 강조한다.
+  // 필터 선택 전에도 켜진 레이어 전체 목록을 보여주고, 레이어 버튼은 아이콘 pill로 표시한다.
   await waitForHooks(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.renderVisibleIssueListWithData([
@@ -350,6 +350,31 @@ test("Issue list shows selected layers before filtering", async ({ page }) => {
   await expect(page.locator(".map-layer-tabs [data-content-tab='notices']")).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(".map-layer-tabs [data-content-tab='issues']")).toHaveCSS("background-color", "rgb(0, 62, 154)");
   await expect(page.locator(".map-layer-tabs [data-content-tab='changes']")).toHaveCSS("background-color", "rgb(0, 62, 154)");
+  await expect(page.locator(".map-layer-tabs .content-tab-icon")).toHaveCount(3);
+  const tabVisualState = await page.locator(".map-layer-tabs").evaluate((element) => {
+    const noticeTab = element.querySelector("[data-content-tab='notices']");
+    const noticeIcon = noticeTab ? noticeTab.querySelector(".content-tab-icon") : null;
+    const issuesIcon = element.querySelector("[data-content-tab='issues'] .content-tab-icon");
+    const changesIcon = element.querySelector("[data-content-tab='changes'] .content-tab-icon");
+    const noticeStyle = noticeTab ? window.getComputedStyle(noticeTab) : null;
+    const noticeIconStyle = noticeIcon ? window.getComputedStyle(noticeIcon) : null;
+    const issuesIconStyle = issuesIcon ? window.getComputedStyle(issuesIcon) : null;
+    const changesIconStyle = changesIcon ? window.getComputedStyle(changesIcon) : null;
+    return {
+      noticeBackground: noticeStyle ? noticeStyle.backgroundColor : "",
+      noticeColor: noticeStyle ? noticeStyle.color : "",
+      noticeIconStroke: noticeIconStyle ? noticeIconStyle.stroke : "",
+      noticeIconStrokeWidth: noticeIconStyle ? noticeIconStyle.strokeWidth : "",
+      issuesIconStroke: issuesIconStyle ? issuesIconStyle.stroke : "",
+      changesIconStroke: changesIconStyle ? changesIconStyle.stroke : ""
+    };
+  });
+  expect(tabVisualState.noticeBackground).toContain("255, 255, 255");
+  expect(tabVisualState.noticeColor).toBe("rgb(17, 24, 39)");
+  expect(tabVisualState.noticeIconStroke).toBe("rgb(43, 138, 62)");
+  expect(parseFloat(tabVisualState.noticeIconStrokeWidth)).toBe(3);
+  expect(tabVisualState.issuesIconStroke).toBe("rgb(255, 255, 255)");
+  expect(tabVisualState.changesIconStroke).toBe("rgb(255, 255, 255)");
   await expect(page.locator("#issue-list-panel")).not.toHaveClass(/issue-list-panel-hidden/);
   await expect(page.locator("#issue-list-panel")).toHaveAttribute("aria-label", "우리동네 현안/변화");
   await expect(page.locator("#spot-list")).toContainText("판교 현안");
