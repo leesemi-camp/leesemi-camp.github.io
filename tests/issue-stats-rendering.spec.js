@@ -511,6 +511,10 @@ test("Notice layer lists notice items without status filters", async ({ page }) 
     "260727 대장도서관 공사 현장 금연 안내",
     "260709 운중천 안전통제선 설치"
   ]);
+  await expect(page.locator("#spot-list .spot-item-top strong")).toHaveText([
+    "260727 대장도서관 공사 현장 금연 안내",
+    "260709 운중천 안전통제선 설치"
+  ]);
   await expect(page.locator("#issue-stats-summary")).not.toContainText("상태별 건수");
   await expect(page.locator("#issue-stats-summary [data-filter-type='progressStatus']")).toHaveCount(0);
   await expect(page.locator("#issue-stats-summary")).not.toContainText("보행로 볼라드 보수");

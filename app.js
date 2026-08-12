@@ -8035,7 +8035,11 @@ import APP_CONFIG from './config.js';
       syncHotspotMarkerDisplayMode();
     }
     setIssueListPanelVisibility(shouldShowList);
-    renderHotspotList(isFiltered ? filtered : (shouldShowDefaultList ? activeHotspots : []), {
+    const listForDisplay = isFiltered ? filtered : (shouldShowDefaultList ? activeHotspots : []);
+    const sortedListForDisplay = isOnlyNoticeContentLayerVisible()
+      ? listForDisplay.slice().sort(compareNoticeHotspotByTitleDesc)
+      : listForDisplay;
+    renderHotspotList(sortedListForDisplay, {
       preservePanelVisibility: true
     });
     if (isFiltered) {
