@@ -23,7 +23,7 @@ test.afterEach(async ({ page }, testInfo) => {
 
 // 테스트 훅이 준비될 때까지 대기 후 반환한다.
 async function waitForHook(page) {
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => {
     const stats = document.querySelector("#issue-stats-summary");
     return (

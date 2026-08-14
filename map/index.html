@@ -1,156 +1,17 @@
 <!doctype html>
 <html lang="ko">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>우리동네 현안도, 이세미입니다</title>
-    <meta name="description" content="판교·운중·백현·대장의 현안과 변화, 안내를 지도에서 확인하세요.">
-    <meta property="og:locale" content="ko_KR">
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="성남시의원(판교·운중·백현·대장) 이세미">
-    <meta property="og:title" content="우리동네 현안도, 이세미입니다">
-    <meta property="og:description" content="판교·운중·백현·대장의 현안과 변화, 안내를 지도에서 확인하세요.">
-    <meta property="og:url" content="https://leesemi-camp.github.io/map/">
-    <meta property="og:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
-    <meta property="og:image:url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
-    <meta property="og:image:secure_url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
-    <meta property="og:image:type" content="image/png">
-    <meta property="og:image:width" content="1550">
-    <meta property="og:image:height" content="450">
-    <meta property="og:image:alt" content="성남시의원(판교·운중·백현·대장) 이세미 링크 미리보기 이미지">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="우리동네 현안도, 이세미입니다">
-    <meta name="twitter:description" content="판교·운중·백현·대장의 현안과 변화, 안내를 지도에서 확인하세요.">
-    <meta name="twitter:url" content="https://leesemi-camp.github.io/map/">
-    <meta name="twitter:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="preload" href="/data/dong-boundaries.optimized.geojson" as="fetch" type="application/geo+json" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css">
-    <link rel="stylesheet" href="../styles.css">
-    <link rel="stylesheet" href="./style.css">
-    <script src="https://cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js" defer></script>
-    <script src="../app.js" type="module"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>우리동네 현안도로 이동 중</title>
+  <meta name="robots" content="noindex">
+  <link rel="canonical" href="https://leesemi-camp.github.io/">
+  <meta http-equiv="refresh" content="0; url=/">
+  <script>
+    window.location.replace("/");
+  </script>
 </head>
-<body data-map-mode="view">
-<main class="layout">
-    <section id="app-shell" class="app-shell" aria-live="polite">
-        <header class="topbar">
-            <div class="topbar-texts">
-                <div class="topbar-title-row">
-                    <h2 class="topbar-title">우리동네 현안도, 이세미입니다</h2>
-                    <span id="total-issue-count" class="topbar-total-issue-count">총 현안 건수: 0건</span>
-                </div>
-            </div>
-            <div class="topbar-actions">
-                <a href="../" class="icon-btn" aria-label="메인 랜딩으로 이동" title="메인으로">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M3 11.5 12 4l9 7.5"/>
-                        <path d="M6 10.5V20h12v-9.5"/>
-                    </svg>
-                </a>
-                <a href="/map/edit/" class="icon-btn" aria-label="지도 수정으로 이동" title="지도 수정">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75L3 17.25z"/>
-                        <path d="m14.06 4.19 3.75 3.75"/>
-                    </svg>
-                </a>
-            </div>
-        </header>
-
-        <section class="workspace">
-            <div class="map-wrap map-wrap-initializing">
-                <div class="content-tabs map-layer-tabs" aria-label="지도 레이어 선택">
-                    <button type="button" class="content-tab content-tab-active content-tab-visible" data-content-tab="issues" aria-pressed="true">
-                        <svg class="content-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>
-                            <path d="M12 8v4"/>
-                            <path d="M12 16h.01"/>
-                        </svg>
-                        <span>현안</span>
-                    </button>
-                    <button type="button" class="content-tab content-tab-visible" data-content-tab="changes" aria-pressed="true">
-                        <svg class="content-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
-                            <path d="M20 3v4"/>
-                            <path d="M22 5h-4"/>
-                            <path d="M4 17v2"/>
-                            <path d="M5 18H3"/>
-                        </svg>
-                        <span>변화</span>
-                    </button>
-                    <button type="button" class="content-tab" data-content-tab="notices" aria-pressed="false">
-                        <svg class="content-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="m3 11 18-5v12L3 14v-3z"/>
-                            <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
-                        </svg>
-                        <span>안내</span>
-                    </button>
-                </div>
-                <div id="map" class="map" role="application" aria-label="동별 우리동네 지도" tabindex="0"></div>
-                <div id="map-popup" class="map-popup hidden" aria-hidden="true"></div>
-            </div>
-
-            <aside class="side-panel" aria-label="지도 정보">
-                <button id="mobile-sheet-toggle" type="button" class="mobile-sheet-grip" aria-expanded="true" aria-controls="mobile-sheet-content" aria-label="지도 정보 시트 접기"></button>
-                <div id="mobile-sheet-content" class="mobile-sheet-content">
-                    <div class="mobile-sheet-tabs" role="tablist" aria-label="지도 정보 보기">
-                        <button type="button" class="mobile-sheet-tab mobile-sheet-tab-active" data-mobile-sheet-tab="stats" role="tab" aria-selected="true" aria-controls="mobile-stats-panel">통계</button>
-                        <button type="button" class="mobile-sheet-tab" data-mobile-sheet-tab="issues" role="tab" aria-selected="false" aria-controls="issue-list-panel" disabled>현안</button>
-                    </div>
-                    <div id="mobile-stats-panel" class="mobile-sheet-section mobile-sheet-section-active" data-mobile-sheet-section="stats" role="tabpanel">
-                        <section id="issue-stats-summary" class="issue-stats-summary" aria-live="polite"></section>
-                        <section id="common-pledge-panel" class="pledge-panel">
-                            <h3 id="common-pledge-title">지역구 공통 현안</h3>
-                            <ul id="common-pledge-list" class="pledge-list"></ul>
-                        </section>
-                    </div>
-
-                    <section id="issue-list-panel" class="issue-list-panel issue-list-panel-hidden mobile-sheet-section" data-mobile-sheet-section="issues" role="tabpanel" aria-hidden="true">
-                        <div class="issue-list-head">
-                            <h3 id="issue-list-title" class="list-title">우리동네 현안</h3>
-                            <button id="issue-list-clear-filter-btn" type="button" class="issue-list-clear-btn" data-action="clear-issue-filter">전체 보기</button>
-                        </div>
-                        <ul id="spot-list" class="spot-list"></ul>
-                    </section>
-                </div>
-            </aside>
-        </section>
-        <section class="issue-helper" aria-label="현안 제보 안내">
-            <div id="issue-helper-bubble" class="issue-helper-bubble">
-                <button id="issue-helper-close-btn" type="button" class="issue-helper-close-btn" aria-label="현안 안내 말풍선 닫기">×</button>
-                <p class="issue-helper-quote">동네 이야기를 들려주세요 ☺</p>
-                <div class="issue-helper-contact-dock" aria-label="현안 제보 연락처">
-                    <a href="sms:01081901440" class="issue-helper-contact-link issue-helper-contact-link-row" aria-label="현안 추가 문의 문자 보내기">
-                        <span class="issue-helper-contact-icon" aria-hidden="true">📱</span>
-                        <span>010-8190-1440</span>
-                    </a>
-                    <a href="mailto:leesemi114@gmail.com" class="issue-helper-contact-link issue-helper-contact-link-row" aria-label="현안 추가 문의 이메일 보내기">
-                        <span class="issue-helper-contact-icon" aria-hidden="true">✉️</span>
-                        <span>leesemi114@gmail.com</span>
-                    </a>
-                </div>
-            </div>
-            <button
-                id="issue-helper-toggle"
-                class="issue-helper-toggle"
-                type="button"
-                aria-controls="issue-helper-bubble"
-                aria-expanded="true"
-                aria-label="현안 안내 메시지 열기 또는 닫기"
-            >
-                <img
-                    class="issue-helper-character"
-                    src="/assets/character/03_thumbs_up.png"
-                    alt="현안 제보를 안내하는 캐릭터"
-                    width="424"
-                    height="512"
-                    loading="lazy"
-                    decoding="async"
-                >
-            </button>
-        </section>
-    </section>
-</main>
+<body>
+  <p><a href="/">우리동네 현안도, 이세미입니다</a>로 이동합니다.</p>
 </body>
 </html>

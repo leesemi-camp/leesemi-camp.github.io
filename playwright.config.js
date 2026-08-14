@@ -58,7 +58,7 @@ export default defineConfig({
     }
   ],
   webServer: {
-    command: "npm run serve",
+    command: "node scripts/serve-static.mjs",
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     stdout: "pipe",

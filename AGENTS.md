@@ -11,14 +11,14 @@
 ├─ .github/workflows/     # GitHub Actions: Pages 배포
 ├─ assets/                # 이미지, 아이콘 등 정적 리소스
 ├─ data/                  # GeoJSON/WFS XML/CSV 데이터
-├─ map/                   # 지도 열람 화면
-│  └─ edit/               # 지도 편집 화면(로그인 필요)
+├─ edit/                  # 지도 편집 화면(로그인 필요)
+├─ map/                   # 과거 지도 URL redirect
 ├─ scripts/               # 운영 스크립트
 ├─ system/                # 시스템 런처/로그인 관련 화면
 ├─ app.js                 # 지도/데이터/오버레이 핵심 로직
 ├─ config.js              # 실행 설정(노출됨)
 ├─ config.example.js      # 설정 예시
-├─ index.html             # 공개 랜딩
+├─ index.html             # 공개 현안도
 └─ styles.css             # 공통 스타일
 ```
 
@@ -121,7 +121,7 @@ sequenceDiagram
   participant W as Web App
   participant F as Firestore
 
-  U->>W: Load /map/
+  U->>W: Load /
   W->>F: Read hotspots
   F-->>W: hotspot list
   W-->>U: Render markers + list
@@ -156,7 +156,7 @@ sequenceDiagram
 이 저장소는 Playwright 기반 E2E/스모크 테스트를 사용합니다.
 
 - 실행: `npm test`
-- 설정: `playwright.config.js` (기본 webServer로 `npm run serve`, 기본 URL `http://localhost:5173`)
+- 설정: `playwright.config.js` (기본 webServer로 `node scripts/serve-static.mjs`, 기본 URL `http://localhost:5173`)
 - 주요 아티팩트 루트(권장 탐색 경로):
   - `test-results/`
   - `playwright-report/`
@@ -207,9 +207,9 @@ GitHub Actions의 `CI` 워크플로(`npm test`, Chromium/Chrome/Edge/WebKit 포�
 
 Update this section if new entry points are added or removed. This helps testing and onboarding.
 
-- `/` : 공개 랜딩 (`index.html`)
-- `/map/` : 현안 열람
-- `/map/edit/` : 현안 편집(로그인 필요)
+- `/` : 현안 열람 (`index.html`)
+- `/edit/` : 현안 편집(로그인 필요)
+- `/map/` : 과거 공유 링크 redirect
 - `/system/` : 내부 시스템 런처
 
 ## Implementation Policies

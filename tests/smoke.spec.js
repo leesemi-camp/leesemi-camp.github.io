@@ -67,19 +67,27 @@ async function expectMarkerCrossfade(page, previousSequence) {
   });
 }
 
-test("Landing page loads", async ({ page }) => {
-  // 공개 랜딩 페이지 렌더링 확인
-  await page.goto("/");
-  await expect(page.locator("main.public-landing")).toBeVisible();
-  await expect(page.locator(".public-link-map")).toBeVisible();
-  await expect(page.locator(".public-system-link")).toBeVisible();
+test("Root map page loads", async ({ page }) => {
+  // 루트 공개 현안도 렌더링과 유틸리티 메뉴를 확인한다.
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#map")).toBeVisible();
+  await expect(page.getByRole("link", { name: "이세미 소개 및 링크" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "이세미 후원 안내" })).toBeVisible();
 });
 
 test("Map view renders", async ({ page }) => {
   // 지도 뷰 기본 렌더링 확인
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#map")).toBeVisible();
   await expect(page.locator("#spot-list")).toBeAttached();
+});
+
+test("Legacy map routes redirect", async ({ page }) => {
+  // 과거 공유 링크가 새 공개/관리 주소로 이동하는지 확인한다.
+  await page.goto("/map/", { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveURL(/\/$/);
+  await page.goto("/map/edit/", { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveURL(/\/edit\/$/);
 });
 
 test("Map layer controls show selected layers in list", async ({ page }) => {
@@ -154,7 +162,7 @@ test("Map layer controls show selected layers in list", async ({ page }) => {
     });
   });
 
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#total-issue-count")).toHaveText("총 현안/변화 건수: 4건");
   await expect(page.locator("#spot-list")).toContainText("통학로 정비 요청");
   await expect(page.locator("#spot-list")).toContainText("주차장 확충 요청");
@@ -262,22 +270,34 @@ test("Mobile map header stays compact", async ({ page }) => {
       })
     });
   });
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".topbar-title")).toBeVisible();
 
   const metrics = await page.evaluate(() => {
     const topbar = document.querySelector(".topbar");
     const title = document.querySelector(".topbar-title");
-    const iconButton = document.querySelector(".topbar-actions .icon-btn");
+    const utilityActions = Array.from(document.querySelectorAll(".topbar-actions .utility-action"));
     const topbarRect = topbar.getBoundingClientRect();
     const titleRect = title.getBoundingClientRect();
-    const iconRect = iconButton.getBoundingClientRect();
     const titleStyle = window.getComputedStyle(title);
+    const actionRects = utilityActions.map((action) => action.getBoundingClientRect());
+    const labelsVisible = utilityActions.every((action) => {
+      const label = action.querySelector(".utility-label");
+      if (!label) return false;
+      const rect = label.getBoundingClientRect();
+      return window.getComputedStyle(label).display !== "none" && rect.width > 0;
+    });
+    const iconsHidden = utilityActions.every((action) => {
+      const icon = action.querySelector("svg:not(.utility-external-icon)");
+      return !icon || window.getComputedStyle(icon).display === "none";
+    });
     return {
       topbarHeight: topbarRect.height,
       titleHeight: titleRect.height,
-      iconButtonWidth: iconRect.width,
-      iconButtonHeight: iconRect.height,
+      utilityActionMaxWidth: Math.max(...actionRects.map((rect) => rect.width)),
+      utilityActionMaxHeight: Math.max(...actionRects.map((rect) => rect.height)),
+      labelsVisible,
+      iconsHidden,
       titleLineHeight: Number.parseFloat(titleStyle.lineHeight),
       titleWhiteSpace: titleStyle.whiteSpace
     };
@@ -286,8 +306,11 @@ test("Mobile map header stays compact", async ({ page }) => {
   expect(metrics.topbarHeight).toBeLessThanOrEqual(58);
   expect(metrics.titleWhiteSpace).toBe("nowrap");
   expect(metrics.titleHeight).toBeLessThanOrEqual(metrics.titleLineHeight + 2);
-  expect(metrics.iconButtonWidth).toBeLessThanOrEqual(34);
-  expect(metrics.iconButtonHeight).toBeLessThanOrEqual(34);
+  expect(metrics.utilityActionMaxWidth).toBeLessThanOrEqual(58);
+  expect(metrics.utilityActionMaxHeight).toBeLessThanOrEqual(34);
+  expect(metrics.labelsVisible).toBe(true);
+  expect(metrics.iconsHidden).toBe(true);
+  await expect(page.locator(".topbar-actions .icon-btn")).toHaveCount(0);
 });
 
 test("Map viewport clips rounded bottom corners", async ({ page }) => {
@@ -307,7 +330,7 @@ test("Map viewport clips rounded bottom corners", async ({ page }) => {
       })
     });
   });
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForSelector(".map .ol-viewport");
 
   const readCornerState = () => {
@@ -414,7 +437,7 @@ test("Optimized boundary GeoJSON uses browser cache", async ({ page }) => {
       })
     });
   });
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => {
     return (
       window.__spotListTestHooks &&
@@ -439,7 +462,7 @@ test("Static boundary mask reveals map before boundary GeoJSON completes", async
     await route.continue();
   });
 
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".map-wrap")).not.toHaveClass(/map-wrap-initializing/, {
     timeout: 600
   });
@@ -447,7 +470,7 @@ test("Static boundary mask reveals map before boundary GeoJSON completes", async
 
 test("Boundary mask redraws during map animation", async ({ page }) => {
   // 줌아웃 중 새로 드러난 화면에도 외곽 마스크가 즉시 다시 그려짐
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => {
     const hooks = window.__spotListTestHooks;
     return (
@@ -481,7 +504,7 @@ test("Static boundary mask stays after boundary GeoJSON completes", async ({ pag
     });
   });
 
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => {
     const hooks = window.__spotListTestHooks;
     return (
@@ -524,7 +547,7 @@ test("Initial mobile map pans and zooms before controls are primed", async ({ pa
       })
     });
   });
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => {
     const hooks = window.__spotListTestHooks;
     const mapWrap = document.querySelector(".map-wrap");
@@ -678,7 +701,7 @@ test("Initial mobile map pans and zooms before controls are primed", async ({ pa
 
 test("Helper shadow is layered", async ({ page }) => {
   // 캐릭터 PNG의 알파 채널이 사각 그림자를 만들지 않도록 이미지 필터를 쓰지 않는다.
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
 
   const shadowStyles = await page.locator(".issue-helper-toggle").evaluate((toggle) => {
     const image = toggle.querySelector(".issue-helper-character");
@@ -705,7 +728,7 @@ test("Helper shadow is layered", async ({ page }) => {
 test("Mobile helper introduces itself then stays docked", async ({ page }) => {
   // 모바일에서는 안내 메시지를 먼저 보여준 뒤, 접힌 캐릭터가 지도 하단에 머문다.
   await page.setViewportSize({ width: 390, height: 900 });
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".issue-helper")).not.toHaveClass(/issue-helper-collapsed/);
 
   await page.waitForFunction(() => {
@@ -812,7 +835,7 @@ test("Map spot memo state", async ({ page }) => {
       })
     });
   });
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => {
     const stats = document.querySelector("#issue-stats-summary");
     return (
@@ -858,13 +881,13 @@ test("Map spot memo state", async ({ page }) => {
 
 test("Edit page shows login", async ({ page }) => {
   // 편집 페이지 로그인 패널 노출 확인
-  await page.goto("/map/edit/");
+  await page.goto("/edit/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#login-panel")).toBeVisible();
   await expect(page.locator("#login-btn")).toBeVisible();
 });
 
 test("System launcher loads", async ({ page }) => {
   // 시스템 런처 초기 화면 확인
-  await page.goto("/system/");
+  await page.goto("/system/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#launcher-loading")).toBeVisible();
 });

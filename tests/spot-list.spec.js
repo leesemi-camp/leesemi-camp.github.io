@@ -23,7 +23,7 @@ test.afterEach(async ({ page }, testInfo) => {
 
 test("Memo presence toggles compact card class", async ({ page }) => {
   // 메모 유무에 따라 카드 클래스/요소가 달라지는지 확인
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => {
     const stats = document.querySelector("#issue-stats-summary");
     return (

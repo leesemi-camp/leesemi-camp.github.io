@@ -52,7 +52,7 @@ async function waitForSpotListHooks(page) {
 }
 
 async function gotoMap(page) {
-  await page.goto("/map/", { waitUntil: "domcontentloaded" });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
 }
 
 // 현안 목록을 렌더링하고 테스트 훅이 준비될 때까지 대기한다.
@@ -1073,20 +1073,39 @@ test("Map has map-wrap element", async ({ page }) => {
   await expect(page.locator(".map-wrap")).toBeAttached();
 });
 
-test("Landing page has map link", async ({ page }) => {
-  // 랜딩 페이지에 지도 페이지 링크가 있음
-  await page.goto("/");
-  const mapLink = page.locator(".public-link-map");
-  await expect(mapLink).toBeVisible();
-  const href = await mapLink.getAttribute("href");
-  expect(href).toContain("/map/");
+test("Root page has profile utility link", async ({ page }) => {
+  // 공개 페이지에는 이세미 소개 링크가 유틸리티 메뉴로 노출된다.
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  const profileLink = page.getByRole("link", { name: "이세미 소개 및 링크" });
+  await expect(profileLink).toBeVisible();
+  await expect(profileLink).toHaveAttribute("href", "https://litt.ly/leesemi114");
+  await expect(profileLink).toHaveAttribute("target", "_blank");
 });
 
-test("Landing page has system link", async ({ page }) => {
-  // 랜딩 페이지에 시스템 링크가 있음
-  await page.goto("/");
-  const sysLink = page.locator(".public-system-link");
-  await expect(sysLink).toBeVisible();
-  const href = await sysLink.getAttribute("href");
-  expect(href).toContain("/system/");
+test("Support utility opens donation modal", async ({ page }) => {
+  // 후원 버튼은 페이지 이동 없이 후원 안내 모달을 연다.
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "이세미 후원 안내" }).click();
+  const modal = page.getByRole("dialog", { name: "후원 안내" });
+  await expect(modal).toBeVisible();
+  await expect(modal).toContainText("성남시의원이세미후원회");
+  await expect(modal).toContainText("농협");
+  await expect(modal).toContainText("010-8190-1440-08");
+  await expect(modal).toContainText("보내주시는 응원에 감사드립니다.");
+  await expect(modal).toContainText("우리 동네의 현안과 변화를 더 꼼꼼히 살피겠습니다.");
+  await page.evaluate(() => {
+    window.__supportCopiedText = "";
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (value) => {
+          window.__supportCopiedText = value;
+        }
+      }
+    });
+  });
+  await page.getByRole("button", { name: "후원 계좌번호 복사" }).click();
+  await expect.poll(() => page.evaluate(() => window.__supportCopiedText)).toBe("0108190144008");
+  await page.keyboard.press("Escape");
+  await expect(modal).toBeHidden();
 });

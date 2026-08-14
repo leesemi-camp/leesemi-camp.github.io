@@ -47,7 +47,7 @@ async function blockFirebaseSdk(page) {
 test("Party dialer redirects to login", async ({ page }) => {
   // 인증되지 않은 상태에서 시스템 로그인 화면으로 이동하는지 확인
   await disableAutoLogin(page);
-  await page.goto("/party-dialer/");
+  await page.goto("/party-dialer/", { waitUntil: "domcontentloaded" });
   await expect(page).toHaveURL(/\/system\/$/);
   await expect(page.locator("#launcher-error")).toBeVisible();
 });
@@ -55,7 +55,7 @@ test("Party dialer redirects to login", async ({ page }) => {
 test("Sponsor dialer redirects to login", async ({ page }) => {
   // 인증되지 않은 상태에서 시스템 로그인 화면으로 이동하는지 확인
   await disableAutoLogin(page);
-  await page.goto("/sponsor-dialer/");
+  await page.goto("/sponsor-dialer/", { waitUntil: "domcontentloaded" });
   await expect(page).toHaveURL(/\/system\/$/);
   await expect(page.locator("#launcher-error")).toBeVisible();
 });
@@ -64,7 +64,7 @@ test("Service shell exposes staff claim helper", async ({ page }) => {
   // 서비스 셸 유틸 함수가 노출되고 리다이렉트 호출이 기록됨
   await disableServiceShellRedirect(page);
   await blockFirebaseSdk(page);
-  await page.goto("/party-dialer/");
+  await page.goto("/party-dialer/", { waitUntil: "domcontentloaded" });
 
   await page.waitForFunction(() => window.__serviceShellTestHooks);
   const result = await page.evaluate(() => {

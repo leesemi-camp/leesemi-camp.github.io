@@ -46,7 +46,7 @@ test("API endpoints respond in browser", async ({ page }, testInfo) => {
   }
 
   // 브라우저 컨텍스트에서 실제 API 응답 여부를 확인한다.
-  await page.goto("/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
 
   for (const request of requests) {
     if (!request.url) {

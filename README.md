@@ -79,8 +79,8 @@
    - 토큰이 필요한 호출은 Cloud Functions/Cloud Run/Worker 프록시에서 처리하고,
      토큰은 Secret Manager 등 서버측 비밀 저장소에 보관하세요.
 4. 공개 현안 데이터는 Firestore 직접 읽기가 아니라 `data.hotspotSnapshotPath`의 정적 JSON으로 제공합니다.
-   - `/map/`은 Firebase SDK를 초기화하지 않고 `data/hotspots.public.json`만 읽습니다.
-   - `/map/edit/`은 staff 계정만 Firestore 원본을 읽고 수정합니다.
+   - `/`은 Firebase SDK를 초기화하지 않고 `data/hotspots.public.json`만 읽습니다.
+   - `/edit/`은 staff 계정만 Firestore 원본을 읽고 수정합니다.
    - 사진은 JSON에 base64로 넣지 않고 Firebase Storage URL만 싣습니다.
 
 ## 3) 설정 파일 입력
@@ -102,7 +102,7 @@
    - 설정: `config.js`의 `mobilityPopulation` (`mode`, `dataPath`, `fields`, `cellSizeMeter`)
 5. (선택) 스프레드시트/외부 API 현안 원문 연동
    - 설정: `config.js`의 `data.issueCatalog`
-   - `enabled: true`로 켜면 `/map/edit`에 `연동 현안 선택(시트)` 드롭다운이 표시됩니다.
+   - `enabled: true`로 켜면 `/edit/`에 `연동 현안 선택(시트)` 드롭다운이 표시됩니다.
    - 저장 시 좌표는 Firestore에 저장하고, 제목/분류/내용은 연동 API 데이터를 우선 사용합니다.
    - 핵심 필드: `apiUrl`, `sourceType`, `rowPath`, `idField`, `titleField`, `categoryIdField`
 6. 공개 현안 스냅샷 경로
@@ -120,7 +120,7 @@
 ## 5) View-T 데이터 오버레이 연결
 
 1. View-T(Open API)에서 토큰키를 발급받습니다.
-   - 접속: https://viewt.ktdb.go.kr/cong/map/page.do (상단 `Open API` 메뉴)
+   - 접속: https://viewt.ktdb.go.kr/cong/page.do (상단 `Open API` 메뉴)
 2. (권장) 토큰은 `config.js`에 직접 넣지 말고 프록시 백엔드에서 주입하세요.
    - 개발/임시 테스트만 `config.js > trafficOverlays.token` 직접 입력
 3. `trafficOverlays.vehicle.url`, `trafficOverlays.pedestrian.url`에 API URL을 입력합니다.

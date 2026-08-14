@@ -11,7 +11,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "serve": "npx serve . -l 5173",
+    "serve": "node scripts/serve-static.mjs",
     "build:boundaries": "node scripts/build-boundary-geojson.mjs",
     "export:hotspots": "node scripts/export-hotspots-public-json.mjs",
     "validate:hotspots": "node scripts/validate-hotspots-public-json.mjs",

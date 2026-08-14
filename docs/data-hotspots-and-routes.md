@@ -22,14 +22,14 @@
 | `data/hasanundong.wfs.xml` | WFS XML | `data.boundarySources` | 사용 | 간접 |
 | `data/dong-boundaries.sample.geojson` | GeoJSON | (fallback) | 기본 설정에서는 미사용(경계가 비어있을 때만) | 단위테스트 fallback 경로로 사용 |
 | `data/pangyo-focused-month-hour.csv` | CSV | `mobilityPopulation.dataPath` | **현재 UI로는 미사용**(토글 DOM 없음) | 사용(엔드포인트 테스트) |
-| `data/hotspots.public.json` | JSON | `data.hotspotSnapshotPath` | 사용(`/map/` 공개 현안 스냅샷) | 사용(엔드포인트 테스트) |
+| `data/hotspots.public.json` | JSON | `data.hotspotSnapshotPath` | 사용(`/` 공개 현안 스냅샷) | 사용(엔드포인트 테스트) |
 | `data/capital-mobility.sample.csv` | CSV | (샘플) | 미사용 | 미사용 |
 | `data/capital-mobility-grid.sample.csv` | CSV | (샘플) | 미사용 | 미사용 |
 
 ### 1.2 실제 로딩 타이밍(코드 기준)
 
 - **동 경계(WFS XML/GeoJSON)**
-  - 진입 페이지: `/map/`, `/map/edit/` (edit는 staff 로그인 성공 후)
+  - 진입 페이지: `/`, `/edit/` (edit는 staff 로그인 성공 후)
   - 호출: `app.js#L1367 loadBoundaries()`가 `config.data.boundarySources`를 순회하며 `fetch(path)`로 로드
   - 포맷 처리:
     - XML: `app.js#L1440~`에서 `gml:posList` 기반 파싱(`emd_cd`, `emd_kor_nm`, `full_nm` 등을 사용)
@@ -37,7 +37,7 @@
 
 - **유동인구/생활이동 CSV/JSON**
   - 로딩 조건: `app.js#L2310 handlePopulationToggle(true)`가 호출될 때만 `fetch(buildPopulationRequestUrl(...))`
-  - 현재 상태: `map/index.html`, `map/edit/index.html`에 `toggle-population-flow` 등 관련 DOM id가 없어 UI로는 토글할 수 없습니다.
+  - 현재 상태: `index.html`, `edit/index.html`에 `toggle-population-flow` 등 관련 DOM id가 없어 UI로는 토글할 수 없습니다.
   - 테스트: `tests/api-files.spec.js`가 `config.js`를 읽어 `mobilityPopulation.dataPath`로 브라우저 `fetch()`를 수행합니다.
 
 ---
@@ -56,7 +56,7 @@
 
 ### 2.2 문서(레코드) 스키마(현재 클라이언트가 쓰는 필드)
 
-편집 페이지(`/map/edit/`)에서 저장 시 payload는 `app.js#L4459 handleHotspotSubmit()`에서 생성됩니다.
+편집 페이지(`/edit/`)에서 저장 시 payload는 `app.js#L4459 handleHotspotSubmit()`에서 생성됩니다.
 
 - 필수(사실상) 좌표/식별
   - `lat`(number), `lng`(number)
@@ -84,11 +84,11 @@
 
 ### 2.3 읽기/표시(열람) 파이프라인
 
-- 공개 열람(`/map/`): `config.js > data.hotspotSnapshotPath`의 정적 JSON을 `fetch()`합니다.
-- 편집(`/map/edit/`): staff 로그인 성공 후 `onSnapshot`으로 Firestore 원본을 실시간 구독합니다.
+- 공개 열람(`/`): `config.js > data.hotspotSnapshotPath`의 정적 JSON을 `fetch()`합니다.
+- 편집(`/edit/`): staff 로그인 성공 후 `onSnapshot`으로 Firestore 원본을 실시간 구독합니다.
 - 정규화: `app.js`의 hotspot record 처리 흐름
   - 좌표 유효성 체크 후, 외부 카탈로그/경계 데이터로 `dongName`/`emdCode`를 보강
-  - `contentTab` 기준으로 `/map/`의 `우리동네 현안` / `우리동네 변화` 탭을 분리
+  - `contentTab` 기준으로 `/`의 `우리동네 현안` / `우리동네 변화` 탭을 분리
   - 정렬: `compareHotspotByTitle`
 - 렌더:
   - 지도 포인트(OL feature): `app.js#L3960 renderHotspots(hotspots)`
@@ -140,12 +140,12 @@ Hotspot은 Point(점) 기반입니다. Route/Trajectory는 LineString(선) 또�
 
 ### 3.2 UI/지도 기능(OpenLayers) 준비
 
-- 열람(`/map/`)
+- 열람(`/`)
   - route 레이어(벡터) 추가 + 스타일(선 색/두께/강조)
   - 리스트 UI(또는 필터)에서 route 선택 시
     - 지도 `fit(extent)`으로 줌/센터 이동
     - 해당 route 강조 및 팝업 표시
-- 편집(`/map/edit/`)
+- 편집(`/edit/`)
   - Draw interaction: `ol.interaction.Draw({ type: "LineString" })`
   - Modify interaction: `ol.interaction.Modify({ source })`
   - 저장/수정/삭제 버튼 및 “편집 모드(지점 vs 경로)” 전환 UI

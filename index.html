@@ -1,124 +1,201 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>성남시의원(판교·운중·백현·대장) 이세미</title>
-  <meta name="description" content="성남시의원(판교·운중·백현·대장) 이세미 공식 페이지">
-  <meta property="og:locale" content="ko_KR">
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="성남시의원(판교·운중·백현·대장) 이세미">
-  <meta property="og:title" content="성남시의원(판교·운중·백현·대장) 이세미">
-  <meta property="og:description" content="성남시의원(판교·운중·백현·대장) 이세미 공식 페이지">
-  <meta property="og:url" content="https://leesemi-camp.github.io/">
-  <meta property="og:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
-  <meta property="og:image:url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
-  <meta property="og:image:secure_url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
-  <meta property="og:image:type" content="image/png">
-  <meta property="og:image:width" content="1550">
-  <meta property="og:image:height" content="450">
-  <meta property="og:image:alt" content="성남시의원(판교·운중·백현·대장) 이세미 링크 미리보기 이미지">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="성남시의원(판교·운중·백현·대장) 이세미">
-  <meta name="twitter:description" content="성남시의원(판교·운중·백현·대장) 이세미 공식 페이지">
-  <meta name="twitter:url" content="https://leesemi-camp.github.io/">
-  <meta name="twitter:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./public-landing.css">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>우리동네 현안도, 이세미입니다</title>
+    <meta name="description" content="판교·운중·백현·대장의 현안과 변화, 안내를 지도에서 확인하세요.">
+    <meta property="og:locale" content="ko_KR">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="성남시의원(판교·운중·백현·대장) 이세미">
+    <meta property="og:title" content="우리동네 현안도, 이세미입니다">
+    <meta property="og:description" content="판교·운중·백현·대장의 현안과 변화, 안내를 지도에서 확인하세요.">
+    <meta property="og:url" content="https://leesemi-camp.github.io/">
+    <meta property="og:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
+    <meta property="og:image:url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
+    <meta property="og:image:secure_url" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1550">
+    <meta property="og:image:height" content="450">
+    <meta property="og:image:alt" content="성남시의원(판교·운중·백현·대장) 이세미 링크 미리보기 이미지">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="우리동네 현안도, 이세미입니다">
+    <meta name="twitter:description" content="판교·운중·백현·대장의 현안과 변화, 안내를 지도에서 확인하세요.">
+    <meta name="twitter:url" content="https://leesemi-camp.github.io/">
+    <meta name="twitter:image" content="https://leesemi-camp.github.io/assets/landing/main-image.png">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="preload" href="/data/dong-boundaries.optimized.geojson" as="fetch" type="application/geo+json" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css">
+    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./map/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js" defer></script>
+    <script src="./app.js" type="module"></script>
 </head>
-<body>
-  <main class="public-landing">
-    <section class="public-hero" aria-label="공식 채널 배너">
-      <a
-        class="public-banner-link"
-        href="https://youtube.com/@leesemi114"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="이세미 유튜브 채널 바로가기"
-      >
-        <div class="public-banner">
-          <img
-            class="public-banner-image"
-            src="/assets/landing/main-image.png"
-            alt="성남시의원(판교·운중·백현·대장) 이세미"
-            width="1550"
-            height="450"
-          >
-        </div>
-      </a>
+<body data-map-mode="view">
+<main class="layout">
+    <section id="app-shell" class="app-shell" aria-live="polite">
+        <header class="topbar">
+            <div class="topbar-texts">
+                <div class="topbar-title-row">
+                    <h2 class="topbar-title">우리동네 현안도, 이세미입니다</h2>
+                    <span id="total-issue-count" class="topbar-total-issue-count">총 현안 건수: 0건</span>
+                </div>
+            </div>
+            <div class="topbar-actions">
+                <nav class="utility-nav" aria-label="이세미 소개 및 후원">
+                    <a class="utility-action" href="https://litt.ly/leesemi114" target="_blank" rel="noopener noreferrer" aria-label="이세미 소개 및 링크">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10"/>
+                            <circle cx="12" cy="10" r="3"/>
+                            <path d="M7 20.662a6 6 0 0 1 10 0"/>
+                        </svg>
+                        <span class="utility-label">이세미</span>
+                        <svg class="utility-external-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M15 3h6v6"/>
+                            <path d="M10 14 21 3"/>
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        </svg>
+                    </a>
+                    <span class="utility-divider" aria-hidden="true"></span>
+                    <button id="support-modal-open-btn" class="utility-action" type="button" aria-label="이세미 후원 안내">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M19.414 14.414C21 12.828 22 11.5 22 9.5A5.5 5.5 0 0 0 16.5 4c-1.74 0-3.41.81-4.5 2.09C10.91 4.81 9.24 4 7.5 4A5.5 5.5 0 0 0 2 9.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+                            <path d="m12 6.09-3.96 3.96a2.1 2.1 0 0 0 2.97 2.97l.99-.99"/>
+                            <path d="m14 13 2 2"/>
+                            <path d="m15 12 2 2"/>
+                        </svg>
+                        <span class="utility-label">후원</span>
+                    </button>
+                </nav>
+            </div>
+        </header>
 
+        <section class="workspace">
+            <div class="map-wrap map-wrap-initializing">
+                <div class="content-tabs map-layer-tabs" aria-label="지도 레이어 선택">
+                    <button type="button" class="content-tab content-tab-active content-tab-visible" data-content-tab="issues" aria-pressed="true">
+                        <svg class="content-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>
+                            <path d="M12 8v4"/>
+                            <path d="M12 16h.01"/>
+                        </svg>
+                        <span>현안</span>
+                    </button>
+                    <button type="button" class="content-tab content-tab-visible" data-content-tab="changes" aria-pressed="true">
+                        <svg class="content-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+                            <path d="M20 3v4"/>
+                            <path d="M22 5h-4"/>
+                            <path d="M4 17v2"/>
+                            <path d="M5 18H3"/>
+                        </svg>
+                        <span>변화</span>
+                    </button>
+                    <button type="button" class="content-tab" data-content-tab="notices" aria-pressed="false">
+                        <svg class="content-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m3 11 18-5v12L3 14v-3z"/>
+                            <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
+                        </svg>
+                        <span>안내</span>
+                    </button>
+                </div>
+                <div id="map" class="map" role="application" aria-label="동별 우리동네 지도" tabindex="0"></div>
+                <div id="map-popup" class="map-popup hidden" aria-hidden="true"></div>
+            </div>
+
+            <aside class="side-panel" aria-label="지도 정보">
+                <button id="mobile-sheet-toggle" type="button" class="mobile-sheet-grip" aria-expanded="true" aria-controls="mobile-sheet-content" aria-label="지도 정보 시트 접기"></button>
+                <div id="mobile-sheet-content" class="mobile-sheet-content">
+                    <div class="mobile-sheet-tabs" role="tablist" aria-label="지도 정보 보기">
+                        <button type="button" class="mobile-sheet-tab mobile-sheet-tab-active" data-mobile-sheet-tab="stats" role="tab" aria-selected="true" aria-controls="mobile-stats-panel">통계</button>
+                        <button type="button" class="mobile-sheet-tab" data-mobile-sheet-tab="issues" role="tab" aria-selected="false" aria-controls="issue-list-panel" disabled>현안</button>
+                    </div>
+                    <div id="mobile-stats-panel" class="mobile-sheet-section mobile-sheet-section-active" data-mobile-sheet-section="stats" role="tabpanel">
+                        <section id="issue-stats-summary" class="issue-stats-summary" aria-live="polite"></section>
+                        <section id="common-pledge-panel" class="pledge-panel">
+                            <h3 id="common-pledge-title">지역구 공통 현안</h3>
+                            <ul id="common-pledge-list" class="pledge-list"></ul>
+                        </section>
+                    </div>
+
+                    <section id="issue-list-panel" class="issue-list-panel issue-list-panel-hidden mobile-sheet-section" data-mobile-sheet-section="issues" role="tabpanel" aria-hidden="true">
+                        <div class="issue-list-head">
+                            <h3 id="issue-list-title" class="list-title">우리동네 현안</h3>
+                            <button id="issue-list-clear-filter-btn" type="button" class="issue-list-clear-btn" data-action="clear-issue-filter">전체 보기</button>
+                        </div>
+                        <ul id="spot-list" class="spot-list"></ul>
+                    </section>
+                </div>
+            </aside>
+        </section>
+        <section class="issue-helper" aria-label="현안 제보 안내">
+            <div id="issue-helper-bubble" class="issue-helper-bubble">
+                <button id="issue-helper-close-btn" type="button" class="issue-helper-close-btn" aria-label="현안 안내 말풍선 닫기">×</button>
+                <p class="issue-helper-quote">동네 이야기를 들려주세요 ☺</p>
+                <div class="issue-helper-contact-dock" aria-label="현안 제보 연락처">
+                    <a href="sms:01081901440" class="issue-helper-contact-link issue-helper-contact-link-row" aria-label="현안 추가 문의 문자 보내기">
+                        <span class="issue-helper-contact-icon" aria-hidden="true">📱</span>
+                        <span>010-8190-1440</span>
+                    </a>
+                    <a href="mailto:leesemi114@gmail.com" class="issue-helper-contact-link issue-helper-contact-link-row" aria-label="현안 추가 문의 이메일 보내기">
+                        <span class="issue-helper-contact-icon" aria-hidden="true">✉️</span>
+                        <span>leesemi114@gmail.com</span>
+                    </a>
+                </div>
+            </div>
+            <button
+                id="issue-helper-toggle"
+                class="issue-helper-toggle"
+                type="button"
+                aria-controls="issue-helper-bubble"
+                aria-expanded="true"
+                aria-label="현안 안내 메시지 열기 또는 닫기"
+            >
+                <img
+                    class="issue-helper-character"
+                    src="/assets/character/03_thumbs_up.png"
+                    alt="현안 제보를 안내하는 캐릭터"
+                    width="424"
+                    height="512"
+                    loading="lazy"
+                    decoding="async"
+                >
+            </button>
+        </section>
     </section>
-
-    <section class="public-card">
-      <h1>성남시의원(판교·운중·백현·대장) 이세미</h1>
-      <p class="public-muted">원하는 페이지로 바로 이동하세요.</p>
-      <div class="public-actions">
-        <a class="public-link public-link-map" href="/map/">
-          <strong>우리동네 현안도</strong>
-          <span>동별 현안 알아보기</span>
-        </a>
-        <a class="public-link public-link-profile" href="https://litt.ly/leesemi114" target="_blank" rel="noopener noreferrer">
-          <strong>성남시의원(판교·운중·백현·대장) 이세미</strong>
-          <span>외부 소개 페이지로 이동</span>
-        </a>
-      </div>
-
-      <div class="public-actions public-support-actions" aria-label="후원 및 영수증 신청">
-        <a
-          class="public-link public-link-support-donation"
-          href="https://aq.gy/f/VwREF"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <strong>이세미 후원하기</strong>
-          <span>농협 010-8190-1440-08</span>
-        </a>
-        <a
-          class="public-link public-link-support-receipt"
-          href="https://forms.gle/JQjVgYGDyxUYFtmh7"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <strong>후원 영수증 신청하기</strong>
-          <span>영수증 발급 접수</span>
-        </a>
-      </div>
-
-      <nav class="public-social-inline" aria-label="공식 SNS 바로가기">
-        <a
-          class="public-social-icon-link"
-          href="https://youtube.com/@leesemi114"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="유튜브 채널 바로가기"
-          title="YouTube"
-        >
-          <img src="/assets/landing/icons/youtube.svg" alt="" aria-hidden="true" width="24" height="24">
-        </a>
-        <a
-          class="public-social-icon-link"
-          href="https://www.instagram.com/leesemi114"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="인스타그램 바로가기"
-          title="Instagram"
-        >
-          <img src="/assets/landing/icons/instagram.svg" alt="" aria-hidden="true" width="24" height="24">
-        </a>
-        <a
-          class="public-social-icon-link"
-          href="https://facebook.com/leesemi114"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="페이스북 바로가기"
-          title="Facebook"
-        >
-          <img src="/assets/landing/icons/facebook.svg" alt="" aria-hidden="true" width="24" height="24">
-        </a>
-      </nav>
-      <a class="public-system-link" href="/system/">시스템 로그인(/system)</a>
-    </section>
-  </main>
+    <div id="support-modal" class="support-modal hidden" role="dialog" aria-modal="true" aria-labelledby="support-modal-title" aria-hidden="true">
+        <div class="support-modal-backdrop" data-support-modal-close></div>
+        <section class="support-modal-panel" tabindex="-1">
+            <header class="support-modal-head">
+                <h2 id="support-modal-title">후원 안내</h2>
+                <button type="button" class="support-modal-close" data-support-modal-close aria-label="후원 안내 닫기">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M18 6 6 18"/>
+                        <path d="m6 6 12 12"/>
+                    </svg>
+                </button>
+            </header>
+            <div class="support-modal-body">
+                <p class="support-committee-name">성남시의원이세미후원회</p>
+                <div class="support-account-card">
+                    <span class="support-account-bank">농협</span>
+                    <strong class="support-account-number">010-8190-1440-08</strong>
+                    <button id="support-account-copy-btn" type="button" class="support-copy-btn" aria-label="후원 계좌번호 복사">
+                        <svg class="support-copy-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                        </svg>
+                        <svg class="support-check-icon hidden" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M20 6 9 17l-5-5"/>
+                        </svg>
+                        <span class="support-copy-label">복사</span>
+                    </button>
+                </div>
+                <p class="support-modal-note">보내주시는 응원에 감사드립니다.<br>우리 동네의 현안과 변화를 더 꼼꼼히 살피겠습니다.</p>
+            </div>
+        </section>
+    </div>
+</main>
 </body>
 </html>

@@ -187,7 +187,7 @@ import APP_CONFIG from './config.js';
       {
         label: "선거구 지도 서비스",
         description: "동 경계와 혼잡 지점을 관리합니다.",
-        href: "/map/",
+        href: "/edit/",
         tone: "slate"
       }
     ];

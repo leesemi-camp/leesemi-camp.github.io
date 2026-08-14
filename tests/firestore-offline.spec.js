@@ -54,7 +54,7 @@ test("Spot list stays hidden when Firestore is offline", async ({ page }) => {
   // Firestore 오프라인 시 필터 선택 전 상세 목록은 보이지 않음
   await blockFirestore(page);
   await mockEmptyHotspotSnapshot(page);
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await waitForOfflineMapReady(page);
   await expect(page.locator("#issue-list-panel")).toHaveClass(/issue-list-panel-hidden/);
 });
@@ -63,7 +63,7 @@ test("Total issue count shows 0 when Firestore is offline", async ({ page }) => 
   // Firestore 오프라인 시 총 현안 건수 0건 표시 (updateTotalIssueCountLabel 커버리지)
   await blockFirestore(page);
   await mockEmptyHotspotSnapshot(page);
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await waitForOfflineMapReady(page);
   const countEl = page.locator("#total-issue-count");
   const text = await countEl.textContent();
@@ -74,7 +74,7 @@ test("Issue stats shows empty state when Firestore is offline", async ({ page })
   // Firestore 오프라인 시 현안 통계 빈 상태 (renderIssueStatsSummary([]) 커버리지)
   await blockFirestore(page);
   await mockEmptyHotspotSnapshot(page);
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await waitForOfflineMapReady(page);
   const statsEl = page.locator("#issue-stats-summary");
   const html = await statsEl.innerHTML();
@@ -86,7 +86,7 @@ test("App shell is still visible when Firestore is offline", async ({ page }) =>
   // Firestore 장애 시에도 앱 셸이 표시 유지 (view mode는 auth 없이 showAppShell 호출)
   await blockFirestore(page);
   await mockEmptyHotspotSnapshot(page);
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await waitForOfflineMapReady(page);
   await expect(page.locator("#app-shell")).toBeVisible();
 });
@@ -95,7 +95,7 @@ test("Common pledge list is rendered when Firestore is offline", async ({ page }
   // Firestore 오프라인 시 공통 현안 목록 렌더링 확인
   await blockFirestore(page);
   await mockEmptyHotspotSnapshot(page);
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await waitForOfflineMapReady(page);
   // 공통 현안은 config.data.commonPledges 에서 렌더링됨
   const pledgeList = page.locator("#common-pledge-list");
@@ -116,7 +116,7 @@ test("Common pledge tags use squircle rhythm", async ({ page }) => {
       lng: 127.111
     }
   ]);
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#common-pledge-list .pledge-common-tag", { timeout: 30000 });
   const rhythm = await page.evaluate(() => {
     const tagEl = document.querySelector("#common-pledge-list .pledge-common-tag");
@@ -162,7 +162,7 @@ test("View mode does not request Firestore", async ({ page }) => {
       })
     });
   });
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect.poll(() => snapshotRequests).toBe(1);
   expect(firestoreRequests).toHaveLength(0);
 });

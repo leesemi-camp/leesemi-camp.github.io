@@ -7,10 +7,9 @@
 ## 0) 엔트리 페이지 / 역할
 
 - 공개(누구나)
-  - `/` → `index.html`
-  - `/map/`(현안 열람) → `map/index.html` + `config.js` + `app.js`
+  - `/`(현안 열람) → `index.html` + `config.js` + `app.js`
 - 내부/편집(선거사무원 staff)
-  - `/map/edit/`(현안 등록/수정) → `map/edit/index.html` + `config.js` + `app.js`
+  - `/edit/`(현안 등록/수정) → `edit/index.html` + `config.js` + `app.js`
   - `/system/`(런처) → `system/index.html` + `config.js` + `launcher.js`
 - 내부 서비스 셸(로그인 가드)
   - `/party-dialer/`, `/sponsor-dialer/` → 각 `index.html` + `config.js` + `service-shell.js`
@@ -22,36 +21,39 @@
 
 | ID | 역할 | 페이지 | 핵심 목표 |
 |---:|---|---|---|
-| PUB-001 | 공개 | `/` | 랜딩에서 `/map/` 및 `/system/`로 이동 |
-| PUB-002 | 공개 | `/map/` | 지도 컨테이너/리스트가 렌더링되고 앱 부트스트랩이 수행됨 |
-| PUB-003 | 공개 | `/map/` | 현안 카드 렌더링 규칙(메모 유무) |
-| PUB-004 | 공개 | `/map/` | “개별/그룹 보기” 전환 및 리스트 포커싱 흐름 |
-| PUB-005 | 공개 | `/map/` | 동 선택(경계 클릭) → 동 필터 적용/해제 |
-| PUB-006 | 공개 | `/map/` | 리스트 클릭 → 지도 이동/하이라이트/팝업 |
-| STF-001 | staff | `/map/edit/` | 미로그인 시 로그인 패널 노출 |
-| STF-002 | staff | `/map/edit/` | 로그인 + staff claim 확인 후 편집 UI 진입 및 로그아웃 |
-| STF-003 | staff | `/map/edit/` | 좌표 선택(지도 클릭/현위치) → 폼 반영(모바일 시트 포함) |
-| STF-004 | staff | `/map/edit/` | 현안 추가/수정(저장) |
-| STF-005 | staff | `/map/edit/` | 현안 삭제 |
-| STF-006 | staff | `/map/edit/` | 외부 현안 카탈로그(issueCatalog) 연동 선택/잠금 |
-| OVR-001 | 공개/편집 | `/map/`, `/map/edit/` | 교통/인구 오버레이 on/off 및 유동인구 보기(코드상) |
+| PUB-001 | 공개 | `/` | 현안도 렌더링 및 이세미/후원 유틸리티 메뉴 |
+| PUB-002 | 공개 | `/` | 지도 컨테이너/리스트가 렌더링되고 앱 부트스트랩이 수행됨 |
+| PUB-003 | 공개 | `/` | 현안 카드 렌더링 규칙(메모 유무) |
+| PUB-004 | 공개 | `/` | “개별/그룹 보기” 전환 및 리스트 포커싱 흐름 |
+| PUB-005 | 공개 | `/` | 동 선택(경계 클릭) → 동 필터 적용/해제 |
+| PUB-006 | 공개 | `/` | 리스트 클릭 → 지도 이동/하이라이트/팝업 |
+| STF-001 | staff | `/edit/` | 미로그인 시 로그인 패널 노출 |
+| STF-002 | staff | `/edit/` | 로그인 + staff claim 확인 후 편집 UI 진입 및 로그아웃 |
+| STF-003 | staff | `/edit/` | 좌표 선택(지도 클릭/현위치) → 폼 반영(모바일 시트 포함) |
+| STF-004 | staff | `/edit/` | 현안 추가/수정(저장) |
+| STF-005 | staff | `/edit/` | 현안 삭제 |
+| STF-006 | staff | `/edit/` | 외부 현안 카탈로그(issueCatalog) 연동 선택/잠금 |
+| OVR-001 | 공개/편집 | `/`, `/edit/` | 교통/인구 오버레이 on/off 및 유동인구 보기(코드상) |
 | SYS-001 | staff | `/system/` | 런처에서 로그인/권한 확인 후 서비스 버튼 노출 |
 | SYS-002 | staff | `/party-dialer/`, `/sponsor-dialer/` | 미로그인/권한 없음이면 런처로 리다이렉트 |
 | OPS-001 | 운영 | (테스트) | `config.js` 기준 데이터/엔드포인트 응답 확인 |
 
 ---
 
-## PUB-001: 랜딩에서 지도/시스템으로 이동
+## PUB-001: 루트 현안도와 유틸리티 메뉴
 
 - Entry: `/` (`index.html`)
 - 구현
-  - 정적 링크: `.public-link-map` → `/map/`, `.public-system-link` → `/system/`
+  - 공개 현안도: `#map`, `#spot-list`
+  - 이세미 링크: `https://litt.ly/leesemi114`
+  - 후원 안내: `#support-modal`
 - 테스트
-  - `tests/smoke.spec.js`: `Landing page loads`
+  - `tests/smoke.spec.js`: `Root map page loads`
+  - `tests/popup-interactions.spec.js`: `Root page has profile utility link`, `Support utility opens donation modal`
 
 ## PUB-002: 지도(View) 부트스트랩 및 기본 렌더링
 
-- Entry: `/map/` (`map/index.html`)
+- Entry: `/` (`index.html`)
 - 구현(핵심 흐름)
   - 모드 판별: `app.js#L271` `resolveMapMode()`
   - 초기화 시퀀스: `app.js#L232` `init()`의 view 분기
@@ -64,7 +66,7 @@
 
 ## PUB-003: 현안 카드 렌더링(메모 유무)
 
-- Entry: `/map/`
+- Entry: `/`
 - 구현(리스트 렌더링)
   - `app.js#L4159` `renderHotspotList(hotspots)`
   - 테스트 훅 노출: `app.js#L4213` `exposeSpotListTestHooks()` → `window.__spotListTestHooks.renderHotspotList`
@@ -74,7 +76,7 @@
 
 ## PUB-004: 현안 열람(통계 필터)
 
-- Entry: `/map/` (편집 화면에도 동일 통계/리스트가 존재)
+- Entry: `/` (편집 화면에도 동일 통계/리스트가 존재)
 - 사용자 흐름
   - 현안 통계의 카테고리/동 항목을 누르면 해당 조건의 현안 카드만 리스트에 표시됩니다.
   - “전체 보기” 버튼으로 카테고리/동 필터를 해제합니다.
@@ -87,7 +89,7 @@
 
 ## PUB-005: 동 선택(경계 클릭) → 동 필터 적용/해제
 
-- Entry: `/map/`
+- Entry: `/`
 - 사용자 흐름
   - 지도에서 동 경계를 클릭하면 해당 동 현안만 보이고, “전체 보기”로 필터를 해제할 수 있습니다.
 - 구현(핵심)
@@ -99,7 +101,7 @@
 
 ## PUB-006: 리스트 클릭 → 지도 이동/하이라이트/팝업
 
-- Entry: `/map/`
+- Entry: `/`
 - 사용자 흐름
   - 리스트에서 특정 현안을 클릭하면 지도가 해당 위치로 이동하고 팝업이 열립니다.
 - 구현
@@ -112,7 +114,7 @@
 
 ## STF-001: 편집 진입 시 로그인 패널 노출
 
-- Entry: `/map/edit/` (`map/edit/index.html`)
+- Entry: `/edit/` (`edit/index.html`)
 - 구현(핵심)
   - 편집 모드 분기: `app.js#L271` `resolveMapMode()` → edit 모드
   - 로그인 패널 UI: `app.js#L1102` `showLoginPanel(message, isError)`
@@ -121,7 +123,7 @@
 
 ## STF-002: 로그인/권한(staff claim) 확인 후 편집 UI 진입 + 로그아웃
 
-- Entry: `/map/edit/`
+- Entry: `/edit/`
 - 구현(핵심)
   - auth 상태 처리: `app.js#L1051` `onAuthStateChanged(user)`
   - 권한 확인: `app.js#L5022` `resolveStaffAccess(user)` / `hasStaffClaim(...)`
@@ -132,7 +134,7 @@
 
 ## STF-003: 좌표 선택(지도 클릭/현위치) → 폼 반영 (모바일 레이아웃 포함)
 
-- Entry: `/map/edit/`
+- Entry: `/edit/`
 - 구현(핵심)
   - 지도 클릭 좌표: `app.js#L1186` `ensureMapReady()` singleclick에서 `setSelectedCoord(...)` 경로
   - 현위치: `app.js#L4789` `useCurrentLocationForSpot(triggerButton)` → geolocation → `setSelectedCoord(...)`
@@ -142,7 +144,7 @@
 
 ## STF-004: 현안 추가/수정(저장)
 
-- Entry: `/map/edit/`
+- Entry: `/edit/`
 - 구현(핵심)
   - 폼 submit: `app.js#L309` `bindUiEvents()`에서 `#spot-form` submit → `app.js#L4459` `handleHotspotSubmit(event)`
   - 편집 모드: `enterHotspotEditMode(spot)` / `exitHotspotEditMode(resetForm)`
@@ -152,7 +154,7 @@
 
 ## STF-005: 현안 삭제
 
-- Entry: `/map/edit/`
+- Entry: `/edit/`
 - 구현(핵심)
   - 리스트의 삭제 버튼: `app.js#L309` `bindUiEvents()`에서 `data-action='delete-spot'` → `app.js#L4648` `deleteHotspot(spotId)`
 - 테스트
@@ -160,7 +162,7 @@
 
 ## STF-006: 외부 현안 카탈로그(issueCatalog) 연동 선택/잠금
 
-- Entry: `/map/edit/`
+- Entry: `/edit/`
 - 전제: `config.js`의 `data.issueCatalog.enabled: true` + `apiUrl` 설정
 - 구현(핵심)
   - 설정: `app.js#L722` `getIssueCatalogConfig()`
@@ -173,7 +175,7 @@
 
 ## OVR-001: 교통/유동인구 오버레이 on/off (코드상) + 유동인구 보기
 
-- Entry: `/map/`, `/map/edit/`
+- Entry: `/`, `/edit/`
 - 구현(코드상 핵심)
   - 교통 오버레이 UI/상태: `app.js#L3137` `updateOverlayControls()` / `app.js#L3216` `handleOverlayToggle(...)`
   - 교통 오버레이 URL: `app.js#L3405` `buildOverlayRequestUrl(...)`

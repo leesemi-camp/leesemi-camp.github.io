@@ -23,7 +23,7 @@ test.afterEach(async ({ page }, testInfo) => {
 
 test("Issue helper toggle collapses the bubble", async ({ page }) => {
   // 현안 안내 말풍선 토글 버튼 클릭 시 접힘 (issueHelperToggleButton 이벤트 핸들러)
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#issue-helper-toggle");
   const toggleBtn = page.locator("#issue-helper-toggle");
   await toggleBtn.click();
@@ -34,7 +34,7 @@ test("Issue helper toggle collapses the bubble", async ({ page }) => {
 
 test("Issue helper toggle re-expands the bubble", async ({ page }) => {
   // 현안 안내 말풍선을 접었다가 다시 펼침
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#issue-helper-toggle");
   const toggleBtn = page.locator("#issue-helper-toggle");
   await toggleBtn.click(); // 접기
@@ -45,7 +45,7 @@ test("Issue helper toggle re-expands the bubble", async ({ page }) => {
 
 test("Issue helper re-expands with opening animation", async ({ page }) => {
   // 다시 펼칠 때도 issue-helper-opening 상태로 등장 애니메이션을 적용함
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#issue-helper-toggle");
   const helper = page.locator(".issue-helper");
   const toggleBtn = page.locator("#issue-helper-toggle");
@@ -68,7 +68,7 @@ test("Issue helper re-expands with opening animation", async ({ page }) => {
 
 test("Issue helper close button collapses the bubble", async ({ page }) => {
   // 현안 안내 말풍선 닫기 버튼 클릭 (issueHelperCloseButton 이벤트 핸들러)
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#issue-helper-close-btn");
   // 닫기 버튼 클릭
   await page.locator("#issue-helper-close-btn").click({ force: true });
@@ -79,7 +79,7 @@ test("Issue helper close button collapses the bubble", async ({ page }) => {
 
 test("Issue helper close button uses closing state", async ({ page }) => {
   // 닫기 버튼 클릭 시 즉시 사라지지 않고 닫힘 상태를 거친다.
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#issue-helper-close-btn");
   await page.locator("#issue-helper-close-btn").click({ force: true });
 
@@ -98,7 +98,7 @@ test("Issue helper close button uses closing state", async ({ page }) => {
 
 test("Issue helper collapsed class applied after close", async ({ page }) => {
   // 닫기 후 issue-helper-collapsed 클래스가 적용됨
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#issue-helper-close-btn");
   await page.locator("#issue-helper-close-btn").click({ force: true });
   const helper = page.locator(".issue-helper");
@@ -107,7 +107,7 @@ test("Issue helper collapsed class applied after close", async ({ page }) => {
 
 test("Escape key when lightbox hidden does not error", async ({ page }) => {
   // 라이트박스가 닫혀 있을 때 Escape 키는 아무 동작 없음 (keydown 핸들러 early return 경로)
-  await page.goto("/map/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#app-shell");
   await page.keyboard.press("Escape");
   // 앱이 정상 상태를 유지해야 함

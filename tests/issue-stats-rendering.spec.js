@@ -50,11 +50,11 @@ async function waitForHooks(page) {
       stats
     );
   }, null, { timeout: 15000 });
-  await page.goto("/map/", { waitUntil: "domcontentloaded" });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   try {
     await waitForReady();
   } catch (error) {
-    await page.goto("/map/", { waitUntil: "domcontentloaded" });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await waitForReady();
   }
 }
@@ -548,7 +548,7 @@ test("Injected notice data survives late public snapshot", async ({ page }) => {
     });
   });
 
-  await page.goto("/map/", { waitUntil: "domcontentloaded" });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await snapshotRequested;
   await page.waitForFunction(() => {
     return (

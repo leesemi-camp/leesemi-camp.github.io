@@ -33,7 +33,7 @@ const APP_CONFIG = {
       {
         label: "선거구 지도 서비스",
         description: "동 경계와 지역 현안 조회/수정",
-        href: "/map/edit/",
+        href: "/edit/",
         tone: "slate"
       },
       {

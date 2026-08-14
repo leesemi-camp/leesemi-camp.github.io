@@ -33,12 +33,12 @@ const APP_CONFIG = {
   },
   launcher: {
     systemPath: "/system/",
-    // 루트 랜딩 페이지에서 보여줄 서비스 버튼 목록
+    // 시스템 런처에서 보여줄 서비스 버튼 목록
     services: [
       {
         label: "선거구 지도 서비스",
         description: "동 경계와 지역 현안 조회/수정",
-        href: "/map/edit/",
+        href: "/edit/",
         tone: "slate"
       },
       {
@@ -96,7 +96,7 @@ const APP_CONFIG = {
     boundaryHaloColor: "rgba(255,255,255,0.95)",
     boundaryHaloWidth: 6,
     issueCatalog: {
-      // true면 /map/edit에서 "연동 현안 선택" 드롭다운을 표시합니다.
+      // true면 /edit에서 "연동 현안 선택" 드롭다운을 표시합니다.
       enabled: false,
       // Apps Script Web App(JSON) 또는 시트 연계 API URL
       apiUrl: "",
@@ -122,7 +122,7 @@ const APP_CONFIG = {
       // true면 좌표 저장 시 연동 현안 선택을 필수화
       requireSelection: false
     },
-    // 공개 열람 화면(/map/)은 Firestore 대신 이 정적 JSON 스냅샷을 읽습니다.
+    // 공개 열람 화면(/)은 Firestore 대신 이 정적 JSON 스냅샷을 읽습니다.
     issueCollection: "crowd_hotspots",
     hotspotSnapshotPath: "/data/hotspots.public.json"
   },

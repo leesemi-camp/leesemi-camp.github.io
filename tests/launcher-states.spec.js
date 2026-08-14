@@ -40,14 +40,14 @@ async function blockFirebaseSdk(page) {
 test("Launcher error section is visible on missing session", async ({ page }) => {
   // 세션 없을 때 에러 섹션이 표시됨
   await disableAutoLogin(page);
-  await page.goto("/system/");
+  await page.goto("/system/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#launcher-error")).toBeVisible();
 });
 
 test("Launcher error message contains session failure text", async ({ page }) => {
   // 에러 메시지에 세션 안내 문구 포함 확인
   await disableAutoLogin(page);
-  await page.goto("/system/");
+  await page.goto("/system/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#launcher-error")).toBeVisible();
   const messageText = await page.locator("#launcher-error-message").textContent();
   expect(messageText).toContain("로그인 세션을 확인하지 못했습니다");
@@ -56,7 +56,7 @@ test("Launcher error message contains session failure text", async ({ page }) =>
 test("Launcher login button is visible in error state", async ({ page }) => {
   // 에러 상태에서 로그인 버튼 표시 확인
   await disableAutoLogin(page);
-  await page.goto("/system/");
+  await page.goto("/system/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#launcher-error")).toBeVisible();
   await expect(page.locator("#launcher-login-btn")).toBeVisible();
   await expect(page.locator("#launcher-login-btn")).toBeEnabled();
@@ -65,7 +65,7 @@ test("Launcher login button is visible in error state", async ({ page }) => {
 test("Launcher loading section is hidden in error state", async ({ page }) => {
   // 에러 상태에서 로딩 섹션이 숨겨짐 확인
   await disableAutoLogin(page);
-  await page.goto("/system/");
+  await page.goto("/system/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#launcher-error")).toBeVisible();
   await expect(page.locator("#launcher-loading")).toBeHidden();
 });
@@ -73,7 +73,7 @@ test("Launcher loading section is hidden in error state", async ({ page }) => {
 test("Launcher shell is hidden in error state", async ({ page }) => {
   // 에러 상태에서 서비스 셸이 숨겨짐 확인
   await disableAutoLogin(page);
-  await page.goto("/system/");
+  await page.goto("/system/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#launcher-error")).toBeVisible();
   await expect(page.locator("#launcher-shell")).toBeHidden();
 });
@@ -81,7 +81,7 @@ test("Launcher shell is hidden in error state", async ({ page }) => {
 test("Launcher renders at least one service button", async ({ page }) => {
   // renderServiceButtons()가 실행되어 버튼이 렌더링됨 확인
   await disableAutoLogin(page);
-  await page.goto("/system/");
+  await page.goto("/system/", { waitUntil: "domcontentloaded" });
   // 에러 상태가 될 때까지 기다린 후 서비스 버튼 확인
   await expect(page.locator("#launcher-error")).toBeVisible();
   const serviceButtonCount = await page.locator("#service-buttons .service-link").count();
@@ -91,7 +91,7 @@ test("Launcher renders at least one service button", async ({ page }) => {
 test("Launcher error message mentions Authorized domains check", async ({ page }) => {
   // 에러 메시지에 Authorized domains 안내 포함 확인
   await disableAutoLogin(page);
-  await page.goto("/system/");
+  await page.goto("/system/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#launcher-error")).toBeVisible();
   const messageText = await page.locator("#launcher-error-message").textContent();
   expect(messageText).toContain("Firebase Authentication Authorized domains");
@@ -100,7 +100,7 @@ test("Launcher error message mentions Authorized domains check", async ({ page }
 test("Launcher service buttons include tone classes and new tab link", async ({ page }) => {
   // 서비스 버튼에 톤 클래스와 새 탭 링크 속성이 반영됨
   await disableAutoLogin(page);
-  await page.goto("/system/");
+  await page.goto("/system/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#launcher-error")).toBeVisible();
 
   await expect(page.locator("#service-buttons .tone-sage")).toHaveCount(1);
@@ -114,7 +114,7 @@ test("Launcher service buttons include tone classes and new tab link", async ({ 
 test("Launcher test hooks expose auth error messages", async ({ page }) => {
   // 로그인 에러 메시지 매핑 함수가 정상 동작함
   await disableAutoLogin(page);
-  await page.goto("/system/");
+  await page.goto("/system/", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__launcherTestHooks);
 
   const messages = await page.evaluate(() => {
@@ -134,7 +134,7 @@ test("Launcher test hooks expose auth error messages", async ({ page }) => {
 test("Launcher test hooks read/write auto login flag", async ({ page }) => {
   // 자동 로그인 플래그 읽기/쓰기 동작 확인
   await disableAutoLogin(page);
-  await page.goto("/system/");
+  await page.goto("/system/", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__launcherTestHooks);
 
   const result = await page.evaluate(() => {
@@ -154,7 +154,7 @@ test("Launcher shows init failure when Firebase SDK is blocked", async ({ page }
   // Firebase SDK 로드 실패 시 초기화 실패 메시지가 표시됨
   await disableAutoLogin(page);
   await blockFirebaseSdk(page);
-  await page.goto("/system/");
+  await page.goto("/system/", { waitUntil: "domcontentloaded" });
 
   await expect(page.locator("#launcher-error")).toBeVisible();
   const messageText = await page.locator("#launcher-error-message").textContent();

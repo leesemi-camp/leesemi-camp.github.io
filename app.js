@@ -107,6 +107,8 @@ import APP_CONFIG from './config.js';
     mapPopupDismissClearsDongFilter: false,
     mapPopupClearsHotspotSelection: false,
     mapPopupReturnFocusElement: null,
+    supportCopyResetTimer: null,
+    supportModalReturnFocusElement: null,
     spotListRefreshTimer: null,
     contentTabTransitionTimer: null,
     hotspotStyleAnimations: new Set(),
@@ -342,6 +344,8 @@ import APP_CONFIG from './config.js';
   const ISSUE_HELPER_CLOSE_ANIMATION_MS = 180;
   const ISSUE_HELPER_OPEN_ANIMATION_MS = 180;
   const ISSUE_HELPER_MOBILE_AUTO_COLLAPSE_MS = 6500;
+  const SUPPORT_ACCOUNT_COPY_VALUE = "0108190144008";
+  const SUPPORT_COPY_RESET_MS = 1800;
 
   const elements = {
     loginPanel: document.getElementById("login-panel"),
@@ -402,6 +406,11 @@ import APP_CONFIG from './config.js';
     issueHelperBubble: document.getElementById("issue-helper-bubble"),
     issueHelperCloseButton: document.getElementById("issue-helper-close-btn"),
     issueHelperToggleButton: document.getElementById("issue-helper-toggle"),
+    supportModal: document.getElementById("support-modal"),
+    supportModalPanel: document.querySelector(".support-modal-panel"),
+    supportModalOpenButton: document.getElementById("support-modal-open-btn"),
+    supportModalCloseTargets: Array.from(document.querySelectorAll("[data-support-modal-close]")),
+    supportAccountCopyButton: document.getElementById("support-account-copy-btn"),
     toggleVehicleFlow: document.getElementById("toggle-vehicle-flow"),
     togglePedestrianFlow: document.getElementById("toggle-pedestrian-flow"),
     overlayStatus: document.getElementById("overlay-status"),
@@ -541,6 +550,8 @@ import APP_CONFIG from './config.js';
         void signOut();
       });
     }
+
+    bindSupportModalEvents();
 
     if (elements.form) {
       elements.form.addEventListener("submit", (event) => {
@@ -1262,6 +1273,11 @@ import APP_CONFIG from './config.js';
 
     window.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
+        if (isSupportModalVisible()) {
+          event.preventDefault();
+          closeSupportModal();
+          return;
+        }
         if (isPhotoLightboxVisible()) {
           closePhotoLightbox();
           return;
@@ -1310,6 +1326,141 @@ import APP_CONFIG from './config.js';
     syncDongSelectOptions();
     updateIssueFilterUi();
     updateTotalIssueCountLabel();
+  }
+
+  function bindSupportModalEvents() {
+    if (elements.supportModalOpenButton) {
+      elements.supportModalOpenButton.addEventListener("click", () => {
+        openSupportModal(elements.supportModalOpenButton);
+      });
+    }
+
+    if (Array.isArray(elements.supportModalCloseTargets)) {
+      elements.supportModalCloseTargets.forEach((closeTarget) => {
+        closeTarget.addEventListener("click", (event) => {
+          event.preventDefault();
+          closeSupportModal();
+        });
+      });
+    }
+
+    if (elements.supportAccountCopyButton) {
+      elements.supportAccountCopyButton.addEventListener("click", () => {
+        void copySupportAccountNumber();
+      });
+    }
+  }
+
+  function openSupportModal(returnFocusElement) {
+    if (!elements.supportModal) {
+      return;
+    }
+    state.supportModalReturnFocusElement = returnFocusElement instanceof HTMLElement
+      ? returnFocusElement
+      : document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    resetSupportCopyState();
+    elements.supportModal.classList.remove("hidden");
+    elements.supportModal.setAttribute("aria-hidden", "false");
+    document.body && document.body.classList.add("support-modal-open");
+    window.requestAnimationFrame(() => {
+      if (elements.supportModalPanel) {
+        elements.supportModalPanel.focus({ preventScroll: true });
+      }
+    });
+  }
+
+  function closeSupportModal() {
+    if (!isSupportModalVisible()) {
+      return;
+    }
+    elements.supportModal.classList.add("hidden");
+    elements.supportModal.setAttribute("aria-hidden", "true");
+    document.body && document.body.classList.remove("support-modal-open");
+    resetSupportCopyState();
+    const focusTarget = state.supportModalReturnFocusElement;
+    state.supportModalReturnFocusElement = null;
+    if (focusTarget && typeof focusTarget.focus === "function") {
+      focusTarget.focus({ preventScroll: true });
+    }
+  }
+
+  function isSupportModalVisible() {
+    return Boolean(elements.supportModal && !elements.supportModal.classList.contains("hidden"));
+  }
+
+  async function copySupportAccountNumber() {
+    try {
+      let copied = false;
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        try {
+          await navigator.clipboard.writeText(SUPPORT_ACCOUNT_COPY_VALUE);
+          copied = true;
+        } catch (error) {
+          copied = false;
+        }
+      }
+      if (!copied) {
+        copyTextWithTemporaryTextarea(SUPPORT_ACCOUNT_COPY_VALUE);
+      }
+      setSupportCopyState(true);
+    } catch (error) {
+      setSupportCopyState(false);
+      console.warn("후원 계좌번호 복사에 실패했습니다.", error);
+    }
+  }
+
+  function copyTextWithTemporaryTextarea(text) {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.top = "-1000px";
+    textarea.style.left = "-1000px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    if (!copied) {
+      throw new Error("copy command failed");
+    }
+  }
+
+  function setSupportCopyState(copied) {
+    const copyButton = elements.supportAccountCopyButton;
+    if (!copyButton) {
+      return;
+    }
+    if (state.supportCopyResetTimer) {
+      window.clearTimeout(state.supportCopyResetTimer);
+      state.supportCopyResetTimer = null;
+    }
+    const copyIcon = copyButton.querySelector(".support-copy-icon");
+    const checkIcon = copyButton.querySelector(".support-check-icon");
+    const label = copyButton.querySelector(".support-copy-label");
+    copyButton.classList.toggle("support-copy-done", copied);
+    if (copyIcon) {
+      copyIcon.classList.toggle("hidden", copied);
+    }
+    if (checkIcon) {
+      checkIcon.classList.toggle("hidden", !copied);
+    }
+    if (label) {
+      label.textContent = copied ? "복사됨" : "복사";
+    }
+    copyButton.setAttribute("aria-label", copied ? "후원 계좌번호 복사 완료" : "후원 계좌번호 복사");
+    if (!copied) {
+      return;
+    }
+    state.supportCopyResetTimer = window.setTimeout(() => {
+      state.supportCopyResetTimer = null;
+      setSupportCopyState(false);
+    }, SUPPORT_COPY_RESET_MS);
+  }
+
+  function resetSupportCopyState() {
+    setSupportCopyState(false);
   }
 
   function setupPhotoLightbox() {

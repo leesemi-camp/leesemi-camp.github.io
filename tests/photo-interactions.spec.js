@@ -60,7 +60,7 @@ async function waitForSpotListHook(page) {
 // 두 장의 사진을 가진 현안으로 슬라이드쇼를 렌더링한다.
 async function renderSpotWithPhotos(page) {
   await blockFirestore(page);
-  await page.goto("/map/", { waitUntil: "domcontentloaded" });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page);
   await page.evaluate(([firstPhoto, secondPhoto]) => {
     window.__spotListTestHooks.renderVisibleIssueListWithData([
@@ -86,7 +86,7 @@ async function renderSpotWithPhotos(page) {
 // 한 장의 사진을 가진 현안으로 렌더링한다.
 async function renderSpotWithSinglePhoto(page) {
   await blockFirestore(page);
-  await page.goto("/map/", { waitUntil: "domcontentloaded" });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page);
   await page.evaluate((photoUrl) => {
     window.__spotListTestHooks.renderVisibleIssueListWithData([
@@ -145,7 +145,7 @@ test("Map popup photo slideshow next button navigates to next slide", async ({ p
       ]
     }
   ]);
-  await page.goto("/map/", { waitUntil: "domcontentloaded" });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await waitForSpotListHook(page);
   await page.evaluate(() => {
     window.__spotListTestHooks.setActiveDongFilter("판교동");
