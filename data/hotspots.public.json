@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-11T10:04:07.751Z",
+  "generatedAt": "2026-08-14T10:09:24.962Z",
   "source": "firestore",
   "collection": "crowd_hotspots",
-  "count": 71,
+  "count": 73,
   "hotspots": [
     {
       "id": "zGu99pgxdB7gbir8wasx",
@@ -772,6 +772,32 @@
       "updatedAt": "2026-07-28T16:02:28.297Z"
     },
     {
+      "id": "nGYSCS8G4KNVk5sd4q1f",
+      "issueRefId": "",
+      "title": "노후 울타리 교체",
+      "memo": "https://blog.naver.com/leesemi114/224377286555",
+      "level": 3,
+      "contentTab": "changes",
+      "itemType": "improvement",
+      "progressStatus": "completed",
+      "categoryId": "maintenance_repair",
+      "categoryLabel": "🚧 보수·정비",
+      "lat": 37.389709,
+      "lng": 127.088896,
+      "dongName": "판교동",
+      "emdCode": "41135108",
+      "dongSelectionMode": "auto",
+      "dongKey": "name:판교동",
+      "groupLabel": "",
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FnGYSCS8G4KNVk5sd4q1f%2F1786633203691-3d117a850d865dfb.jpg?alt=media&token=b1042a92-361b-4de4-8bc4-101f712f348a",
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FnGYSCS8G4KNVk5sd4q1f%2F1786633208012-bedbd0d7dd2ae0d2.jpg?alt=media&token=68c3c83a-17e8-46a4-812a-d1a476d08ae4"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FnGYSCS8G4KNVk5sd4q1f%2F1786633203691-3d117a850d865dfb.jpg?alt=media&token=b1042a92-361b-4de4-8bc4-101f712f348a",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-08-13T15:08:29.577Z"
+    },
+    {
       "id": "deTVUXdlYl5HMK54UuR8",
       "issueRefId": "",
       "title": "농구장 조명 교체 필요",
@@ -842,6 +868,31 @@
       "photoUrl": "",
       "photoProcessingVersion": 3,
       "updatedAt": "2026-07-28T15:55:47.980Z"
+    },
+    {
+      "id": "CrdYsvg8IO179u6wGAUF",
+      "issueRefId": "",
+      "title": "백현동 파크골프장 화장실 개방",
+      "memo": "https://blog.naver.com/leesemi114/224376259000",
+      "level": 3,
+      "contentTab": "changes",
+      "itemType": "improvement",
+      "progressStatus": "completed",
+      "categoryId": "environment_park",
+      "categoryLabel": "🌳 환경·공원",
+      "lat": 37.381759,
+      "lng": 127.115566,
+      "dongName": "백현동",
+      "emdCode": "41135110",
+      "dongSelectionMode": "manual",
+      "dongKey": "name:백현동",
+      "groupLabel": "",
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FCrdYsvg8IO179u6wGAUF%2F1786633684085-f56a04a70213e70f.jpg?alt=media&token=0259a9d8-46fc-456d-8ddd-e2bd9df15f97"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FCrdYsvg8IO179u6wGAUF%2F1786633684085-f56a04a70213e70f.jpg?alt=media&token=0259a9d8-46fc-456d-8ddd-e2bd9df15f97",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-08-13T15:08:06.800Z"
     },
     {
       "id": "6gY4Pm7PczJq6rkz03wn",
