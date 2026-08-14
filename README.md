@@ -1,6 +1,16 @@
-# 선거사무원 지도 대시보드 (GitHub Pages + OSM Korea/OpenLayers)
+# 우리동네 현안도, 이세미입니다
 
-선거구 동 경계와 현장 혼잡 지점을 공유하기 위한 기본 골격입니다.
+성남시의원(판교·운중·백현·대장) 이세미의 공개 현안·변화·안내 지도 서비스입니다. GitHub Pages에서 정적 웹 앱으로 배포하며, 공개 페이지는 정적 JSON 스냅샷을 읽고 편집 페이지는 Firebase Auth + Firestore 원본 데이터를 사용합니다.
+
+## 현재 URL 구조
+
+- `/`: 공개 현안도. 우리동네 현안, 이세미가 해낸 일, 안내 콘텐츠를 지도와 목록으로 보여줍니다.
+- `/edit/`: 현안도 편집 관리자 페이지. Firebase 로그인 후 `staff=true` 권한이 있는 계정만 사용할 수 있습니다.
+- `/map/`: 과거 공유 링크 보존용 redirect. `/`로 이동합니다.
+- `/map/edit/`: 과거 편집 링크 보존용 redirect. `/edit/`로 이동합니다.
+- `/system/`: 내부 서비스 런처.
+
+공개 페이지 우측 상단에는 `이세미 | 후원` 유틸리티 메뉴만 표시합니다. `이세미`는 외부 소개 링크(`https://litt.ly/leesemi114`)로 열리고, `후원`은 페이지 안에서 후원 안내 모달을 엽니다.
 
 ## 문서(Documentation)
 
@@ -26,12 +36,19 @@
 
 ## 현재 포함된 기능
 
-1. 선거사무원만 로그인 허용 (Firebase Auth + custom claim `staff`)
-2. OSM Korea 군사시설 제외 타일 + OpenLayers 지도 연동
-3. 동 경계(GeoJSON/WFS XML) 표시
-4. 혼잡 지점 마커 등록/공유(수정 화면은 Firestore 원본, 공개 열람 화면은 정적 JSON 스냅샷)
-5. 교통 오버레이(차량 통행/보행 유동, 원격 JSON/GeoJSON) (코드상 구현 / UI는 정리 필요)
-6. 수도권 생활이동 시간대 인구 오버레이(행정동 기준) (코드상 구현 / UI는 정리 필요)
+1. 공개 현안도 루트 페이지(`/`) 제공
+2. 기존 `/map/`, `/map/edit/` 주소 redirect
+3. 관리자 전용 편집 페이지(`/edit/`) 분리
+4. 편집 권한 제어(Firebase Auth + custom claim `staff`)
+5. 공개 페이지의 `이세미 | 후원` 유틸리티 메뉴와 후원 계좌 복사 모달
+6. 우리동네 현안 / 이세미가 해낸 일 / 안내 콘텐츠 탭
+7. 유형별 진행표와 현재 단계 표시
+8. 내용 URL 자동 링크, 긴 내용 줄바꿈, 지도 팝업/상세 모달
+9. OSM Korea 군사시설 제외 타일 + OpenLayers 지도 연동
+10. 동 경계(GeoJSON/WFS XML) 표시
+11. 현안·변화·안내 마커 등록/공유(수정 화면은 Firestore 원본, 공개 열람 화면은 정적 JSON 스냅샷)
+12. 교통 오버레이(차량 통행/보행 유동, 원격 JSON/GeoJSON) (코드상 구현 / UI는 정리 필요)
+13. 수도권 생활이동 시간대 인구 오버레이(행정동 기준) (코드상 구현 / UI는 정리 필요)
 
 ## 1) OSM Korea/OpenLayers 준비
 
@@ -111,13 +128,26 @@
    - GitHub Actions: `.github/workflows/export-hotspots.yml`가 5분마다 Firestore 원본을 읽어 변경 시 스냅샷을 커밋합니다.
    - 저장소 Secret: `FIREBASE_SERVICE_ACCOUNT_JSON`에 Firebase 서비스 계정 JSON을 등록해야 합니다.
 
-## 4) GitHub Pages 배포
+## 4) 로컬 실행 및 테스트
+
+```bash
+npm run serve
+```
+
+- 공개 현안도: `http://localhost:5173/`
+- 편집 관리자: `http://localhost:5173/edit/`
+
+```bash
+npm test
+```
+
+## 5) GitHub Pages 배포
 
 1. 코드를 `main` 브랜치에 푸시
 2. GitHub 저장소 Settings > Pages > Source를 GitHub Actions로 설정
 3. `.github/workflows/deploy-pages.yml`가 자동 배포 수행
 
-## 5) View-T 데이터 오버레이 연결
+## 6) View-T 데이터 오버레이 연결
 
 1. View-T(Open API)에서 토큰키를 발급받습니다.
    - 접속: https://viewt.ktdb.go.kr/cong/page.do (상단 `Open API` 메뉴)
@@ -131,7 +161,7 @@
 - 현재 구현은 JSON/GeoJSON 응답을 지원합니다.
 - API가 CORS를 허용하지 않으면 GitHub Pages에서 직접 호출이 실패할 수 있습니다. 이 경우 프록시(예: Cloudflare Worker)가 필요합니다.
 
-## 6) 수도권 생활이동/유동인구 시간대 오버레이
+## 7) 수도권 생활이동/유동인구 시간대 오버레이
 
 1. `mobilityPopulation.dataPath`를 수도권 생활이동 CSV/JSON 경로로 설정합니다.
 2. `mobilityPopulation.mode`를 선택합니다.

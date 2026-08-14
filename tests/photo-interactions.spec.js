@@ -151,8 +151,10 @@ test("Map popup photo slideshow next button navigates to next slide", async ({ p
     window.__spotListTestHooks.setActiveDongFilter("판교동");
   });
 
-  const spotItem = page.locator("#spot-list [data-spot-id='map-popup-photo-test']");
-  await spotItem.locator("strong").first().click();
+  const opened = await page.evaluate(() => {
+    return window.__spotListTestHooks.openHotspotForTest("map-popup-photo-test");
+  });
+  expect(opened).toBe(true);
   await expect(page.locator("#map-popup")).not.toHaveClass(/hidden/);
   await page.waitForFunction(() => {
     const popup = document.getElementById("map-popup");
@@ -175,49 +177,26 @@ test("Map popup photo slideshow next button navigates to next slide", async ({ p
     });
   });
 
-  const movedSlideshowHandle = await page.waitForFunction(() => {
-    const popup = document.getElementById("map-popup");
-    const slideshow = document.querySelector("#map-popup .photo-slideshow");
-    const indicator = document.querySelector("#map-popup .photo-slide-indicator");
-    const image = document.querySelector("#map-popup .photo-slide-image");
-    const hooks = window.__spotListTestHooks;
-    if (
-      !popup ||
-      popup.classList.contains("hidden") ||
-      popup.classList.contains("map-popup-closing") ||
-      !(slideshow instanceof HTMLElement) ||
-      !indicator ||
-      !(image instanceof HTMLImageElement) ||
-      !hooks
-    ) {
+  const popupSlideshow = page.locator("#map-popup .photo-slideshow");
+  await expect(popupSlideshow).toHaveAttribute("data-photo-count", "2");
+  await expect(page.locator("#map-popup .photo-slide-indicator")).toHaveText("1 / 2");
+
+  const movedSlideshow = await popupSlideshow.evaluate((slideshow) => {
+    const nextButton = slideshow.querySelector("[data-action='photo-slide-next']");
+    if (!(nextButton instanceof HTMLElement)) {
       return null;
     }
-    const slideshowId = String(slideshow.getAttribute("data-photo-slideshow-id") || "").trim();
-    const count = String(slideshow.getAttribute("data-photo-count") || "").trim();
-    const label = String(indicator.textContent || "").trim();
-    if (
-      !slideshowId ||
-      count !== "2" ||
-      label !== "1 / 2" ||
-      typeof hooks.hasPhotoSlideshowForTest !== "function" ||
-      typeof hooks.movePhotoSlideshowForTest !== "function" ||
-      !hooks.hasPhotoSlideshowForTest(slideshowId)
-    ) {
-      return null;
-    }
-    if (!hooks.movePhotoSlideshowForTest(slideshowId, 1)) {
-      return null;
-    }
-    const nextIndicator = document.querySelector("#map-popup .photo-slide-indicator");
-    const nextImage = document.querySelector("#map-popup .photo-slide-image");
+    nextButton.click();
+    const indicator = slideshow.querySelector(".photo-slide-indicator");
+    const image = slideshow.querySelector(".photo-slide-image");
     return {
-      label: String(nextIndicator ? nextIndicator.textContent : "").trim(),
-      index: nextImage instanceof HTMLImageElement
-        ? String(nextImage.getAttribute("data-photo-index") || "")
+      label: String(indicator ? indicator.textContent : "").trim(),
+      index: image instanceof HTMLImageElement
+        ? String(image.getAttribute("data-photo-index") || "")
         : ""
     };
   });
-  expect(await movedSlideshowHandle.jsonValue()).toEqual({
+  expect(movedSlideshow).toEqual({
     label: "2 / 2",
     index: "1"
   });
