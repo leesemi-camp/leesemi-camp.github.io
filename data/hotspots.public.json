@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-14T10:09:24.962Z",
+  "generatedAt": "2026-09-08T13:26:08.229Z",
   "source": "firestore",
   "collection": "crowd_hotspots",
-  "count": 73,
+  "count": 74,
   "hotspots": [
     {
       "id": "zGu99pgxdB7gbir8wasx",
@@ -868,6 +868,31 @@
       "photoUrl": "",
       "photoProcessingVersion": 3,
       "updatedAt": "2026-07-28T15:55:47.980Z"
+    },
+    {
+      "id": "LyMYprVedRHd4a0UYVMW",
+      "issueRefId": "",
+      "title": "백현567 임시주차장 소음·빛 공해",
+      "memo": "https://blog.naver.com/leesemi114/224405044885",
+      "level": 3,
+      "contentTab": "changes",
+      "itemType": "improvement",
+      "progressStatus": "completed",
+      "categoryId": "safety_security",
+      "categoryLabel": "🚨 안전·치안",
+      "lat": 37.385849,
+      "lng": 127.109166,
+      "dongName": "백현동",
+      "emdCode": "41135110",
+      "dongSelectionMode": "auto",
+      "dongKey": "name:백현동",
+      "groupLabel": "",
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FLyMYprVedRHd4a0UYVMW%2F1788856993779-706aed9f0c142f2f.jpg?alt=media&token=2dbb8930-2d7c-4fb6-9dfc-08542f41ed57"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FLyMYprVedRHd4a0UYVMW%2F1788856993779-706aed9f0c142f2f.jpg?alt=media&token=2dbb8930-2d7c-4fb6-9dfc-08542f41ed57",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-09-08T08:43:17.156Z"
     },
     {
       "id": "CrdYsvg8IO179u6wGAUF",
