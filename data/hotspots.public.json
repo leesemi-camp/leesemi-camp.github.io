@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-08T13:26:08.229Z",
+  "generatedAt": "2026-10-01T16:12:50.320Z",
   "source": "firestore",
   "collection": "crowd_hotspots",
-  "count": 74,
+  "count": 76,
   "hotspots": [
     {
       "id": "zGu99pgxdB7gbir8wasx",
@@ -632,6 +632,31 @@
       "updatedAt": "2026-08-07T14:00:54.584Z"
     },
     {
+      "id": "sMaCobzDRJFdmddYFhaX",
+      "issueRefId": "",
+      "title": "260921 판교동 이마트 앞 볼라드 보수 완료",
+      "memo": "https://blog.naver.com/leesemi114/224418998081",
+      "level": 3,
+      "contentTab": "changes",
+      "itemType": "improvement",
+      "progressStatus": "completed",
+      "categoryId": "maintenance_repair",
+      "categoryLabel": "🚧 보수·정비",
+      "lat": 37.389946,
+      "lng": 127.09015,
+      "dongName": "판교동",
+      "emdCode": "41135108",
+      "dongSelectionMode": "auto",
+      "dongKey": "name:판교동",
+      "groupLabel": "",
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FsMaCobzDRJFdmddYFhaX%2F1790834863075-67bb785270e07628.jpg?alt=media&token=c7568cc9-5da7-4013-9ab7-4357c20ac601"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FsMaCobzDRJFdmddYFhaX%2F1790834863075-67bb785270e07628.jpg?alt=media&token=c7568cc9-5da7-4013-9ab7-4357c20ac601",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-10-01T06:07:46.064Z"
+    },
+    {
       "id": "RJETUEdEeLsbyN7ySRW3",
       "issueRefId": "",
       "title": "경기남부광역철도 판교대장역 추진",
@@ -893,6 +918,31 @@
       "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FLyMYprVedRHd4a0UYVMW%2F1788856993779-706aed9f0c142f2f.jpg?alt=media&token=2dbb8930-2d7c-4fb6-9dfc-08542f41ed57",
       "photoProcessingVersion": 3,
       "updatedAt": "2026-09-08T08:43:17.156Z"
+    },
+    {
+      "id": "vRTlGaDSnEVdMbf41mnK",
+      "issueRefId": "",
+      "title": "백현동 안심귀갓길, 바닥표지 정비 완료",
+      "memo": "https://blog.naver.com/leesemi114/224428285489",
+      "level": 3,
+      "contentTab": "changes",
+      "itemType": "improvement",
+      "progressStatus": "completed",
+      "categoryId": "maintenance_repair",
+      "categoryLabel": "🚧 보수·정비",
+      "lat": 37.39108,
+      "lng": 127.111195,
+      "dongName": "백현동",
+      "emdCode": "41135110",
+      "dongSelectionMode": "auto",
+      "dongKey": "name:백현동",
+      "groupLabel": "",
+      "photoUrls": [
+        "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FvRTlGaDSnEVdMbf41mnK%2F1790834828825-611d3bb478328f89.jpg?alt=media&token=12c5753c-6565-4498-8d6d-8cfb0edbb3b2"
+      ],
+      "photoUrl": "https://firebasestorage.googleapis.com/v0/b/semi-campaign-map.firebasestorage.app/o/hotspot-photos%2FvRTlGaDSnEVdMbf41mnK%2F1790834828825-611d3bb478328f89.jpg?alt=media&token=12c5753c-6565-4498-8d6d-8cfb0edbb3b2",
+      "photoProcessingVersion": 3,
+      "updatedAt": "2026-10-01T06:07:12.684Z"
     },
     {
       "id": "CrdYsvg8IO179u6wGAUF",
