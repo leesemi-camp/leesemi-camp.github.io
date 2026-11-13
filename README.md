@@ -88,7 +88,7 @@ npm test
 
 [Playwright 설정](playwright.config.js)은 Chromium, Chrome, Edge, WebKit 프로젝트와 로컬 정적 서버를 사용합니다. [tests/](tests/)에는 지도·목록·팝업·사진·포커스·오프라인 처리 등의 테스트가 있습니다. `npm run test:coverage`는 Chromium 커버리지 프로젝트를 실행합니다.
 
-[CI](.github/workflows/ci.yml)는 브라우저 테스트와 Firestore 내보내기 검사를 수행합니다. 내보내기 job에는 저장소 Secret이 필요합니다. 2026-11-13 문서 점검에서는 공개 스냅샷 검사를 통과했으며, 전체 E2E와 실제 관리자 편집은 다시 실행하지 않았습니다.
+[CI](.github/workflows/ci.yml)는 브라우저 테스트와 Firestore 내보내기 검사를 수행합니다. 내보내기 job에는 저장소 Secret이 필요합니다. 2026-11-13 문서 점검에서는 공개 스냅샷 검사를 통과했으며, 전체 E2E와 실제 관리자 편집은 다시 실행하지 않았습니다. 같은 날 [README PR의 CI](https://github.com/leesemi-camp/leesemi-camp.github.io/actions/runs/43356566948)에서는 스냅샷 job이 통과했지만, 브라우저 job은 Ubuntu 26.04에서 Playwright 1.58.2의 브라우저 의존성 설치가 지원되지 않아 테스트 실행 전에 실패했습니다.
 
 ## 현재 상태와 알려진 한계
 
