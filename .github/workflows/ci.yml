@@ -31,7 +31,7 @@ jobs:
         run: node scripts/validate-hotspots-public-json.mjs /tmp/hotspots.public.json
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       pull-requests: write
     steps:
