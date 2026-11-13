@@ -1,218 +1,109 @@
 # 우리동네 현안도, 이세미입니다
 
-성남시의원(판교·운중·백현·대장) 이세미의 공개 현안·변화·안내 지도 서비스입니다. GitHub Pages에서 정적 웹 앱으로 배포하며, 공개 페이지는 정적 JSON 스냅샷을 읽고 편집 페이지는 Firebase Auth + Firestore 원본 데이터를 사용합니다.
+판교·운중·백현·대장 지역의 현안과 변화를 지도와 목록으로 보여주는 정적 웹앱입니다. 공개 열람은 JSON 스냅샷으로 제공하고, 담당자 편집은 Firebase 인증과 Firestore로 분리했습니다.
 
-## 현재 URL 구조
+## 해결하려는 문제
 
-- `/`: 공개 현안도. 우리동네 현안, 이세미가 해낸 일, 안내 콘텐츠를 지도와 목록으로 보여줍니다.
-- `/edit/`: 현안도 편집 관리자 페이지. Firebase 로그인 후 `staff=true` 권한이 있는 계정만 사용할 수 있습니다.
-- `/map/`: 과거 공유 링크 보존용 redirect. `/`로 이동합니다.
-- `/map/edit/`: 과거 편집 링크 보존용 redirect. `/edit/`로 이동합니다.
-- `/system/`: 내부 서비스 런처.
+지역 현안은 위치, 분야, 진행 상태를 함께 확인해야 맥락을 이해하기 쉽습니다. 이 프로젝트는 동별·분야별 통계, 지도 마커, 상세 설명과 사진을 연결해 같은 정보를 여러 경로로 탐색하도록 구성했습니다. 담당자는 별도 편집 화면에서 내용을 관리합니다.
 
-공개 페이지 우측 상단에는 `이세미 | 후원` 유틸리티 메뉴만 표시합니다. `이세미`는 외부 소개 링크(`https://litt.ly/leesemi114`)로 열리고, `후원`은 페이지 안에서 후원 안내 모달을 엽니다.
+## 주요 기능
 
-## 문서(Documentation)
+- 현안·변화·안내 탭과 동별·분야별·상태별 필터
+- OpenLayers 지도, 행정동 경계, 목록과 연결된 마커·팝업
+- 진행 상태 표시, 상세 모달, 항목 공유 링크
+- 사진 슬라이드·확대 보기와 이미지 로딩 상태 처리
+- Google 로그인과 `staff` 커스텀 클레임을 사용하는 관리자 편집 화면
+- Firestore 원본에서 공개 JSON을 내보내고 형식을 검사하는 스크립트
 
-문서는 루트의 `README.md`, `TODO.md`를 제외하고 `docs/` 폴더에 모아둡니다.
+UI와 데이터 처리는 [app.js](app.js), 화면별 동작과 테스트 연결은 [사용자 시나리오](docs/user-scenarios.md)에서 확인할 수 있습니다.
 
-아래 문서들은 목적에 따라 3가지로 분류합니다.
+## 실제 화면과 데모
 
-### 1) 현재 상태를 기록하는 문서
+- [공개 현안 지도](https://leesemi-camp.github.io/): 탭·통계·목록에서 항목을 선택해 지도와 상세 내용을 확인합니다.
+- [편집 화면](https://leesemi-camp.github.io/edit/): Firebase 로그인과 담당자 권한이 필요합니다.
+- [내부 서비스 런처](https://leesemi-camp.github.io/system/): 권한 확인 후 등록된 서비스로 이동합니다.
 
-- [TODO.md](TODO.md): `app.js`를 테스트 기반으로 점진 리팩터링하기 위한 작업 계획/우선순위
-- [docs/user-scenarios.md](docs/user-scenarios.md): 실제 사용자 시나리오와 `app.js` 구현/테스트 매핑(커버리지 공백 포함)
+2026-11-13 공개 지도 렌더링과 편집 화면의 HTTP 응답을 확인했습니다. 관리자 로그인·운영 데이터 수정은 이 확인에 포함하지 않았습니다. 과거 `/map/`, `/map/edit/` 주소는 각각 `/`, `/edit/`로 이동합니다.
 
-### 2) 구현 중인 요구사항/명세를 개괄적으로 설명하는 비-기술자용 문서
+## 기술 스택
 
-- [docs/project-brief.md](docs/project-brief.md): “누가 무엇을 할 수 있는지” 중심의 서비스 개요(비-기술자용)
+| 영역 | 사용 기술 |
+|---|---|
+| 화면 | HTML, CSS, JavaScript ES modules |
+| 지도 | OpenLayers 10.8, OSM Korea 타일, GeoJSON·WFS XML |
+| 관리자 인증·저장 | Firebase Auth, Firestore, Firebase Storage |
+| 검증 | Playwright, Monocart, JSON 검사 스크립트 |
+| 실행·배포 | Node.js 20 이상, GitHub Pages, GitHub Actions |
 
-### 3) 기술자를 위한 문서
+## 구조와 주요 설계
 
-- [docs/getting-started.md](docs/getting-started.md): 로컬 실행/설정/권한 부여 등 온보딩
-- [docs/external-api.md](docs/external-api.md): 외부 API 및 로컬 데이터 파일 연결(설정 키 중심)
-- [docs/data-hotspots-and-routes.md](docs/data-hotspots-and-routes.md): `data/` 파일 사용처 + Firestore hotspot 관리 + route/trajectory 확장 조사(초안)
-- [docs/cost-guard-telegram.md](docs/cost-guard-telegram.md): Blaze 안전장치(예산 100% 시 billing off + 텔레그램 알림) 자동화
+```mermaid
+flowchart LR
+  Editor[담당자 편집 화면] --> Auth[Firebase Auth]
+  Editor --> DB[Firestore 원본]
+  Editor --> Storage[사진 Storage]
+  DB --> Export[예약 내보내기와 검증]
+  Export --> JSON[공개 JSON]
+  JSON --> Public[공개 지도와 목록]
+  Storage --> Public
+```
 
-## 현재 포함된 기능
+**공개 열람과 원본 편집을 분리했습니다.** [공개 페이지](index.html)는 Firebase SDK를 초기화하지 않고 [JSON 스냅샷](data/hotspots.public.json)을 읽습니다. [편집 페이지](edit/index.html)는 인증 후 원본을 구독합니다. 이 구조로 공개 열람 요청이 Firestore 직접 읽기로 이어지는 것을 피합니다. 성능이나 비용 절감률을 측정한 수치는 없습니다.
 
-1. 공개 현안도 루트 페이지(`/`) 제공
-2. 기존 `/map/`, `/map/edit/` 주소 redirect
-3. 관리자 전용 편집 페이지(`/edit/`) 분리
-4. 편집 권한 제어(Firebase Auth + custom claim `staff`)
-5. 공개 페이지의 `이세미 | 후원` 유틸리티 메뉴와 후원 계좌 복사 모달
-6. 우리동네 현안 / 이세미가 해낸 일 / 안내 콘텐츠 탭
-7. 유형별 진행표와 현재 단계 표시
-8. 내용 URL 자동 링크, 긴 내용 줄바꿈, 지도 팝업/상세 모달
-9. OSM Korea 군사시설 제외 타일 + OpenLayers 지도 연동
-10. 동 경계(GeoJSON/WFS XML) 표시
-11. 현안·변화·안내 마커 등록/공유(수정 화면은 Firestore 원본, 공개 열람 화면은 정적 JSON 스냅샷)
-12. 교통 오버레이(차량 통행/보행 유동, 원격 JSON/GeoJSON) (코드상 구현 / UI는 정리 필요)
-13. 수도권 생활이동 시간대 인구 오버레이(행정동 기준) (코드상 구현 / UI는 정리 필요)
+**공개 데이터에 포함할 필드를 선택합니다.** [내보내기 스크립트](scripts/export-hotspots-public-json.mjs)는 공개 필드를 선정하며, [검사 스크립트](scripts/validate-hotspots-public-json.mjs)는 작성자 필드·인라인 사진 데이터 등 금지 항목과 좌표·분류를 검사합니다. 사진은 JSON에 base64로 넣지 않고 URL로 참조합니다.
 
-## 1) OSM Korea/OpenLayers 준비
+**권한을 화면과 저장소에서 확인합니다.** 편집 진입 시 로그인과 `staff`를 확인하고, [Firestore 규칙](firestore.rules)과 [Storage 규칙](storage.rules)에서 접근을 제어합니다. 규칙 파일은 실제 Firebase 프로젝트에도 적용해야 합니다.
 
-1. 기본 지도는 `https://tiles.osm.kr/hot/{z}/{x}/{y}.png` 타일을 사용합니다.
-2. 이 타일은 OSM Korea의 군사시설 제외 한반도 지도 타일입니다.
-3. 타일 서버 부하가 우려되거나 대규모 트래픽이 예상되면 자체 타일 서버 또는 상용 타일 제공자 사용을 검토하세요.
+**데이터 갱신과 사이트 배포를 나눴습니다.** [Export Public Hotspots](.github/workflows/export-hotspots.yml)는 설정상 일 1회(`0 9 * * *`, UTC 09:00/KST 18:00)와 수동 실행을 지원합니다. 변경된 JSON을 커밋하면 [Pages 배포](.github/workflows/deploy-pages.yml)가 실행됩니다. 예약 실행은 지연될 수 있으며 편집 내용이 공개 화면에 즉시 반영되는 구조는 아닙니다.
 
-## 2) Firebase 준비
+## 설치와 실행
 
-1. Firebase 프로젝트 생성
-2. Authentication > Sign-in method에서 Google 로그인 활성화
-3. Authentication > Settings > Authorized domains에 GitHub Pages 도메인 추가
-4. Firestore Database 생성(Production/Region 선택)
-5. Firebase Storage 버킷 생성(기본 버킷 사용 가능)
-6. 프로젝트 루트의 `firestore.rules` 규칙 적용
-7. 프로젝트 루트의 `storage.rules` 규칙 적용
-8. 지도 수정 권한을 줄 계정에 Firebase custom claim을 부여
-   - claim key: `staff`
-   - claim value: `true`
-   - 방법: `scripts/set-staff-claim.cjs` 사용(아래 절차 참고)
-
-### staff 권한 부여 절차 (custom claim)
-
-1. Firebase Console > Project settings > Service accounts > `Generate new private key`로 서비스계정 JSON 다운로드
-2. 터미널에서 `firebase-admin` 설치
-   - 예: `npm i firebase-admin`
-3. 아래 명령으로 사용자 권한 부여
-   - `node scripts/set-staff-claim.cjs --service-account /절대경로/service-account.json --email staff@example.com --staff true`
-4. 권한 제거가 필요하면
-   - `node scripts/set-staff-claim.cjs --service-account /절대경로/service-account.json --email staff@example.com --staff false`
-5. 권한 변경 후 사용자는 로그아웃/재로그인(또는 토큰 갱신)해야 반영됩니다.
-
-### 보안 강화 체크리스트 (권장)
-
-1. Firebase Web API key 제한
-   - Google Cloud Console > APIs & Services > Credentials > 해당 API key
-   - `Application restrictions`: HTTP referrers(웹사이트)로 제한
-   - `API restrictions`: 필요한 API만 허용(Identity Toolkit, Firebase Installations 등)
-2. App Check 활성화
-   - Firebase Console > Build > App Check > Web 앱 등록(reCAPTCHA v3)
-   - 발급된 site key를 `config.js > firebase.appCheck.siteKey`에 입력 후 `enabled: true`로 변경
-   - Firestore/Functions 등 백엔드 리소스에 App Check 강제(enforce) 적용
-3. 외부 API 토큰은 프론트(config.js)에 직접 넣지 않기
-   - 정적 페이지 특성상 `config.js` 값은 사용자 브라우저에 공개됩니다.
-   - 토큰이 필요한 호출은 Cloud Functions/Cloud Run/Worker 프록시에서 처리하고,
-     토큰은 Secret Manager 등 서버측 비밀 저장소에 보관하세요.
-4. 공개 현안 데이터는 Firestore 직접 읽기가 아니라 `data.hotspotSnapshotPath`의 정적 JSON으로 제공합니다.
-   - `/`은 Firebase SDK를 초기화하지 않고 `data/hotspots.public.json`만 읽습니다.
-   - `/edit/`은 staff 계정만 Firestore 원본을 읽고 수정합니다.
-   - 사진은 JSON에 base64로 넣지 않고 Firebase Storage URL만 싣습니다.
-
-## 3) 설정 파일 입력
-
-1. `config.js`에 아래 값 입력
-   - `firebase.config` 값들
-   - `map.defaultCenter`, `map.defaultZoom`(선택)
-   - `data.boundaryStrokeColor`, `data.boundaryStrokeWidth`, `data.boundaryHaloColor`, `data.boundaryHaloWidth`(선택)
-   - `trafficOverlays.vehicle`, `trafficOverlays.pedestrian` URL/필드 설정(선택)
-2. 필요하면 `config.example.js`를 참고해 형식 확인
-3. 실제 동 경계 데이터로 교체
-   - 기본 샘플: `data/dong-boundaries.sample.geojson`
-   - 다중 파일: `config.js`의 `data.boundarySources` 배열 사용
-   - 단일 파일: `config.js`의 `data.boundaryGeoJsonPath` 사용
-4. 생활이동 인구 데이터 연결
-   - 행정동 샘플: `data/capital-mobility.sample.csv`
-   - 판교/운중권 월·시간 샘플: `data/pangyo-focused-month-hour.csv`
-   - 250m 격자 샘플: `data/capital-mobility-grid.sample.csv`
-   - 설정: `config.js`의 `mobilityPopulation` (`mode`, `dataPath`, `fields`, `cellSizeMeter`)
-5. (선택) 스프레드시트/외부 API 현안 원문 연동
-   - 설정: `config.js`의 `data.issueCatalog`
-   - `enabled: true`로 켜면 `/edit/`에 `연동 현안 선택(시트)` 드롭다운이 표시됩니다.
-   - 저장 시 좌표는 Firestore에 저장하고, 제목/분류/내용은 연동 API 데이터를 우선 사용합니다.
-   - 핵심 필드: `apiUrl`, `sourceType`, `rowPath`, `idField`, `titleField`, `categoryIdField`
-6. 공개 현안 스냅샷 경로
-   - 기본값: `config.js > data.hotspotSnapshotPath = "/data/hotspots.public.json"`
-   - 생성: `npm run export:hotspots`
-   - GitHub Actions: `.github/workflows/export-hotspots.yml`가 5분마다 Firestore 원본을 읽어 변경 시 스냅샷을 커밋합니다.
-   - 저장소 Secret: `FIREBASE_SERVICE_ACCOUNT_JSON`에 Firebase 서비스 계정 JSON을 등록해야 합니다.
-
-## 4) 로컬 실행 및 테스트
+공개 화면은 저장된 JSON으로 실행할 수 있습니다. 지도 타일·CDN·사진을 불러오려면 인터넷 연결이 필요합니다.
 
 ```bash
+git clone https://github.com/leesemi-camp/leesemi-camp.github.io.git
+cd leesemi-camp.github.io
+npm ci
 npm run serve
 ```
 
-- 공개 현안도: `http://localhost:5173/`
-- 편집 관리자: `http://localhost:5173/edit/`
+`http://127.0.0.1:5173/`에서 공개 지도, `/edit/`에서 편집 화면을 엽니다. [정적 서버](scripts/serve-static.mjs)의 기본 포트는 5173입니다.
+
+독립된 편집 환경을 구성하려면 다음 설정이 필요합니다.
+
+1. 본인 Firebase 프로젝트에서 Google 로그인, Firestore, Storage를 준비합니다.
+2. [config.example.js](config.example.js)를 참고해 [config.js](config.js)를 본인 환경에 맞추고 `localhost` 등 로그인 도메인을 등록합니다.
+3. `firestore.rules`, `storage.rules`를 프로젝트에 적용하고 담당자 계정에 `staff=true` 클레임을 부여합니다. [권한 부여 스크립트](scripts/set-staff-claim.cjs)는 별도 `firebase-admin` 설치가 필요합니다.
+4. 자동 내보내기를 사용하려면 저장소 Secret `FIREBASE_SERVICE_ACCOUNT_JSON`을 설정합니다. 수동 내보내기 옵션은 해당 스크립트를 확인합니다.
+
+`config.js`는 브라우저에 공개됩니다. 서비스 계정 JSON과 외부 API 비밀 토큰을 넣지 마세요. 공개 저장소의 기존 설정으로 운영 데이터를 수정하지 말고 별도 프로젝트를 사용하세요. 자세한 절차는 [시작 가이드](docs/getting-started.md)에 있습니다.
+
+## 테스트와 검증
 
 ```bash
+npm run validate:hotspots
+npx playwright install chromium chrome msedge webkit
 npm test
 ```
 
-## 5) GitHub Pages 배포
+[Playwright 설정](playwright.config.js)은 Chromium, Chrome, Edge, WebKit 프로젝트와 로컬 정적 서버를 사용합니다. [tests/](tests/)에는 지도·목록·팝업·사진·포커스·오프라인 처리 등의 테스트가 있습니다. `npm run test:coverage`는 Chromium 커버리지 프로젝트를 실행합니다.
 
-1. 코드를 `main` 브랜치에 푸시
-2. GitHub 저장소 Settings > Pages > Source를 GitHub Actions로 설정
-3. `.github/workflows/deploy-pages.yml`가 자동 배포 수행
+[CI](.github/workflows/ci.yml)는 브라우저 테스트와 Firestore 내보내기 검사를 수행합니다. 내보내기 job에는 저장소 Secret이 필요합니다. 2026-11-13 문서 점검에서는 공개 스냅샷 검사를 통과했으며, 전체 E2E와 실제 관리자 편집은 다시 실행하지 않았습니다.
 
-## 6) View-T 데이터 오버레이 연결
+## 현재 상태와 알려진 한계
 
-1. View-T(Open API)에서 토큰키를 발급받습니다.
-   - 접속: https://viewt.ktdb.go.kr/cong/page.do (상단 `Open API` 메뉴)
-2. (권장) 토큰은 `config.js`에 직접 넣지 말고 프록시 백엔드에서 주입하세요.
-   - 개발/임시 테스트만 `config.js > trafficOverlays.token` 직접 입력
-3. `trafficOverlays.vehicle.url`, `trafficOverlays.pedestrian.url`에 API URL을 입력합니다.
-4. 응답 구조에 따라 `rowPath`, `valueProperty`, `longitudeProperty`, `latitudeProperty`를 맞춥니다.
-5. 로그인 후 사이드패널의 토글(차량 통행 많은 곳 / 보행 유동 많은 곳)로 레이어를 켭니다.
+- 공개 지도와 관리자 편집 경로가 구현되어 있습니다. 공개 데이터의 최신성은 내보내기·배포 성공 여부에 따라 달라집니다.
+- 교통 오버레이·생활이동 데이터 처리 코드는 있지만, 교통 API URL은 현재 비어 있습니다. 샘플 데이터와 실제 운영 연동을 구분해야 합니다. 설정은 [외부 API 안내](docs/external-api.md)를 참고하세요.
+- 외부 현안 카탈로그 연동은 기본 비활성이고 Firebase App Check도 기본 비활성입니다.
+- `/party-dialer/`, `/sponsor-dialer/`는 준비 화면입니다. 런처의 외부 전화 시스템·글 작성 도우미는 이 저장소의 구현 범위에 포함하지 않습니다.
+- 주요 로직이 `app.js`에 모여 있습니다. 자동 테스트가 실제 Firebase 로그인·운영 권한·모든 사용자 시나리오를 검증하는 것은 아닙니다.
+- 외부 타일·CDN·Firebase 서비스와 네트워크에 의존합니다.
 
-참고:
-- 현재 구현은 JSON/GeoJSON 응답을 지원합니다.
-- API가 CORS를 허용하지 않으면 GitHub Pages에서 직접 호출이 실패할 수 있습니다. 이 경우 프록시(예: Cloudflare Worker)가 필요합니다.
+## 관련 문서
 
-## 7) 수도권 생활이동/유동인구 시간대 오버레이
+- [서비스 개요](docs/project-brief.md)
+- [사용자 시나리오와 검증 공백](docs/user-scenarios.md)
+- [데이터 파일과 원본 구조](docs/data-hotspots-and-routes.md)
+- [예산 알림·비용 보호 구성](docs/cost-guard-telegram.md)
 
-1. `mobilityPopulation.dataPath`를 수도권 생활이동 CSV/JSON 경로로 설정합니다.
-2. `mobilityPopulation.mode`를 선택합니다.
-   - `emd`: 행정동 경계 채움
-   - `grid250`: 250m 격자 칸 채움
-3. 데이터 컬럼명을 `mobilityPopulation.fields`에 맞춥니다.
-   - `month`: 월(예: 202506)
-   - `hour`: 시간(0~23 또는 08:00 형식)
-   - `population`: 인구/이동량 수치
-   - `emd` 모드: `emdCode`(예: 41135108)
-   - `grid250` 모드: `longitude`/`latitude`(또는 `x`/`y`)
-   - 구간형 시간코드(TZ01~TZ10)를 쓰면 `hourLabels`로 라벨을 지정할 수 있습니다.
-4. 로그인 후 사이드패널의 `시간대 인구 많은 지역 보기` 토글을 켭니다.
-5. 월/시간대 선택값을 바꾸면 오버레이가 즉시 갱신됩니다.
-
-### 경기도 유동인구 OpenAPI 연결 예시
-
-경기도 데이터드림 OpenAPI(행정동별 유동인구)를 붙일 때는 `mode: "emd"`로 두고 JSON 필드를 매핑하면 됩니다.
-
-```js
-mobilityPopulation: {
-  enabled: true,
-  mode: "emd",
-  sourceType: "json",
-  dataPath: "https://openapi.gg.go.kr/YOUR_SERVICE_NAME",
-  token: "YOUR_GG_API_KEY",
-  tokenQueryKey: "KEY",
-  queryParams: {
-    Type: "json",
-    pIndex: 1,
-    pSize: 1000
-  },
-  rowPath: "", // 비우면 구조 자동 감지
-  fields: {
-    month: "STD_YM",
-    hour: "시간대코드",
-    emdCode: "행정동코드",
-    population: "유동인구수"
-  },
-  defaultMonth: "202506",
-  defaultHour: 8,
-  visibleByDefault: true
-}
-```
-
-주의:
-- 실제 서비스명(`YOUR_SERVICE_NAME`)과 필드명은 데이터드림 API 문서 기준으로 맞춰야 합니다.
-- API가 HTML 차단 페이지를 반환하면(보안정책/권한/CORS) 앱 상태창에 에러가 표시됩니다.
-
-## 운영 시 주의사항
-
-- GitHub Pages는 정적 호스팅이라 페이지 자체 URL은 공개될 수 있습니다.
-- 현재 템플릿은 인증되지 않은 사용자가 원본 데이터(Firestore)를 읽지 못하도록 보호하고, 공개 페이지에는 정적 JSON 스냅샷만 노출합니다.
-- "페이지 자체 접근까지 완전히 차단"이 필요하면 Cloudflare Access 같은 별도 게이트를 앞단에 두는 것을 권장합니다.
+지도 데이터의 출처는 OpenStreetMap contributors, 타일 제공은 OpenStreetMap Korea입니다. 화면의 출처 표기를 유지해야 합니다.
